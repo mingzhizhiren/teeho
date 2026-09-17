@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local credentials and configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Runtime data
+.cache/
+logs/
+history/
+sessions/
+cookies/
+*.db
+*.sqlite
+*.sqlite3
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+

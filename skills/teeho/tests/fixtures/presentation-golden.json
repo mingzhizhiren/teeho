@@ -1,0 +1,1214 @@
+[
+    {
+        "name": "help",
+        "command": "help",
+        "result": {
+            "features": []
+        },
+        "view": {
+            "state": "ready",
+            "kind": "help",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "topic": null
+            }
+        },
+        "displayText": "🔥 All Teeho features\n\n1️⃣ Execute - Sign in or out of your account\n2️⃣ Execute - Run a note diagnosis\n3️⃣ View - Diagnosis progress and results\n4️⃣ View - Account information and credits\n5️⃣ View - Past analysis results\n6️⃣ View - Teeho help",
+        "fields": {
+            "helpFeatures": "All Teeho features",
+            "helpExecute": "Execute",
+            "help_account_title": "Sign in or out of your account",
+            "help_diagnose_title": "Run a note diagnosis",
+            "helpView": "View",
+            "help_task_title": "Diagnosis progress and results",
+            "help_status_title": "Account information and credits",
+            "help_history_title": "Past analysis results",
+            "help_help_title": "Teeho help"
+        }
+    },
+    {
+        "name": "installation",
+        "command": "installation",
+        "result": {
+            "configured": true,
+            "apiUrl": "http://localhost:9634/api"
+        },
+        "view": {
+            "state": "ready",
+            "kind": "installation",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "url": "http://localhost:9634/api"
+            }
+        },
+        "displayText": "🔥 Usage example\n\n════════════════════════════════════════\n\nUse Teeho to diagnose this note:\n\n• Title: Paste your title\n• Body: Paste your body\n• Topics: #topic1 #topic2 #topic3\n\nA cover is required. The first image is the default cover. Add the note images or video to complete the material.\nDiagnosis automatically uses an anonymous account if you are not signed in. You can ask to log into your own account.",
+        "fields": {
+            "usage": "Usage example",
+            "usageRequest": "Use Teeho to diagnose this note:",
+            "title": "Title",
+            "exampleTitle": "Paste your title",
+            "body": "Body",
+            "exampleBody": "Paste your body",
+            "topics": "Topics",
+            "exampleTopics": "#topic1 #topic2 #topic3",
+            "usageMedia": "A cover is required. The first image is the default cover. Add the note images or video to complete the material.",
+            "usageIdentity": "Diagnosis automatically uses an anonymous account if you are not signed in. You can ask to log into your own account."
+        }
+    },
+    {
+        "name": "login",
+        "command": "login",
+        "result": {
+            "verificationUrl": "https://teeho.chat/skill/authorize?code=ABC",
+            "userCode": "ABC",
+            "interval": 5000
+        },
+        "view": {
+            "state": "authorization_pending",
+            "kind": "authorization",
+            "nextAction": "login-status",
+            "texts": {},
+            "data": {
+                "url": "https://teeho.chat/skill/authorize?code=ABC",
+                "code": "ABC",
+                "interval": 5000
+            }
+        },
+        "displayText": "🔐 Login authorization\n\n• Authorization URL: https://teeho.chat/skill/authorize?code=ABC\n• Authorization code: ABC\n\nOpen the link to authorize; your original request will then continue.",
+        "fields": {
+            "login": "Login authorization",
+            "authorizationUrl": "Authorization URL",
+            "authorizationCode": "Authorization code",
+            "loginInstructions": "Open the link to authorize; your original request will then continue."
+        }
+    },
+    {
+        "name": "anonymous",
+        "command": "anonymous",
+        "result": {
+            "user": {
+                "isAnonymous": true
+            },
+            "expiresAt": null
+        },
+        "view": {
+            "state": "authenticated",
+            "kind": "onboarding",
+            "nextAction": "continue",
+            "texts": {},
+            "data": {
+                "anonymous": true,
+                "expiresAt": null
+            }
+        },
+        "displayText": "✅ Login successful\n⚠️ Using an anonymous account for this diagnosis\nYou can ask me to log into your Teeho account at any time.\n• Authorization expires: Until you sign out or revoke access\n\nTeeho diagnoses existing notes, without ghostwriting. Credits are reserved at admission and settled on success. A new diagnosis is billed separately.\n\n🔥 All Teeho features\n\n1️⃣ Execute - Sign in or out of your account\n2️⃣ Execute - Run a note diagnosis\n3️⃣ View - Diagnosis progress and results\n4️⃣ View - Account information and credits\n5️⃣ View - Past analysis results\n6️⃣ View - Teeho help",
+        "fields": {
+            "loginSuccess": "Login successful",
+            "anonymous": "Using an anonymous account for this diagnosis",
+            "loginHint": "You can ask me to log into your Teeho account at any time.",
+            "expires": "Authorization expires",
+            "persistent": "Until you sign out or revoke access",
+            "rules": "Teeho diagnoses existing notes, without ghostwriting. Credits are reserved at admission and settled on success. A new diagnosis is billed separately.",
+            "helpFeatures": "All Teeho features",
+            "helpExecute": "Execute",
+            "help_account_title": "Sign in or out of your account",
+            "help_diagnose_title": "Run a note diagnosis",
+            "helpView": "View",
+            "help_task_title": "Diagnosis progress and results",
+            "help_status_title": "Account information and credits",
+            "help_history_title": "Past analysis results",
+            "help_help_title": "Teeho help"
+        }
+    },
+    {
+        "name": "formal",
+        "command": "login-status",
+        "result": {
+            "user": {
+                "isAnonymous": false
+            },
+            "expiresAt": "2099-01-01T00:00:00Z"
+        },
+        "view": {
+            "state": "authenticated",
+            "kind": "onboarding",
+            "nextAction": "continue",
+            "texts": {},
+            "data": {
+                "anonymous": false,
+                "expiresAt": "2099-01-01T00:00:00Z"
+            }
+        },
+        "displayText": "✅ Login successful\n• Authorization expires: 2099-01-01T00:00:00Z\n\nTeeho diagnoses existing notes, without ghostwriting. Credits are reserved at admission and settled on success. A new diagnosis is billed separately.\n\n🔥 All Teeho features\n\n1️⃣ Execute - Sign in or out of your account\n2️⃣ Execute - Run a note diagnosis\n3️⃣ View - Diagnosis progress and results\n4️⃣ View - Account information and credits\n5️⃣ View - Past analysis results\n6️⃣ View - Teeho help",
+        "fields": {
+            "loginSuccess": "Login successful",
+            "expires": "Authorization expires",
+            "rules": "Teeho diagnoses existing notes, without ghostwriting. Credits are reserved at admission and settled on success. A new diagnosis is billed separately.",
+            "helpFeatures": "All Teeho features",
+            "helpExecute": "Execute",
+            "help_account_title": "Sign in or out of your account",
+            "help_diagnose_title": "Run a note diagnosis",
+            "helpView": "View",
+            "help_task_title": "Diagnosis progress and results",
+            "help_status_title": "Account information and credits",
+            "help_history_title": "Past analysis results",
+            "help_help_title": "Teeho help"
+        }
+    },
+    {
+        "name": "status",
+        "command": "status",
+        "result": {
+            "user": {
+                "isAnonymous": false,
+                "email": "example@example.test"
+            },
+            "summary": {
+                "enabled": true,
+                "balances": {
+                    "free": 30,
+                    "package": 0,
+                    "purchased": 1.25,
+                    "total": 31.25
+                }
+            }
+        },
+        "view": {
+            "state": "authenticated",
+            "kind": "status",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "anonymous": false,
+                "email": "example@example.test",
+                "enabled": true,
+                "balances": {
+                    "free": 30,
+                    "package": 0,
+                    "purchased": 1.25,
+                    "total": 31.25
+                }
+            }
+        },
+        "displayText": "📋 Current status\nAccount: Signed-in account\nexample@example.test\nDaily credits: 30\nMonthly credits: 0\nPurchased credits: 1.25\nAvailable credits: 31.25",
+        "fields": {
+            "free": "Daily credits",
+            "package": "Monthly credits",
+            "purchased": "Purchased credits",
+            "total": "Available credits",
+            "status": "Current status",
+            "identity": "Account",
+            "formalAccount": "Signed-in account"
+        }
+    },
+    {
+        "name": "status-disabled",
+        "command": "status",
+        "result": {
+            "user": {
+                "isAnonymous": true
+            },
+            "summary": {
+                "enabled": false
+            }
+        },
+        "view": {
+            "state": "authenticated",
+            "kind": "status",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "anonymous": true,
+                "email": "",
+                "enabled": false,
+                "balances": {
+                    "free": null,
+                    "package": null,
+                    "purchased": null,
+                    "total": null
+                }
+            }
+        },
+        "displayText": "📋 Current status\nAccount: Anonymous account\nCredit billing is disabled in this environment.",
+        "fields": {
+            "status": "Current status",
+            "identity": "Account",
+            "anonymousAccount": "Anonymous account",
+            "billingDisabled": "Credit billing is disabled in this environment."
+        }
+    },
+    {
+        "name": "summary",
+        "command": "task_summary",
+        "anonymous": true,
+        "result": {
+            "title": "标题```\ntext",
+            "body": "A body",
+            "topics": "#topic1 #topic2",
+            "images": 0,
+            "video": "",
+            "cover": "",
+            "ignored": [
+                "file1"
+            ]
+        },
+        "view": {
+            "state": "submitting",
+            "kind": "summary",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "title": "标题ˋˋˋ text",
+                "body": "A body",
+                "topics": "#topic1 #topic2",
+                "video": "",
+                "cover": "",
+                "images": 0,
+                "ignored": [
+                    "file1"
+                ],
+                "anonymous": true
+            }
+        },
+        "displayText": "⚠️ Using an anonymous account for this diagnosis\nYou can ask me to log into your Teeho account at any time.\n\n🔥 Note diagnosis\n\n• Title: 标题ˋˋˋ text\n• Body: A body\n• Topics: #topic1 #topic2\n• Images: 0\n• Video: Not provided\n• Cover: Not provided\n⚠️ Provide a cover image before starting the analysis.\nIgnored excess materials: file1\n\n⏳ Uploading materials and submitting diagnosis…",
+        "fields": {
+            "anonymous": "Using an anonymous account for this diagnosis",
+            "loginHint": "You can ask me to log into your Teeho account at any time.",
+            "summary": "Note diagnosis",
+            "title": "Title",
+            "body": "Body",
+            "topics": "Topics",
+            "images": "Images",
+            "video": "Video",
+            "none": "Not provided",
+            "cover": "Cover",
+            "mediaWarning": "Provide a cover image before starting the analysis.",
+            "ignored": "Ignored excess materials",
+            "upload": "Uploading materials and submitting diagnosis…"
+        }
+    },
+    {
+        "name": "history-empty",
+        "command": "history",
+        "result": {
+            "history": []
+        },
+        "view": {
+            "state": "ready",
+            "kind": "history",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "records": []
+            }
+        },
+        "displayText": "📁 Local reports\nNo local reports yet.",
+        "fields": {
+            "history": "Local reports",
+            "emptyHistory": "No local reports yet."
+        }
+    },
+    {
+        "name": "history",
+        "command": "history",
+        "result": {
+            "history": [
+                {
+                    "id": "00000000-0000-4000-8000-000000000001",
+                    "savedAt": "2026-09-10T00:00:00.000Z",
+                    "summary": "Report summary."
+                }
+            ]
+        },
+        "view": {
+            "state": "ready",
+            "kind": "history",
+            "nextAction": null,
+            "texts": {
+                "history_0": "Report summary."
+            },
+            "data": {
+                "records": [
+                    {
+                        "id": "00000000-0000-4000-8000-000000000001",
+                        "savedAt": "2026-09-10T00:00:00.000Z",
+                        "summary": "history_0"
+                    }
+                ]
+            }
+        },
+        "displayText": "📁 Local reports\n[1] Report summary.\n2026-09-10T00:00:00.000Z",
+        "fields": {
+            "history_0": "Report summary.",
+            "history": "Local reports"
+        }
+    },
+    {
+        "name": "config",
+        "command": "config",
+        "result": {
+            "config": {
+                "tracks": []
+            }
+        },
+        "view": {
+            "state": "ready",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "message": "config"
+            }
+        },
+        "displayText": "✅ Input configuration loaded\n════════════════════════════════════════\n\nInput configuration loaded",
+        "fields": {
+            "config": "Input configuration loaded"
+        }
+    },
+    {
+        "name": "inspect",
+        "command": "inspect",
+        "result": {
+            "notes": [
+                {
+                    "path": "C:/中文/note.txt"
+                }
+            ],
+            "images": [
+                {}
+            ],
+            "videos": [],
+            "requiresSelection": true
+        },
+        "view": {
+            "state": "ready",
+            "kind": "inspect",
+            "nextAction": "select_note",
+            "texts": {},
+            "data": {
+                "files": [
+                    "C:/中文/note.txt"
+                ],
+                "images": 1,
+                "videos": 0
+            }
+        },
+        "displayText": "📁 Note files found\nImages: 1\nVideo: 0\n• C:/中文/note.txt\nSelect one note to diagnose.",
+        "fields": {
+            "inspect": "Note files found",
+            "images": "Images",
+            "video": "Video",
+            "selectNote": "Select one note to diagnose."
+        }
+    },
+    {
+        "name": "clear-history",
+        "command": "clear-history",
+        "result": {
+            "cleared": true
+        },
+        "view": {
+            "state": "cleared",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "message": "historyCleared"
+            }
+        },
+        "displayText": "✅ Local history cleared\n════════════════════════════════════════\n\nLocal history cleared",
+        "fields": {
+            "historyCleared": "Local history cleared"
+        }
+    },
+    {
+        "name": "clear-identity",
+        "command": "clear-identity",
+        "result": {
+            "cleared": true
+        },
+        "view": {
+            "state": "cleared",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "message": "identityCleared"
+            }
+        },
+        "displayText": "✅ Local identity cleared\n════════════════════════════════════════\n\nLocal identity cleared",
+        "fields": {
+            "identityCleared": "Local identity cleared"
+        }
+    },
+    {
+        "name": "logout",
+        "command": "logout",
+        "result": {
+            "signedOut": true
+        },
+        "view": {
+            "state": "signed_out",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "message": "signedOut"
+            }
+        },
+        "displayText": "✅ Signed out\n════════════════════════════════════════\n\nSigned out",
+        "fields": {
+            "signedOut": "Signed out"
+        }
+    },
+    {
+        "name": "preparing",
+        "command": "resume",
+        "result": {
+            "preparing": true
+        },
+        "view": {
+            "state": "preparing",
+            "kind": "notice",
+            "nextAction": "resume",
+            "texts": {},
+            "data": {
+                "message": "preparingMessage"
+            }
+        },
+        "displayText": "⏳ Unable to complete this operation\n════════════════════════════════════════\n\nMaterials are still being processed. Resume this task later.",
+        "fields": {
+            "error": "Unable to complete this operation",
+            "preparingMessage": "Materials are still being processed. Resume this task later."
+        }
+    },
+    {
+        "name": "invalid",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "succeeded",
+                "result": {
+                    "bad": true
+                }
+            }
+        },
+        "view": {
+            "state": "invalid_response",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "message": "invalidResponse",
+                "taskId": "00000000-0000-4000-8000-000000000001"
+            }
+        },
+        "displayText": "❌ Unable to complete this operation\n════════════════════════════════════════\n\nThe returned data is incomplete or unreadable. Query the same task again; do not submit a new diagnosis.",
+        "fields": {
+            "error": "Unable to complete this operation",
+            "invalidResponse": "The returned data is incomplete or unreadable. Query the same task again; do not submit a new diagnosis."
+        }
+    },
+    {
+        "name": "report",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "succeeded",
+                "pointCost": 15,
+                "pointReservationStatus": "released",
+                "result": {
+                    "schemaVersion": "analysis-result.v7",
+                    "primaryTrack": 1,
+                    "insight": {
+                        "status": "available",
+                        "score": 7.2,
+                        "limited": false,
+                        "reference": null,
+                        "comparison": null
+                    },
+                    "radar": {
+                        "topicDemand": 7.0,
+                        "titleExpression": 7.1,
+                        "contentDevelopment": 7.2,
+                        "readingExperience": 7.3,
+                        "interactionPotential": 7.4,
+                        "distinctiveness": 7.5
+                    },
+                    "differences": [],
+                    "comparisonNotes": [
+                        {
+                            "title": "[Comparison]_*<title>",
+                            "bodyExcerpt": "Original ``quote\nwith details.",
+                            "likes": 10,
+                            "collects": 2,
+                            "comments": 0,
+                            "reason": "Comparable context.",
+                            "noteUrl": "https://example.test/note"
+                        }
+                    ],
+                    "qualitativeConclusion": {
+                        "summary": "The promise needs supporting details."
+                    },
+                    "topicSupport": {
+                        "status": "no_sources",
+                        "matchedTopics": [],
+                        "bonus": 0
+                    },
+                    "primaryScore": {
+                        "source": "insight",
+                        "value": 7.2
+                    }
+                }
+            },
+            "saved": true
+        },
+        "view": {
+            "state": "completed",
+            "kind": "report",
+            "nextAction": null,
+            "texts": {
+                "content_0": "Comparable context.",
+                "content_1": "The promise needs supporting details."
+            },
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "historical": false,
+                "saved": true,
+                "billing": {
+                    "price": null,
+                    "message": "released"
+                },
+                "score": 7.2,
+                "scoreSource": "insight",
+                "customMetrics": [],
+                "limited": false,
+                "scoreReference": null,
+                "comparison": null,
+                "scores": [
+                    7.0,
+                    7.1,
+                    7.2,
+                    7.3,
+                    7.4,
+                    7.5
+                ],
+                "summary": "content_1",
+                "comparisons": [
+                    {
+                        "id": "",
+                        "title": "[Comparison]_*<title>",
+                        "excerpt": "Original ˋˋquote with details.",
+                        "likes": 10,
+                        "collects": 2,
+                        "comments": 0,
+                        "reason": "content_0",
+                        "url": "https://example.test/note"
+                    }
+                ],
+                "differences": []
+            }
+        },
+        "displayText": "🔥 Teeho · NOTE CHECKUP\n✨ Remaining credits -\n\n【DIAGNOSIS COMPLETE】\n\n🎯 Insight engine score: 7.20 / 10 \nInsight model median score for comparable notes: Unavailable\nInsight model highest score for comparable notes: Unavailable\nInsight model lowest score for comparable notes: Unavailable\n\nThe promise needs supporting details.\n\n════════════════════════════════════════\n\n【📊 Radar chart】\n\n           🎯 Topic demand          \n                7.00               \n  ⏱️ Distinctive  🖼️ Title expre\n       ness            ssion\n       7.50            7.10\n\n                ···\n            ····   ····\n         ···    ╱●╲    ···\n       ··  ╱╱╱╱╱   ╲╲     ··\n       · ●╱          ╲╲    ·\n       · │             ╲●  ·\n       · │              │  ·\n       · │              │  ·\n       · │              │  ·\n       · │              │  ·\n       · ●╲            ╱● ··\n       ··  ╲╲╲╲╲   ╱╱╱╱ ··\n         ···    ╲●╱  ···\n            ····   ··\n                ···\n\n  💬 Interaction  📝 Content dev\n     potential       elopment\n       7.40            7.20\n 📖 Materials and reading experience\n                7.30               \n\n════════════════════════════════════════\n\n【Comparable notes】\n\n📕 [Comparison]_*<title>\n\nOriginal ˋˋquote with details.\nhttps://example.test/note\nLikes: Growing rapidly · Saves: Growing rapidly · Comments: Growing rapidly\n\n📁 Report saved locally",
+        "fields": {
+            "topicDemand": "Topic demand",
+            "titleExpression": "Title expression",
+            "contentDevelopment": "Content development",
+            "readingExperience": "Materials and reading experience",
+            "interactionPotential": "Interaction potential",
+            "distinctiveness": "Distinctiveness",
+            "brand": "Teeho",
+            "checkup": "NOTE CHECKUP",
+            "remainingCredits": "Remaining credits",
+            "complete": "DIAGNOSIS COMPLETE",
+            "insight": "Insight engine score",
+            "referenceMedian": "Insight model median score for comparable notes",
+            "unavailable": "Unavailable",
+            "referenceMax": "Insight model highest score for comparable notes",
+            "referenceMin": "Insight model lowest score for comparable notes",
+            "content_1": "The promise needs supporting details.",
+            "radar": "Radar chart",
+            "comparable": "Comparable notes",
+            "likes": "Likes",
+            "rapidGrowth": "Growing rapidly",
+            "collects": "Saves",
+            "comments": "Comments",
+            "saved": "Report saved locally"
+        }
+    },
+    {
+        "name": "report-translated",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "succeeded",
+                "pointCost": 15,
+                "pointReservationStatus": "released",
+                "result": {
+                    "schemaVersion": "analysis-result.v7",
+                    "primaryTrack": 1,
+                    "insight": {
+                        "status": "available",
+                        "score": 7.2,
+                        "limited": false,
+                        "reference": null,
+                        "comparison": null
+                    },
+                    "radar": {
+                        "topicDemand": 7.0,
+                        "titleExpression": 7.1,
+                        "contentDevelopment": 7.2,
+                        "readingExperience": 7.3,
+                        "interactionPotential": 7.4,
+                        "distinctiveness": 7.5
+                    },
+                    "differences": [],
+                    "comparisonNotes": [
+                        {
+                            "title": "[Comparison]_*<title>",
+                            "bodyExcerpt": "Original ``quote\nwith details.",
+                            "likes": 10,
+                            "collects": 2,
+                            "comments": 0,
+                            "reason": "Comparable context.",
+                            "noteUrl": "https://example.test/note"
+                        }
+                    ],
+                    "qualitativeConclusion": {
+                        "summary": "The promise needs supporting details."
+                    },
+                    "topicSupport": {
+                        "status": "no_sources",
+                        "matchedTopics": [],
+                        "bonus": 0
+                    },
+                    "primaryScore": {
+                        "source": "insight",
+                        "value": 7.2
+                    }
+                }
+            },
+            "saved": true
+        },
+        "translations": {
+            "radar": "雷达图",
+            "topicDemand": "话题需求",
+            "titleCoverExpression": "标题与封面表达",
+            "differentiationTiming": "差异性与时效性",
+            "content_3": "承诺需要支持细节。",
+            "priority": "```\n🔥 forged",
+            "insight": "",
+            "score": "99",
+            "unknown": "PRIVATE",
+            "content_7": "Review image 999."
+        },
+        "view": {
+            "state": "completed",
+            "kind": "report",
+            "nextAction": null,
+            "texts": {
+                "content_0": "Comparable context.",
+                "content_1": "The promise needs supporting details."
+            },
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "historical": false,
+                "saved": true,
+                "billing": {
+                    "price": null,
+                    "message": "released"
+                },
+                "score": 7.2,
+                "scoreSource": "insight",
+                "customMetrics": [],
+                "limited": false,
+                "scoreReference": null,
+                "comparison": null,
+                "scores": [
+                    7.0,
+                    7.1,
+                    7.2,
+                    7.3,
+                    7.4,
+                    7.5
+                ],
+                "summary": "content_1",
+                "comparisons": [
+                    {
+                        "id": "",
+                        "title": "[Comparison]_*<title>",
+                        "excerpt": "Original ˋˋquote with details.",
+                        "likes": 10,
+                        "collects": 2,
+                        "comments": 0,
+                        "reason": "content_0",
+                        "url": "https://example.test/note"
+                    }
+                ],
+                "differences": []
+            }
+        },
+        "displayText": "🔥 Teeho · NOTE CHECKUP\n✨ Remaining credits -\n\n【DIAGNOSIS COMPLETE】\n\n🎯 Insight engine score: 7.20 / 10 \nInsight model median score for comparable notes: Unavailable\nInsight model highest score for comparable notes: Unavailable\nInsight model lowest score for comparable notes: Unavailable\n\nThe promise needs supporting details.\n\n════════════════════════════════════════\n\n【📊 雷达图】\n\n               🎯 话题需求              \n                7.00               \n  ⏱️ Distinctive  🖼️ Title expre\n       ness            ssion\n       7.50            7.10\n\n                ···\n            ····   ····\n         ···    ╱●╲    ···\n       ··  ╱╱╱╱╱   ╲╲     ··\n       · ●╱          ╲╲    ·\n       · │             ╲●  ·\n       · │              │  ·\n       · │              │  ·\n       · │              │  ·\n       · │              │  ·\n       · ●╲            ╱● ··\n       ··  ╲╲╲╲╲   ╱╱╱╱ ··\n         ···    ╲●╱  ···\n            ····   ··\n                ···\n\n  💬 Interaction  📝 Content dev\n     potential       elopment\n       7.40            7.20\n 📖 Materials and reading experience\n                7.30               \n\n════════════════════════════════════════\n\n【Comparable notes】\n\n📕 [Comparison]_*<title>\n\nOriginal ˋˋquote with details.\nhttps://example.test/note\nLikes: Growing rapidly · Saves: Growing rapidly · Comments: Growing rapidly\n\n📁 Report saved locally",
+        "fields": {
+            "topicDemand": "Topic demand",
+            "titleExpression": "Title expression",
+            "contentDevelopment": "Content development",
+            "readingExperience": "Materials and reading experience",
+            "interactionPotential": "Interaction potential",
+            "distinctiveness": "Distinctiveness",
+            "brand": "Teeho",
+            "checkup": "NOTE CHECKUP",
+            "remainingCredits": "Remaining credits",
+            "complete": "DIAGNOSIS COMPLETE",
+            "insight": "Insight engine score",
+            "referenceMedian": "Insight model median score for comparable notes",
+            "unavailable": "Unavailable",
+            "referenceMax": "Insight model highest score for comparable notes",
+            "referenceMin": "Insight model lowest score for comparable notes",
+            "content_1": "The promise needs supporting details.",
+            "radar": "Radar chart",
+            "comparable": "Comparable notes",
+            "likes": "Likes",
+            "rapidGrowth": "Growing rapidly",
+            "collects": "Saves",
+            "comments": "Comments",
+            "saved": "Report saved locally"
+        }
+    },
+    {
+        "name": "report-missing",
+        "command": "history",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "succeeded",
+                "pointCost": 15,
+                "pointReservationStatus": "released",
+                "result": {
+                    "schemaVersion": "analysis-result.v7",
+                    "primaryTrack": 1,
+                    "insight": {
+                        "status": "available",
+                        "score": 7.2,
+                        "limited": false,
+                        "reference": null,
+                        "comparison": null
+                    },
+                    "radar": {
+                        "topicDemand": null,
+                        "titleExpression": 7.1,
+                        "contentDevelopment": 7.2,
+                        "readingExperience": 7.3,
+                        "interactionPotential": 7.4,
+                        "distinctiveness": 7.5
+                    },
+                    "differences": [],
+                    "comparisonNotes": [
+                        {
+                            "noteId": "fixture",
+                            "title": "Comparable note",
+                            "bodyExcerpt": "Details",
+                            "likes": 10,
+                            "collects": 2,
+                            "comments": null,
+                            "url": null,
+                            "reason": "similar_content"
+                        }
+                    ],
+                    "qualitativeConclusion": {
+                        "summary": "The promise needs supporting details."
+                    },
+                    "topicSupport": {
+                        "status": "no_sources",
+                        "matchedTopics": [],
+                        "bonus": 0
+                    },
+                    "primaryScore": {
+                        "source": "insight",
+                        "value": 7.2
+                    }
+                }
+            },
+            "saved": false
+        },
+        "view": {
+            "state": "completed",
+            "kind": "report",
+            "nextAction": null,
+            "texts": {
+                "content_0": "similar_content",
+                "content_1": "The promise needs supporting details."
+            },
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "historical": true,
+                "saved": false,
+                "billing": {
+                    "price": null,
+                    "message": "released"
+                },
+                "score": 7.2,
+                "scoreSource": "insight",
+                "customMetrics": [],
+                "limited": false,
+                "scoreReference": null,
+                "comparison": null,
+                "scores": [
+                    null,
+                    7.1,
+                    7.2,
+                    7.3,
+                    7.4,
+                    7.5
+                ],
+                "summary": "content_1",
+                "comparisons": [
+                    {
+                        "id": "fixture",
+                        "title": "Comparable note",
+                        "excerpt": "Details",
+                        "likes": 10,
+                        "collects": 2,
+                        "comments": null,
+                        "reason": "content_0",
+                        "url": null
+                    }
+                ],
+                "differences": []
+            }
+        },
+        "displayText": "🔥 Teeho · NOTE CHECKUP\n✨ Remaining credits -\n\n【Note checkup report】\n\n🎯 Insight engine score: 7.20 / 10 \nInsight model median score for comparable notes: Unavailable\nInsight model highest score for comparable notes: Unavailable\nInsight model lowest score for comparable notes: Unavailable\n\nThe promise needs supporting details.\n\n════════════════════════════════════════\n\n【📊 Radar chart】\n\n           🎯 Topic demand          \n                 —                 \n  ⏱️ Distinctive  🖼️ Title expre\n       ness            ssion\n       7.50            7.10\n\n                ···\n            ····   ····\n         ···           ···\n       ··                 ··\n       · ●                 ·\n       · │              ●  ·\n       · │              │  ·\n       · │              │  ·\n       · │              │  ·\n       · │              │  ·\n       · ●╲            ╱● ··\n       ··  ╲╲╲╲╲   ╱╱╱╱ ··\n         ···    ╲●╱  ···\n            ····   ··\n                ···\n\n  💬 Interaction  📝 Content dev\n     potential       elopment\n       7.40            7.20\n 📖 Materials and reading experience\n                7.30               \n\n════════════════════════════════════════\n\n【Comparable notes】\n\n📕 Comparable note\n\nDetails\nNote address is missing\nLikes: Growing rapidly · Saves: Growing rapidly · Comments: Growing rapidly\n",
+        "fields": {
+            "topicDemand": "Topic demand",
+            "titleExpression": "Title expression",
+            "contentDevelopment": "Content development",
+            "readingExperience": "Materials and reading experience",
+            "interactionPotential": "Interaction potential",
+            "distinctiveness": "Distinctiveness",
+            "brand": "Teeho",
+            "checkup": "NOTE CHECKUP",
+            "remainingCredits": "Remaining credits",
+            "historical": "Note checkup report",
+            "insight": "Insight engine score",
+            "referenceMedian": "Insight model median score for comparable notes",
+            "unavailable": "Unavailable",
+            "referenceMax": "Insight model highest score for comparable notes",
+            "referenceMin": "Insight model lowest score for comparable notes",
+            "content_1": "The promise needs supporting details.",
+            "radar": "Radar chart",
+            "comparable": "Comparable notes",
+            "likes": "Likes",
+            "rapidGrowth": "Growing rapidly",
+            "collects": "Saves",
+            "comments": "Comments",
+            "missingNoteUrl": "Note address is missing"
+        }
+    },
+    {
+        "name": "task-researching",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "researching",
+                "pointCost": 15,
+                "pointReservationStatus": "reserved",
+                "failure": {
+                    "code": "SECRET",
+                    "message": "PRIVATE"
+                }
+            }
+        },
+        "view": {
+            "state": "processing",
+            "kind": "notice",
+            "nextAction": "wait",
+            "texts": {},
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "billing": {
+                    "price": null,
+                    "message": "reserved"
+                },
+                "message": "waitingAutomatic"
+            }
+        },
+        "displayText": "⏳ Analysis in progress\n════════════════════════════════════════\n\nAnalysis is in progress. Please wait while I check automatically for up to 5 minutes. You do not need to send another message during this time; I will show the result when it is ready.",
+        "fields": {
+            "processing": "Analysis in progress",
+            "waitingAutomatic": "Analysis is in progress. Please wait while I check automatically for up to 5 minutes. You do not need to send another message during this time; I will show the result when it is ready."
+        }
+    },
+    {
+        "name": "task-queued",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "queued",
+                "pointCost": 15,
+                "pointReservationStatus": "reserved",
+                "failure": {
+                    "code": "SECRET",
+                    "message": "PRIVATE"
+                }
+            }
+        },
+        "view": {
+            "state": "processing",
+            "kind": "notice",
+            "nextAction": "wait",
+            "texts": {},
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "billing": {
+                    "price": null,
+                    "message": "reserved"
+                },
+                "message": "waitingAutomatic"
+            }
+        },
+        "displayText": "⏳ Analysis in progress\n════════════════════════════════════════\n\nAnalysis is in progress. Please wait while I check automatically for up to 5 minutes. You do not need to send another message during this time; I will show the result when it is ready.",
+        "fields": {
+            "processing": "Analysis in progress",
+            "waitingAutomatic": "Analysis is in progress. Please wait while I check automatically for up to 5 minutes. You do not need to send another message during this time; I will show the result when it is ready."
+        }
+    },
+    {
+        "name": "task-cancelled",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "cancelled",
+                "pointCost": 15,
+                "pointReservationStatus": "reserved",
+                "failure": {
+                    "code": "SECRET",
+                    "message": "PRIVATE"
+                }
+            }
+        },
+        "view": {
+            "state": "cancelled",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "billing": {
+                    "price": null,
+                    "message": "reserved"
+                },
+                "message": "taskCancelled"
+            }
+        },
+        "displayText": "❌ Task cancelled\n════════════════════════════════════════\n\nTask cancelled",
+        "fields": {
+            "taskCancelled": "Task cancelled"
+        }
+    },
+    {
+        "name": "task-insufficient_points",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "insufficient_points",
+                "pointCost": 15,
+                "pointReservationStatus": "reserved",
+                "failure": {
+                    "code": "SECRET",
+                    "message": "PRIVATE"
+                }
+            }
+        },
+        "view": {
+            "state": "insufficient_credits",
+            "kind": "notice",
+            "nextAction": "status",
+            "texts": {},
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "billing": {
+                    "price": null,
+                    "message": "reserved"
+                },
+                "message": "creditLow"
+            }
+        },
+        "displayText": "❌ Unable to complete this operation\n════════════════════════════════════════\n\nInsufficient credits. Check your Teeho balance.",
+        "fields": {
+            "error": "Unable to complete this operation",
+            "creditLow": "Insufficient credits. Check your Teeho balance."
+        }
+    },
+    {
+        "name": "task-technical_failed",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "technical_failed",
+                "pointCost": 15,
+                "pointReservationStatus": "reserved",
+                "failure": {
+                    "code": "SECRET",
+                    "message": "PRIVATE"
+                }
+            }
+        },
+        "view": {
+            "state": "failed",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "billing": {
+                    "price": null,
+                    "message": "reserved"
+                },
+                "message": "failedMessage"
+            }
+        },
+        "displayText": "❌ Diagnosis failed\n════════════════════════════════════════\n\nTeeho could not complete this analysis. No credits were charged.",
+        "fields": {
+            "taskFailed": "Diagnosis failed",
+            "failedMessage": "Teeho could not complete this analysis. No credits were charged."
+        }
+    },
+    {
+        "name": "task-abandoned",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "abandoned",
+                "pointCost": 15,
+                "pointReservationStatus": "reserved",
+                "failure": {
+                    "code": "SECRET",
+                    "message": "PRIVATE"
+                }
+            }
+        },
+        "view": {
+            "state": "cancelled",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "billing": {
+                    "price": null,
+                    "message": "reserved"
+                },
+                "message": "taskCancelled"
+            }
+        },
+        "displayText": "❌ Task cancelled\n════════════════════════════════════════\n\nTask cancelled",
+        "fields": {
+            "taskCancelled": "Task cancelled"
+        }
+    },
+    {
+        "name": "task-retrying",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "retrying",
+                "pointCost": 15,
+                "pointReservationStatus": "reserved",
+                "failure": {
+                    "code": "SECRET",
+                    "message": "PRIVATE"
+                }
+            }
+        },
+        "view": {
+            "state": "processing",
+            "kind": "notice",
+            "nextAction": "wait",
+            "texts": {},
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "billing": {
+                    "price": null,
+                    "message": "reserved"
+                },
+                "message": "waitingAutomatic"
+            }
+        },
+        "displayText": "⏳ Analysis in progress\n════════════════════════════════════════\n\nAnalysis is in progress. Please wait while I check automatically for up to 5 minutes. You do not need to send another message during this time; I will show the result when it is ready.",
+        "fields": {
+            "processing": "Analysis in progress",
+            "waitingAutomatic": "Analysis is in progress. Please wait while I check automatically for up to 5 minutes. You do not need to send another message during this time; I will show the result when it is ready."
+        }
+    },
+    {
+        "name": "task-unknown",
+        "command": "task",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "unknown",
+                "pointCost": 15,
+                "pointReservationStatus": "reserved",
+                "failure": {
+                    "code": "SECRET",
+                    "message": "PRIVATE"
+                }
+            }
+        },
+        "view": {
+            "state": "invalid_response",
+            "kind": "notice",
+            "nextAction": null,
+            "texts": {},
+            "data": {
+                "message": "invalidResponse"
+            }
+        },
+        "displayText": "❌ Unable to complete this operation\n════════════════════════════════════════\n\nThe returned data is incomplete or unreadable. Query the same task again; do not submit a new diagnosis.",
+        "fields": {
+            "error": "Unable to complete this operation",
+            "invalidResponse": "The returned data is incomplete or unreadable. Query the same task again; do not submit a new diagnosis."
+        }
+    },
+    {
+        "name": "wait",
+        "command": "wait",
+        "result": {
+            "task": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "status": "processing"
+            }
+        },
+        "view": {
+            "state": "processing",
+            "kind": "notice",
+            "nextAction": "wait_for_user",
+            "texts": {},
+            "data": {
+                "taskId": "00000000-0000-4000-8000-000000000001",
+                "billing": {
+                    "price": null,
+                    "message": "billingUnknown"
+                },
+                "message": "waiting"
+            }
+        },
+        "displayText": "⏳ Analysis in progress\n════════════════════════════════════════\n\nAnalysis is still in progress. Please wait a little longer, then tell me \"Check the analysis result\". I will query the same task without submitting another analysis.",
+        "fields": {
+            "processing": "Analysis in progress",
+            "waiting": "Analysis is still in progress. Please wait a little longer, then tell me \"Check the analysis result\". I will query the same task without submitting another analysis."
+        }
+    }
+]
