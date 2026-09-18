@@ -34,7 +34,7 @@
 
 ### **1. 安装**
 
-#### <font color="red">方式一：一句话安装，将下面这句话复制给你的Agent（推荐）</font>
+#### 🔴 方式一：一句话安装，将下面这句话复制给你的 Agent（推荐）
 
 ```text
 请根据 https://teeho.chat/skill-install.md 的说明安装或升级题火 Agent Skill。
@@ -69,7 +69,7 @@ python -B -S -X utf8 "<AGENT_SKILLS_DIR>/teeho/tools/teeho.py" help
 #### 方式三：安装 GitHub Release 包
 从 [GitHub Releases](https://github.com/mingzhizhiren/teeho/releases) 下载 `teeho-agent-skill.zip`。解压后应得到顶层 `teeho/` 目录；核对版本和文件清单后，将它安装到目标 Agent 的 Skill 目录。Release 包是经过验证的最小运行包，不包含测试、缓存或用户数据。
 
-### <font color="red">2. 开始第一次诊断</font>
+### 🔴 2. 开始第一次诊断
 
 #### 正确附加封面以及笔记其他图片，然后发送笔记信息（注意不要ctrl+c直接复制图片给你的Agent，因为Agent会看不到这张图片的具体位置）
 
