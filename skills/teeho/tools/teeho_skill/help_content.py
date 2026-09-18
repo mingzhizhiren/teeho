@@ -37,7 +37,7 @@ HELP_TOPICS = (
         "helpExecute",
         "Run a note diagnosis",
         (
-            "Provide the existing note title, topics and a cover image. The body is optional. Add the prepared images or video, or select a folder of materials.",
+            "Provide the existing note title and topics. Image notes require a cover; video covers and the body are optional. Add the prepared images or video, or select a folder of materials.",
             "For a note read from a file or folder, your Agent first shows the complete note and selected material paths for your confirmation. Uploading and diagnosis begin only after confirmation. A complete note entered directly in chat can be diagnosed immediately when requested.",
             "Ask to diagnose the note. Teeho shows the submitted materials and checks the task until the result is ready or the automatic waiting window ends.",
             "A new diagnosis is billed separately. Teeho analyzes existing notes without ghostwriting or rewriting them.",

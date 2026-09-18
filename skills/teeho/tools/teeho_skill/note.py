@@ -104,7 +104,7 @@ def normalize_note(value: dict[str, object]) -> dict[str, object]:
     cover = value.get("cover")
     if cover is None:
         cover = selected[0] if selected else None
-    if cover is None:
+    if cover is None and not video:
         raise TeehoError('missing_cover')
     if cover is not None and (not isinstance(cover, str) or cover not in images):
         raise TeehoError("指定封面必须在本次图片中")

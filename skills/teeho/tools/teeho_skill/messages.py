@@ -157,7 +157,7 @@ ENGLISH = MappingProxyType(
         "exampleTitle": "Paste your title",
         "exampleBody": "Paste your body",
         "exampleTopics": "#topic1 #topic2 #topic3",
-        "usageMedia": "A cover is required. The first image is the default cover. Add the note images or video to complete the material.",
+        "usageMedia": "Image notes require a cover; the first image is the default. Video notes require a video; a separate cover is optional.",
         "usageIdentity": "Diagnosis automatically uses an anonymous account if you are not signed in. You can ask to log into your own account.",
         "api": "Service address",
         "config": "Input configuration loaded",

@@ -282,6 +282,16 @@ class DiagnosisTests(unittest.TestCase):
                 else:
                     self.assertNotIn("coverReference", payload)
 
+    def test_video_without_cover_is_submitted(self) -> None:
+        video = self.root / "video.mp4"
+        video.write_bytes(b"synthetic-video")
+        result = self.tool.diagnose({**NOTE, "videos": [str(video)]})
+        payload = self.api.submissions[0]
+        self.assertEqual(payload["videoReference"], self.api.video["id"])
+        self.assertEqual(payload["imageReferences"], [])
+        self.assertNotIn("coverReference", payload)
+        self.assertIsNone(result["localMedia"]["cover"])
+
     def test_video_response_loss_resumes_upload_and_ignores_second_video(self) -> None:
         first, second = self.root / "first.mp4", self.root / "second.mp4"
         first.write_bytes(b"synthetic-video")

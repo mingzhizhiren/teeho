@@ -224,6 +224,7 @@ class CliTests(unittest.TestCase):
                 **os.environ,
                 "TEEHO_HOME": str(self.home),
                 "TEEHO_API_URL": self.base,
+                "TEEHO_PUBLIC_HISTORY_DIR": str(self.home / "public-history"),
             },
         )
         stdout, stderr = result.stdout.decode("utf-8"), result.stderr.decode("utf-8")

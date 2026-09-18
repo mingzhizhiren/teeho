@@ -30,9 +30,9 @@ class EngagementDisplayTests(unittest.TestCase):
                   "selectionReason": "入选理由", "rapid_growth": "快速增长"}
         note = {"title": "参考笔记", "excerpt": "正文", "url": "https://example.test/note",
                 "likes": 91000, "collects": 15000, "comments": 1234}
-        self.assertEqual(_comparison_lines(note, labels.__getitem__)[-2], "点赞: 1W+ · 收藏: 1W+ · 评论: 1000+")
+        self.assertEqual(_comparison_lines(note, labels.__getitem__)[3], "点赞: 1W+ · 收藏: 1W+ · 评论: 1000+")
         missing = {**note, "likes": None, "collects": 0, "comments": 9}
-        self.assertEqual(_comparison_lines(missing, labels.__getitem__)[-2], "点赞: 快速增长 · 收藏: 快速增长 · 评论: 快速增长")
+        self.assertEqual(_comparison_lines(missing, labels.__getitem__)[3], "点赞: 快速增长 · 收藏: 快速增长 · 评论: 快速增长")
 
 
 if __name__ == "__main__":

@@ -20,7 +20,9 @@ bun test tools/release/package-skill.test.ts
 bun run package:skill
 ```
 
-打包使用 Python 3.9+ 标准库 `zipfile`（Deflate），生成 `frontend/public/downloads/teeho-skill.zip`、`frontend/src/config/skill-release.generated.json` 及 `frontend/public/skill-install.md` 的版本标记块；生成内容不手改。构建环境可通过 `TEEHO_PYTHON` 指定 Python，无需安装 pip 包。下载后端通过 Bun 内置 CRC32 和 Node 内置 zlib 重写本站配置并缓存 ZIP，不要求线上服务器安装 Python；更新后需重启。仓库修改不会自动同步到用户已安装的副本。
+安装说明正文只维护完整仓库中的 `_github/docs/skill-install.md`（公开仓库中的 `docs/skill-install.md`）。`bun run package:skill` 更新其发布标记，并将完整文档生成到 `frontend/public/skill-install.md`；网站副本和发布标记不手改。网站与 localhost 使用同源 `/api/skill/download`，GitHub 使用文档版本对应的 Release 附件。新增 GitHub 渠道保留现有网站和本地安装入口。
+
+打包使用 Python 3.9+ 标准库 `zipfile`（Deflate），同时生成 `frontend/public/downloads/teeho-skill.zip` 和 `frontend/src/config/skill-release.generated.json`。构建环境可通过 `TEEHO_PYTHON` 指定 Python，无需安装 pip 包。下载后端通过 Bun 内置 CRC32 和 Node 内置 zlib 重写本站配置并缓存 ZIP，不要求线上服务器安装 Python；更新后需重启。仓库修改不会自动同步到用户已安装的副本。
 
 打包清单在 `tools/release/package-skill.ts`：显式文档、`endpoint.json` 和递归收集的 Python 源码；排除测试、缓存、字节码、链接和用户数据。增删参考文件时同步清单及安装校验，归档链接由打包测试检查。
 

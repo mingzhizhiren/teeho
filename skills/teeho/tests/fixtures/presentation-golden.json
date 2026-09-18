@@ -43,7 +43,7 @@
                 "url": "http://localhost:9634/api"
             }
         },
-        "displayText": "🔥 Usage example\n\n════════════════════════════════════════\n\nUse Teeho to diagnose this note:\n\n• Title: Paste your title\n• Body: Paste your body\n• Topics: #topic1 #topic2 #topic3\n\nA cover is required. The first image is the default cover. Add the note images or video to complete the material.\nDiagnosis automatically uses an anonymous account if you are not signed in. You can ask to log into your own account.",
+        "displayText": "🔥 Usage example\n\n════════════════════════════════════════\n\nUse Teeho to diagnose this note:\n\n• Title: Paste your title\n• Body: Paste your body\n• Topics: #topic1 #topic2 #topic3\n\nImage notes require a cover; the first image is the default. Video notes require a video; a separate cover is optional.\nDiagnosis automatically uses an anonymous account if you are not signed in. You can ask to log into your own account.",
         "fields": {
             "usage": "Usage example",
             "usageRequest": "Use Teeho to diagnose this note:",
@@ -53,7 +53,7 @@
             "exampleBody": "Paste your body",
             "topics": "Topics",
             "exampleTopics": "#topic1 #topic2 #topic3",
-            "usageMedia": "A cover is required. The first image is the default cover. Add the note images or video to complete the material.",
+            "usageMedia": "Image notes require a cover; the first image is the default. Video notes require a video; a separate cover is optional.",
             "usageIdentity": "Diagnosis automatically uses an anonymous account if you are not signed in. You can ask to log into your own account."
         }
     },

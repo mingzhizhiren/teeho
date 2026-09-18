@@ -301,7 +301,7 @@ def _summary_lines(data: View, translate: Translate) -> list[str]:
         ),
         _field(translate("video"), data["video"] or translate("none")),
         _field(translate("cover"), data["cover"] or translate("none")),
-        *(["⚠️ " + translate("mediaWarning")] if not data["cover"] else []),
+        *(["⚠️ " + translate("mediaWarning")] if not data["cover"] and not data["video"] else []),
         *(
             [translate("ignored") + ": " + ", ".join(data["ignored"])]
             if data["ignored"]

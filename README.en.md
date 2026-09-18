@@ -32,10 +32,16 @@ Many Teeho accounts collect note data around the clock. As the `Insight Model` i
 
 ### **1. Install**
 
-#### Option 1: Send this request to your Agent (recommended)
+#### <font color="red">Option 1: Send this request to your Agent (recommended)</font>
 
 ```text
 Install or upgrade the Teeho Agent Skill by following https://teeho.chat/skill-install.md.
+```
+
+If `teeho.chat` is unavailable, use the installation guide on GitHub:
+
+```text
+Install or upgrade the Teeho Agent Skill by following https://github.com/mingzhizhiren/teeho/blob/main/docs/skill-install.md.
 ```
 
 #### Option 2: Install from source
@@ -62,7 +68,7 @@ Both commands should emit newline-delimited JSON successfully. `installation` sh
 
 Download `teeho-agent-skill.zip` from [GitHub Releases](https://github.com/mingzhizhiren/teeho/releases). Extraction should produce a top-level `teeho/` directory. Verify its version and file list, then install it into the target Agent's Skill directory. The Release package is a validated minimal runtime package without tests, caches, or user data.
 
-### **2. Run your first diagnosis**
+### <font color="red">2. Run your first diagnosis</font>
 
 #### Attach the cover and other images correctly, then send the note information. Do not paste images directly into your Agent with Ctrl+C, because the Agent may be unable to locate the files.
 
