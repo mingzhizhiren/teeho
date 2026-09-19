@@ -1,0 +1,58 @@
+# 社区版独立 Supabase 项目。不要把本目录链接到题火线上或已有私有数据库。
+project_id = "teeho-community"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = false
+
+[storage]
+enabled = true
+file_size_limit = "400MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:8080"
+additional_redirect_urls = [
+    "http://127.0.0.1:8080",
+    "http://localhost:9634/api/auth/google/callback",
+    "http://127.0.0.1:9634/api/auth/google/callback",
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
+password_requirements = "letters_digits"
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false
+
+[functions.cleanup-analysis-media]
+enabled = true
+# 由函数校验高熵共享密钥；不是匿名清理接口。
+verify_jwt = false
+entrypoint = "./functions/cleanup-analysis-media/index.ts"

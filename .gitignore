@@ -1,4 +1,18 @@
 # Python
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+playwright-report/
+test-results/
+.runtime/
+.tmp/
+frontend/public/downloads/
+supabase/.temp/
+supabase/.branches/
+*.pem
+*.key
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -27,4 +41,3 @@ cookies/
 .vscode/
 .DS_Store
 Thumbs.db
-

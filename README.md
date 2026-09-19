@@ -4,7 +4,7 @@
 
 # 🔥题火 Teeho
 
-🌐 **简体中文** | [简体中文](README.md) · [English](README.EN.md) · [繁體中文](README.zh-TW.md)
+🌐 **简体中文** | [简体中文](README.md) · [English](README.en.md) · [繁體中文](README.zh-TW.md)
 
 📦 [在线使用](https://teeho.chat)
 
@@ -15,6 +15,8 @@
 输入你的笔记内容（标题、正文、话题、封面、图片、视频），后端会根据 `小红书大盘数据` 匹配优秀笔记，从而对你的笔记进行诊断并得出 `分析结果` 包括量化指标和改进说明
 
 ## 🔧 设计理念
+
+> **自部署社区版**：本仓库提供社区前后端、插件 SDK 和 example 合成数据源，安装与测试见[社区版源码说明](docs/development/community.md)。社区版不包含下述线上服务的私有洞察模型、爬取数据或商业运营系统；Agent Skill 仍可独立安装。
 
 ### **量化**
 
@@ -67,6 +69,7 @@ python -B -S -X utf8 "<AGENT_SKILLS_DIR>/teeho/tools/teeho.py" help
 两个命令都应成功输出逐行 JSON；`installation` 应返回 `state: ready`，`help` 应返回非空的 `displayText` 和帮助主题列表。
 
 #### 方式三：安装 GitHub Release 包
+
 从 [GitHub Releases](https://github.com/mingzhizhiren/teeho/releases) 下载 `teeho-agent-skill.zip`。解压后应得到顶层 `teeho/` 目录；核对版本和文件清单后，将它安装到目标 Agent 的 Skill 目录。Release 包是经过验证的最小运行包，不包含测试、缓存或用户数据。
 
 ### 🔴 2. 开始第一次诊断
@@ -249,8 +252,7 @@ flowchart LR
 
 如果我做的工具可以帮助到你，那将是我的荣幸👍
 
-***
-
+---
 
 ## 许可证与商业使用
 
@@ -261,4 +263,5 @@ flowchart LR
 如需商业使用，请通过 `邮箱(mingzhizhiren@outlook.com) / 微信` 联系协商商业许可。
 
 ## 加入题火技术交流群
+
 <img alt="image" src="https://github.com/user-attachments/assets/a793cba0-f475-49c5-bc3c-a5060bd57a94" width="400" />
