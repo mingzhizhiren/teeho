@@ -1,0 +1,9 @@
+{
+    "extends": "../server/tsconfig.json",
+    "include": ["sdk.ts", "example/**/*.ts", "../server/src/types/**/*.d.ts"],
+    "compilerOptions": {
+        "baseUrl": "..",
+        "types": ["bun"],
+        "typeRoots": ["../server/node_modules/@types", "../node_modules/@types"]
+    }
+}

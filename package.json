@@ -1,0 +1,31 @@
+{
+    "name": "teeho",
+    "version": "1.2.0",
+    "private": true,
+    "packageManager": "bun@1.3.14",
+    "workspaces": [
+        "frontend",
+        "server",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev:frontend": "bun run --cwd frontend dev",
+        "dev:server": "bun run package:skill && bun run --cwd server dev",
+        "dev:video-worker": "bun run --cwd server dev:video-worker",
+        "build": "bun run package:skill && bun run --cwd server build && bun run --cwd frontend build",
+        "lint": "bun run --cwd server lint && bun run --cwd frontend lint",
+        "test": "bun run --cwd server test && bun run --cwd frontend test && bun test packages/content-metrics",
+        "test:boundaries": "bun tools/check-public-boundary.ts",
+        "test:database": "bun test supabase/tests",
+        "test:skill": "bun tools/release/python-runtime.ts && bun tools/release/python-runtime.ts tools/release test_archive.py",
+        "test:plugins": "bun run --cwd server test src/customization && bun test tools/release/plugin-bundles.test.ts",
+        "package:skill": "bun tools/release/package-skill.ts"
+    },
+    "devDependencies": {
+        "@electric-sql/pglite": "0.5.8",
+        "@eslint/js": "^9.12.0",
+        "prettier": "^3.3.3",
+        "supabase": "2.109.1",
+        "typescript-eslint": "^8.10.0"
+    }
+}

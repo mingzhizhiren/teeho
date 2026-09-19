@@ -16,6 +16,8 @@
 
 ## 🔧 設計理念
 
+> **自部署社群版**：本倉庫提供社群前後端、插件 SDK 與 example 合成資料來源，安裝與測試見[社群版原始碼說明](docs/development/community.md)。社群版不包含下述線上服務的私有洞察模型、爬取資料或商業營運系統；Agent Skill 仍可獨立安裝。
+
 ### **量化**
 
 題火後臺使用自研的 `洞察模型` ，將爬取的筆記數據輸入到模型，通過 `機器學習` 產生一個模型（持續更新），後續的評分都依賴該模型
@@ -67,6 +69,7 @@ python -B -S -X utf8 "<AGENT_SKILLS_DIR>/teeho/tools/teeho.py" help
 兩個命令都應成功輸出逐行 JSON；`installation` 應返回 `state: ready`，`help` 應返回非空的 `displayText` 和幫助主題列表。
 
 #### 方式三：安裝 GitHub Release 包
+
 從 [GitHub Releases](https://github.com/mingzhizhiren/teeho/releases) 下載 `teeho-agent-skill.zip`。解壓后應得到頂層 `teeho/` 目錄；核對版本和文件清單后，將它安裝到目標 Agent 的 Skill 目錄。Release 包是經過驗證的最小運行包，不包含測試、緩存或用戶數據。
 
 ### 🔴 2. 開始第一次診斷
@@ -249,8 +252,7 @@ flowchart LR
 
 如果我做的工具可以幫助到你，那將是我的榮幸👍
 
-***
-
+---
 
 ## 許可證與商業使用
 
@@ -261,4 +263,5 @@ flowchart LR
 如需商業使用，請通過 `郵箱(mingzhizhiren@outlook.com) / 微信` 聯系協商商業許可。
 
 ## 加入題火技術交流群
+
 <img alt="image" src="https://github.com/user-attachments/assets/a793cba0-f475-49c5-bc3c-a5060bd57a94" width="400" />

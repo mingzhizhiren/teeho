@@ -16,6 +16,8 @@ Provide your note's title, body, topics, cover, images, and video. Using `Xiaoho
 
 ## 🔧 Design philosophy
 
+> **Self-hosted community edition**: This repository includes the community frontend/backend, plugin SDK, and example synthetic data source. See the [setup and testing guide (Chinese)](docs/development/community.md). The private Insight Model, collected datasets, and commercial operations described below are not included. The Agent Skill remains independently installable.
+
 ### **Quantitative analysis**
 
 Teeho feeds collected note data into its proprietary `Insight Model`. `Machine learning` produces a continuously updated model on which all subsequent scoring is based—similar to quantitative trading, where large volumes of candlestick data are used to build an investment model.
@@ -247,7 +249,7 @@ Teeho collects large volumes of note data through crawlers, while video analysis
 
 It would be my honor if this tool helps you 👍
 
-***
+---
 
 ## License and commercial use
 
