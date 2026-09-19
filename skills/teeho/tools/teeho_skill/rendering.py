@@ -370,6 +370,7 @@ def _notice_lines(view: View, translate: Translate) -> list[str]:
         "failed": "taskFailed",
         "processing": "processing",
         "unavailable": "connection",
+        "service_unavailable": "serviceUnavailable",
         "authorization_pending": "pendingAuth",
     }
     heading = headings.get(state, "error")
