@@ -6,10 +6,13 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
 from teeho_skill.errors import TeehoError
+from teeho_skill.api import TeehoApi
+from teeho_skill.http_transport import HttpResponse
 from teeho_skill.history import HistoryTools
 from teeho_skill.note import normalize_note
 from teeho_skill.messages import safe_text, safe_url
@@ -499,6 +502,34 @@ class PresentationTests(unittest.TestCase):
                     store.render(published["presentationId"], {})
             with self.assertRaises(TeehoError):
                 PresentationStore(directory, "../other")
+
+    def test_http_server_failures_are_not_reported_as_connection_failures(self) -> None:
+        for status in (500, 502, 503, 504):
+            for body in (b'{"code":503,"message":"PRIVATE","data":null}', b'<html>PRIVATE</html>'):
+                with self.subTest(status=status, body=body):
+                    transport = Mock()
+                    transport.request.return_value = HttpResponse(status, body, {})
+                    api = TeehoApi("http://127.0.0.1:9634/api", transport)
+                    with self.assertRaises(TeehoError) as caught:
+                        api.create_anonymous_identity("synthetic-device", "synthetic-machine")
+                    view = create_error_presentation(caught.exception)
+                    text = render_presentation(view)
+                    self.assertEqual(view["state"], "service_unavailable")
+                    self.assertIn("Service temporarily unavailable", text)
+                    self.assertNotIn("Connection failed", text)
+                    self.assertNotIn("PRIVATE", text)
+                    self.assertEqual(transport.request.call_count, 1)
+
+    def test_transport_failure_remains_connection_failure(self) -> None:
+        transport = Mock()
+        transport.request.side_effect = TeehoError("request_failed")
+        api = TeehoApi("http://127.0.0.1:9634/api", transport)
+        with self.assertRaises(TeehoError) as caught:
+            api.create_anonymous_identity("synthetic-device", "synthetic-machine")
+        view = create_error_presentation(caught.exception)
+        self.assertEqual(view["state"], "unavailable")
+        self.assertIn("Connection failed", render_presentation(view))
+        self.assertEqual(transport.request.call_count, 1)
 
     def test_errors_are_safe_and_status_action_specific(self) -> None:
         cases = (

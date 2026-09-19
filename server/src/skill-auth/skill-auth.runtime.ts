@@ -7,6 +7,21 @@ import { createSkillAuthController } from './skill-auth.controller'
 import { createSkillAuthService } from './skill-auth.service'
 import { SkillAuthError } from './skill-auth.contract'
 import { HTTP_STATUS } from '../config/constants'
+import { logger } from '../utils/logger'
+
+const identityReadPolicy = { maximumAttempts: 3, retryDelayMs: 200 }
+const transientIdentityStatus = {
+    networkFailure: 0,
+    badGateway: HTTP_STATUS.BAD_GATEWAY,
+    unavailable: HTTP_STATUS.SERVICE_UNAVAILABLE,
+    gatewayTimeout: 504,
+}
+const transientIdentityStatuses = new Set<number>(Object.values(transientIdentityStatus))
+const safeProviderErrorNames = new Set([
+    'AuthApiError',
+    'AuthRetryableFetchError',
+    'AuthUnknownError',
+])
 
 /** 独立用户管理客户端，不保存Supabase浏览器会话。 */
 export function skillIdentityClient() {
@@ -14,8 +29,34 @@ export function skillIdentityClient() {
         auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     })
 }
+/** 只重试无副作用的账号查询；匿名创建和授权写入不在重试范围。 */
+async function readIdentity(id: string) {
+    let result = await skillIdentityClient().auth.admin.getUserById(id)
+    for (
+        let attempt = 1;
+        attempt < identityReadPolicy.maximumAttempts &&
+        result.error &&
+        transientIdentityStatuses.has(result.error.status ?? -1);
+        attempt++
+    ) {
+        logger.warn(
+            {
+                event: 'skill_identity_read_retry',
+                attempt,
+                providerStatus: result.error.status,
+            },
+            'Skill身份查询暂时失败，重试只读请求',
+        )
+        await new Promise((resolve) =>
+            setTimeout(resolve, identityReadPolicy.retryDelayMs * attempt),
+        )
+        result = await skillIdentityClient().auth.admin.getUserById(id)
+    }
+    return result
+}
+
 async function findUser(id: string): Promise<AuthUser | null> {
-    const result = await skillIdentityClient().auth.admin.getUserById(id)
+    const result = await readIdentity(id)
     if (result.error && result.error.status !== HTTP_STATUS.NOT_FOUND)
         throw providerError('identity_provider_unavailable', result.error)
     if (!result.data.user) return null
@@ -55,12 +96,13 @@ async function createAnonymous(id: string): Promise<AuthUser> {
 
 function providerError(
     reason: string,
-    error: { status?: number; code?: string },
+    error: { status?: number; code?: string; name?: string },
 ): Error & {
     status?: number
     code?: string
 } {
     const failure = new Error(reason) as Error & { status?: number; code?: string }
+    if (error.name && safeProviderErrorNames.has(error.name)) failure.name = error.name
     if (typeof error.status === 'number') failure.status = error.status
     if (typeof error.code === 'string' && /^[a-zA-Z0-9_-]{1,32}$/u.test(error.code))
         failure.code = error.code

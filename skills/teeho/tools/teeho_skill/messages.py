@@ -166,6 +166,8 @@ ENGLISH = MappingProxyType(
         "selectSubdirectory": "Only this folder was checked. Select one listed subdirectory to continue:",
         "connection": "Connection failed",
         "connectionMessage": "Unable to connect to Teeho. The service may be under maintenance, or your local network may be unavailable.",
+        "serviceUnavailable": "Service temporarily unavailable",
+        "serviceUnavailableMessage": "Teeho returned a server error. The service or one of its dependencies is temporarily unavailable. Try again later; if a diagnosis was already submitted, check the existing task before submitting another one.",
         "error": "Unable to complete this operation",
         "invalidRequest": "The request was rejected. Check the input and update the skill if needed.",
         "encodingInvalid": "The input appears to have lost text encoding. Save the original content as UTF-8 JSON and use --input-file. No diagnosis was submitted.",

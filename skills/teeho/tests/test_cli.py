@@ -314,6 +314,22 @@ class CliTests(unittest.TestCase):
         self.run_cli("status")
         self.assertEqual(self.fixture.calls.count("/api/skill/auth/anonymous"), 1)
 
+    def test_anonymous_service_failure_does_not_submit_or_retry(self) -> None:
+        if machine_identifier() is None:
+            self.skipTest("Host exposes no supported stable device identifier")
+        self.fixture.mode = "html"
+        code, lines, logs = self.run_cli("diagnose", self.note)
+        self.assertEqual(code, 1)
+        self.assertEqual(lines[-1]["state"], "service_unavailable")
+        self.assertIn("Service temporarily unavailable", lines[-1]["displayText"])
+        self.assertNotIn("PRIVATE_STACK", json.dumps(lines))
+        self.assertEqual(self.fixture.calls, ["/api/skill/auth/anonymous"])
+        self.assertEqual(self.fixture.submissions, [])
+        self.assertEqual(
+            [log["event"] for log in logs if log["level"] == "error"],
+            ["command_finished"],
+        )
+
     def test_task_failure_and_translation_do_not_resubmit_or_leak(self) -> None:
         self.identity()
         code, lines, logs = self.run_cli("diagnose", self.note)
@@ -539,7 +555,7 @@ class CliTests(unittest.TestCase):
 
     def test_errors_are_safe_json_and_clear_requires_explicit_true(self) -> None:
         self.fixture.mode = "html"
-        self.assertEqual(self.run_cli("login")[1][0]["state"], "unavailable")
+        self.assertEqual(self.run_cli("login")[1][0]["state"], "service_unavailable")
         self.fixture.mode = "malformed"
         malformed = self.run_cli("login")[1][0]
         self.assertEqual(malformed["state"], "invalid_response")

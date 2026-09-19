@@ -34,7 +34,7 @@ STRING_FIELDS = frozenset("command method route state nextAction template errorC
 
 
 def command_log_level(state: str) -> str:
-    if state in {"failed", "invalid_response", "unavailable", "local_error"}:
+    if state in {"failed", "invalid_response", "unavailable", "service_unavailable", "local_error"}:
         return "error"
     if state in {
         "anonymous_limit",

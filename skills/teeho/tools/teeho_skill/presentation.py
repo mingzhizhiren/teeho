@@ -499,6 +499,8 @@ def create_error_presentation(error: BaseException) -> View:
         return _notice("invalid_request", "invalidRequest", "correct_input")
     if status == 403:
         return _notice("access_denied", "authDenied")
+    if isinstance(status, int) and 500 <= status < 600:
+        return _notice("service_unavailable", "serviceUnavailableMessage", "retry")
     mapped = ERRORS.get(code) or ERRORS.get(str(error))
     if mapped:
         return _notice(*mapped)
