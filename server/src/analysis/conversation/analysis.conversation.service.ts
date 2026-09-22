@@ -161,6 +161,14 @@ function controlConversationTurn(
 ): MergedAgentConversationTurn {
     const questions = missingDraftQuestions(input, result.completeDraft)
     if (questions.length > 0) return { ...result, action: 'ask_questions', questions }
+    const changedText = (['title', 'body', 'topics'] as const).some(
+        (name) =>
+            JSON.stringify(result.completeDraft.fields[name].value) !==
+            JSON.stringify(input.completeDraft.fields[name].value),
+    )
+    // 已通过原文溯源并实际修改的草稿，不能再向用户声称该操作不受支持。
+    if (result.action === 'out_of_scope' && changedText)
+        return { ...result, action: 'draft_ready', questions }
     if (result.action !== 'draft_ready' && result.action !== 'ask_questions') return result
     return { ...result, action: 'draft_ready', questions }
 }

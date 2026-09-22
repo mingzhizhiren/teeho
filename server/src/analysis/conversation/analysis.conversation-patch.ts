@@ -46,7 +46,20 @@ function userContentSources(input: ConversationGroundingInput): string[] {
     ]
 }
 
+function hasExplicitEmptyBody(message: string): boolean {
+    const lines = message.split(/\r?\n/u).map((line) => line.trim())
+    const bodyLabel = /^(?:正文|内容|body|caption)\s*[:：]/iu
+    const index = lines.reduce(
+        (lastIndex, line, lineIndex) => (bodyLabel.test(line) ? lineIndex : lastIndex),
+        -1,
+    )
+    if (index < 0 || lines[index]!.replace(bodyLabel, '').trim()) return false
+    const following = lines.slice(index + 1).find((line) => line.length > 0)
+    return !following || /^(?:标题|话题|标签|title|topics?|hashtags?)\s*[:：]/iu.test(following)
+}
+
 function hasClearInstruction(message: string, field: string): boolean {
+    if (field === 'body' && hasExplicitEmptyBody(message)) return true
     if (!/(?:清空|删除|移除|去掉|clear|remove|delete)/iu.test(message)) return false
     const labels: Record<string, RegExp> = {
         title: /标题|title/iu,
@@ -73,9 +86,11 @@ function matchesExplicitReplacement(
     const field = input.completeDraft.fields[name]
     if (field.source !== 'user_input' || !field.value) return false
     const expected = input.message.split(/[；;。\n]/u).reduce((text, clause) => {
-        const instruction = clause.trim().match(
-            /^(?:请)?(?:将|把)?(标题|正文|内容)(?:中)?(?:的)?\s*(.+?)\s*(?:替换为|替换成|改为|改成)\s*(.+)$/u,
-        )
+        const instruction = clause
+            .trim()
+            .match(
+                /^(?:请)?(?:将|把)?(标题|正文|内容)(?:中)?(?:的)?\s*(.+?)\s*(?:替换为|替换成|改为|改成)\s*(.+)$/u,
+            )
         if (!instruction) return text
         const [, label, from, to] = instruction
         if ((label === '标题' ? 'title' : 'body') !== name) return text
@@ -83,7 +98,9 @@ function matchesExplicitReplacement(
         const target = replacementOperand(to!)
         return source && target ? text.split(source).join(target) : text
     }, field.value)
-    return expected !== field.value && groundingText(expected, false) === groundingText(value, false)
+    return (
+        expected !== field.value && groundingText(expected, false) === groundingText(value, false)
+    )
 }
 
 /** 模型补丁必须能追溯到用户提供的文字，不能通过伪造 source 代写。 */
@@ -91,8 +108,12 @@ export function groundConversationDraftPatch(
     input: ConversationGroundingInput,
     patch: AnalysisConversationDraftPatch,
 ): AnalysisConversationDraftPatch {
+    // 空的结构化正文栏是用户明确的空正文，字段名不能被模型当作原文写入。
+    const normalizedPatch: AnalysisConversationDraftPatch = hasExplicitEmptyBody(input.message)
+        ? { ...patch, body: { operation: 'clear' } }
+        : patch
     const sources = userContentSources(input)
-    for (const [name, operation] of Object.entries(patch)) {
+    for (const [name, operation] of Object.entries(normalizedPatch)) {
         const values =
             operation.operation === 'set'
                 ? Array.isArray(operation.value)
@@ -109,7 +130,8 @@ export function groundConversationDraftPatch(
                           text.length > 0 &&
                           (sources.some((source) =>
                               groundingText(source, name === 'topics').includes(text),
-                          ) || matchesExplicitReplacement(input, name, value))
+                          ) ||
+                              matchesExplicitReplacement(input, name, value))
                       )
                   })
         if (!grounded) {
@@ -119,7 +141,7 @@ export function groundConversationDraftPatch(
             })
         }
     }
-    return patch
+    return normalizedPatch
 }
 
 /** 合并受控 set/clear 补丁，并重新校验完整权威草稿。 */
