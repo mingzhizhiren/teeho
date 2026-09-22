@@ -32,6 +32,12 @@ import { checkupReportSchema, roundCheckupScore } from './analysis.checkup.contr
 import { loadCheckupEvidence } from './analysis.checkup.evidence'
 import type { AnalysisQuantificationEvidenceStore } from './analysis.checkup.evidence-store'
 import { checkupReferences, selectCheckupNotes } from './analysis.checkup.selection'
+import { scoreCheckupReferences } from './analysis.reference-scoring'
+import {
+    readSemanticReferenceEvidence,
+    semanticReferenceSamples,
+} from './analysis.reference-evidence'
+import { mapCheckupReferences } from './analysis.checkup.selection'
 import {
     checkupTopicEvidenceSchema,
     type CheckupTopicEvidence,
@@ -62,6 +68,7 @@ export interface CheckupEvaluationInput {
     asOf?: string
     signal: AbortSignal
     evidenceSource: AnalysisEvidenceSource
+    referenceSource?: AnalysisEvidenceSource
     evidenceStore: AnalysisQuantificationEvidenceStore
     agent: {
         provider: AgentProvider
@@ -152,7 +159,14 @@ export async function evaluateAnalysisCheckup(
         input.media.videoEvidence,
     )
     const samples = selectCheckupNotes(evidence, task)
-    const references = checkupReferences(samples)
+    const semanticEvidence = readSemanticReferenceEvidence(evidence)
+    const referenceEvidence = semanticEvidence ?? evidence
+    const selectedReferences = semanticEvidence
+        ? mapCheckupReferences(
+              semanticReferenceSamples(semanticEvidence, task),
+              'semantic_similarity',
+          )
+        : checkupReferences(samples)
     const publication =
         task.publishedAt ??
         new Date(Date.parse(input.task.processingStartedAt) + SHANGHAI_OFFSET_MS)
@@ -173,6 +187,25 @@ export async function evaluateAnalysisCheckup(
               materials.secondaryTracks ?? [],
           )
         : null
+    const references = await scoreCheckupReferences({
+        references: selectedReferences,
+        evidence: referenceEvidence,
+        predict: input.insightEnabled ? (input.predict ?? predictInsight) : undefined,
+        expectedModelId: insight?.modelId ?? null,
+        signal: input.signal,
+        onUnavailable: (category, durationMs) =>
+            input.log.warn(
+                {
+                    event: 'analysis_reference_score_unavailable',
+                    category,
+                    durationMs,
+                    modelId: insight?.modelId ?? null,
+                    taskId: input.task.id,
+                    requestId: input.requestId,
+                },
+                '参考评分不可用',
+            ),
+    })
     const topicEvidence = await loadTopics({
         ...context,
         task: { ...input.task, standardTask: task },
@@ -253,16 +286,16 @@ export async function evaluateAnalysisCheckup(
             return { value: fallbackContentExplanation(generationInput), metadata: null }
         })
     const forceZero = tracked.value.status === 'completed' && tracked.value.consistency.stars === 0
+    if (!references.length)
+        throw new AnalysisReferenceUnavailableError({
+            candidateCount: evidence.notes.length,
+            selectedCount: samples.length,
+            similarityPolicy: 'ranking',
+            trackCode: evidence.selectionCriteria.trackCode,
+            sourceVersion: evidence.sourceVersion,
+            cutoff: evidence.selectedAt,
+        })
     if (!forceZero) {
-        if (!references.length)
-            throw new AnalysisReferenceUnavailableError({
-                candidateCount: evidence.notes.length,
-                selectedCount: samples.length,
-                similarityPolicy: 'ranking',
-                trackCode: evidence.selectionCriteria.trackCode,
-                sourceVersion: evidence.sourceVersion,
-                cutoff: evidence.selectedAt,
-            })
         if (
             insight &&
             (insight.status !== 'available' || insight.baseScore === null || insight.limited)
@@ -293,7 +326,7 @@ export async function evaluateAnalysisCheckup(
             ? roundCheckupScore(insight.baseScore)
             : null
         : roundCheckupScore(validScores.reduce((sum, score) => sum + score, 0) / validScores.length)
-    const scorePolicy = 'consistency-weighted.v1' as const
+    const scorePolicy = 'consistency-weighted.v2' as const
     const mainScore = forceZero
         ? 0
         : roundCheckupScore(

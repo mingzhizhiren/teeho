@@ -15,6 +15,45 @@ const newReport = {
     contentAnalysis: contentAnalysisFixture,
 }
 
+test('v122 新策略采用30%与60%，旧策略继续保持25%与50%', () => {
+    for (const [policy, stars, expected] of [
+        ['consistency-weighted.v2', 1, 2.4],
+        ['consistency-weighted.v2', 2, 4.8],
+        ['consistency-weighted.v1', 1, 2],
+        ['consistency-weighted.v1', 2, 4],
+    ] as const) {
+        const contentAnalysis = {
+            ...contentAnalysisFixture,
+            originalScore: 8,
+            scorePolicy: policy,
+            consistency: { ...contentAnalysisFixture.consistency, stars },
+        }
+        const parsed = analysisResultSchema.parse({
+            ...newReport,
+            contentAnalysis,
+            primaryScore: { source: 'insight', value: expected },
+            insight: { ...checkupResult.insight, score: expected },
+        })
+        expect(readPrimaryScore(parsed).value).toBe(expected)
+    }
+})
+
+test('新策略零星也不能交付无参考报告，旧零星历史继续可读', () => {
+    const report = {
+        ...newReport,
+        primaryScore: { source: 'insight', value: 0 },
+        insight: { ...checkupResult.insight, score: 0 },
+        comparisonNotes: [],
+        contentAnalysis: {
+            ...contentAnalysisFixture,
+            scorePolicy: 'consistency-weighted.v2',
+            weaknesses: [],
+            consistency: { ...contentAnalysisFixture.consistency, stars: 0 },
+        },
+    }
+    expect(analysisResultSchema.safeParse(report).success).toBe(false)
+})
+
 test('new policy scales one and two stars across score sources with half-up boundaries', () => {
     for (const [stars, original, expected] of [
         [1, 4.42, 1.11],

@@ -101,7 +101,8 @@ def _make_report(task: View, saved: bool, historical: bool) -> View:
         return _invalid()
     analysis = read_content_analysis(result.get("contentAnalysis"))
     forced_zero = bool(analysis and analysis["status"] == "completed"
-                       and analysis["consistency"]["stars"] == 0)
+                       and analysis["consistency"]["stars"] == 0
+                       and analysis.get("scorePolicy") != "consistency-weighted.v2")
     if (
         not isinstance(result.get("comparisonNotes"), list)
         or (not result["comparisonNotes"] and not forced_zero)
@@ -198,7 +199,8 @@ def _report_view(task: View, result: View, saved: bool, historical: bool) -> Vie
 
 def _comparison(note: View, prose: Callable[[object], str]) -> View:
     return {
-        "selectionReason": selection_reason(note).value,
+        "selectionReason": "semantic_similarity" if note.get("reason") == "semantic_similarity" else selection_reason(note).value,
+        "modelScore": _number(note.get("modelScore"), 10),
         "id": safe_text(note.get("noteId")),
         "title": safe_text(note.get("title")),
         "excerpt": safe_text(note.get("bodyExcerpt")),

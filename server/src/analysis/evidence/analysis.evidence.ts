@@ -7,7 +7,11 @@ import { maintenanceStatsSchema } from './analysis.daily-stats'
 import type { ReadonlyData } from '../../customization/immutable'
 import { analysisEvidenceConstraints, analysisInputConstraints } from '../analysis.constants'
 import type { StandardAnalysisTask } from '../analysis.schema'
-import { checkupSampling, checkupVersions } from '../checkup/analysis.checkup.constants'
+import {
+    checkupSampling,
+    checkupVersions,
+    checkupOutputConstraints,
+} from '../checkup/analysis.checkup.constants'
 import { secondaryTrackCodesSchema } from '../tracks/analysis.track-selection'
 import { analysisTrackIdSchema, resolveAnalysisTrackCode } from '../tracks/analysis.tracks'
 import type { AnalysisEvidenceComment } from './analysis.evidence-repository.contract'
@@ -56,6 +60,13 @@ export const analysisEvidenceNoteSchema = z
     .object({
         noteId: z.string().min(1).max(analysisEvidenceConstraints.noteIdMaxLength),
         trackCodes: z.array(z.number().int().nonnegative()).optional(),
+        modelTrackCode: z
+            .number()
+            .int()
+            .min(0)
+            .max(checkupOutputConstraints.maximumTrackCode)
+            .nullable()
+            .optional(),
         noteUrl: z.string().nullable().optional(),
         authorId: z.string().max(analysisEvidenceConstraints.noteIdMaxLength),
         noteType: z.enum(['normal', 'video']).optional(),
@@ -171,6 +182,7 @@ export class MockAnalysisEvidenceSource implements AnalysisEvidenceSource {
             const latest = mockInitialLikes + index * mockLikesStep
             return {
                 noteId: `mock-note-${index + 1}`,
+                modelTrackCode: resolveTrackCode(input.task),
                 noteType:
                     input.task.contentKind === 'video' ? ('video' as const) : ('normal' as const),
                 authorId: `mock-author-${(index % mockNoteCount) + 1}`,

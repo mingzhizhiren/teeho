@@ -106,6 +106,8 @@ export default {
             collectPerformance: 'Relative saves performance',
             similarReference: 'A reference note with related content.',
             missingNoteUrl: 'Note address is missing',
+            referenceModelScore: 'Model score',
+            semanticReference: 'Related content',
             differencesTitle: 'Key differences from comparable successful notes',
             structureMetrics: {
                 title: 'Key note metrics',

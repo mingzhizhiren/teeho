@@ -6,8 +6,7 @@ import { radarMetricNames } from './analysis.checkup-contract'
 import { analysisUiConstraints } from './analysis.constants'
 import { visibleRadar } from './analysis.radar-view'
 import { readPrimaryScore } from './analysis.primary-score'
-import { formatEngagementTier } from './analysis.engagement-display'
-import { selectionReason, type SelectionReason } from './analysis.selection-reason'
+import { presentReference, type SelectionReason } from './analysis.selection-reason'
 import { contentAnalysisCopyLines, type ContentAnalysisLabels } from './analysis.content-analysis'
 import type { RiskMatch } from './analysis.risk-matches'
 import {
@@ -34,6 +33,8 @@ export interface ResultCopyLabels {
     referenceMin: string
     referenceUnavailable: string
     selectionReasons?: Record<SelectionReason, string>
+    referenceModelScore?: string
+    semanticReference?: string
     missingUrl: string
     likes: string
     collects: string
@@ -119,20 +120,21 @@ export function buildResultCopyText(
                 result.structureReferences[name],
             ),
         ),
-        ...result.comparisonNotes.map((note) =>
-            [
+        ...result.comparisonNotes.map((note) => {
+            const presentation = presentReference(note, labels)
+            return [
                 note.title,
+                ...(note.modelScore != null && labels.referenceModelScore
+                    ? [`${labels.referenceModelScore}: ${note.modelScore.toFixed(decimals)} / 10`]
+                    : []),
                 note.bodyExcerpt,
                 note.url ?? labels.missingUrl,
-                ...(labels.selectionReasons
-                    ? [labels.selectionReasons[selectionReason(note)]]
-                    : []),
+                ...(presentation.reason ? [presentation.reason] : []),
                 ...(['likes', 'collects', 'comments'] as const).map(
-                    (metric) =>
-                        `${labels[metric]}: ${formatEngagementTier(metric, note[metric], labels.rapidGrowth)}`,
+                    (metric) => `${labels[metric]}: ${presentation.counts[metric]}`,
                 ),
-            ].join('\n'),
-        ),
+            ].join('\n')
+        }),
     ].join('\n\n')
 }
 

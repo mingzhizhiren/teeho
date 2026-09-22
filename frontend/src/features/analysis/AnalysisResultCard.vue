@@ -220,6 +220,8 @@ async function handleCopy(target: ResultCopyTarget) {
             },
             referenceRange: t('workspace.checkup.referenceRange'),
             missingUrl: t('workspace.checkup.missingNoteUrl'),
+            referenceModelScore: t('workspace.checkup.referenceModelScore'),
+            semanticReference: t('workspace.checkup.semanticReference'),
             likes: t('workspace.checkup.likes'),
             collects: t('workspace.checkup.collects'),
             comments: t('workspace.checkup.comments'),

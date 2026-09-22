@@ -185,6 +185,14 @@ export const analysisResultSchema = z
                         comments: z.number().finite().nonnegative().nullable(),
                         url: httpsUrlSchema.nullable(),
                         reason: z.string(),
+                        modelScore: z
+                            .number()
+                            .finite()
+                            .min(0)
+                            .max(INSIGHT_MAX_SCORE)
+                            .nullable()
+                            .optional(),
+                        modelId: z.string().nullable().optional(),
                     })
                     .strict(),
             )
@@ -196,7 +204,10 @@ export const analysisResultSchema = z
         const isBlocked =
             report.contentAnalysis?.status === 'completed' &&
             report.contentAnalysis.consistency.stars === 0
-        if (!isBlocked && report.comparisonNotes.length === 0) {
+        if (
+            (!isBlocked || report.contentAnalysis?.scorePolicy === 'consistency-weighted.v2') &&
+            report.comparisonNotes.length === 0
+        ) {
             context.addIssue({
                 code: 'custom',
                 path: ['comparisonNotes'],

@@ -55,6 +55,45 @@ const labels: ResultCopyLabels = {
     structureMetric: (name, value) => `${name}: ${value ?? '—'}`,
 }
 
+test('参考展示保留语义真实数量和旧查询档位，不混淆零与缺失', () => {
+    const note = { ...checkupResult.comparisonNotes[0]!, likes: 1000, collects: 0, comments: null }
+    const copyLabels = {
+        ...labels,
+        semanticReference: 'Related content',
+        selectionReasons: { rapid_growth: 'Rapid growth', high_exposure: 'High exposure' },
+    }
+    const semantic = buildResultCopyText(
+        { ...checkupResult, comparisonNotes: [{ ...note, reason: 'semantic_similarity' }] },
+        copyLabels,
+    )
+    expect(semantic).toContain('Likes: 1000\nSaves: 0\nComments: —')
+    expect(semantic).toContain('Related content')
+    const legacy = buildResultCopyText(
+        { ...checkupResult, comparisonNotes: [{ ...note, reason: 'similar_content' }] },
+        copyLabels,
+    )
+    expect(legacy).toContain('Likes: 1K+\nSaves: Growing rapidly\nComments: Growing rapidly')
+    expect(legacy).toContain('Rapid growth')
+})
+
+test('复制语义参考保留真实零分与内容相关理由，不伪称快速增长', () => {
+    const result = analysisResultSchema.parse({
+        ...checkupResult,
+        comparisonNotes: [
+            { ...checkupResult.comparisonNotes[0], modelScore: 0, reason: 'semantic_similarity' },
+        ],
+    })
+    const text = buildResultCopyText(result, {
+        ...labels,
+        referenceModelScore: 'Model score',
+        semanticReference: 'Related content',
+        selectionReasons: { rapid_growth: 'Rapid growth', high_exposure: 'High exposure' },
+    })
+    expect(text).toContain('Model score: 0.00 / 10')
+    expect(text).toContain('Related content')
+    expect(text).not.toContain('Rapid growth')
+})
+
 test('复制新报告使用冻结结构指标且不重复旧差异范围', () => {
     const result = analysisResultSchema.parse({
         ...checkupResult,

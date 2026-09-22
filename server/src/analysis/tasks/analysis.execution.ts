@@ -71,6 +71,7 @@ export interface ProcessAnalysisTaskOptions {
     insightEnabled?: boolean
     plugins?: PluginRuntime
     predict?: typeof predictInsight
+    referenceSource?: AnalysisEvidenceSource
     evaluate?: typeof evaluateAnalysisCheckup
     topicEvidenceSource?: CheckupTopicEvidenceSource
     evidenceSource?: AnalysisEvidenceSource
@@ -172,6 +173,7 @@ interface AnalysisTaskExecutionRuntime {
     insightEnabled: boolean
     plugins: PluginRuntime
     predict?: typeof predictInsight
+    referenceSource?: AnalysisEvidenceSource
     evaluate: typeof evaluateAnalysisCheckup
     topicEvidenceSource?: CheckupTopicEvidenceSource
     provider: AgentProvider
@@ -196,6 +198,7 @@ export function createAnalysisTaskExecutor(
         insightEnabled: options.insightEnabled ?? env.TEEHO_INSIGHT_ENABLED,
         plugins: options.plugins,
         predict: options.predict,
+        referenceSource: options.referenceSource,
         evaluate: options.evaluate ?? evaluateAnalysisCheckup,
         topicEvidenceSource: options.plugins?.topicSource ?? options.topicEvidenceSource,
         provider: options.provider,
@@ -424,6 +427,7 @@ async function generateFirstTaskOutcome(
         insightEnabled: context.runtime.insightEnabled,
         plugins: context.runtime.plugins,
         predict: context.runtime.predict,
+        referenceSource: context.runtime.referenceSource,
         task,
         requestId: context.requestId,
         asOfDate: task.processingStartedAt.split('T')[0]!,

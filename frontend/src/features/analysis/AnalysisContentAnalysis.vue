@@ -57,13 +57,6 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                 <p class="mt-3 whitespace-pre-line break-words text-sm leading-6 text-ink">
                     {{ analysis.consistency.summary }}
                 </p>
-                <p
-                    v-if="analysis.status === 'completed' && analysis.consistency.stars === 0"
-                    class="mt-3 text-sm font-semibold text-red-700 dark:text-red-200"
-                    data-testid="analysis-score-blocked"
-                >
-                    {{ t('workspace.checkup.contentAnalysis.scoreBlocked') }}
-                </p>
                 <ul v-if="analysis.consistency.issues.length" class="mt-4 space-y-3">
                     <li
                         v-for="issue in analysis.consistency.issues"
@@ -112,6 +105,13 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                             </blockquote>
                             <p class="mt-2 whitespace-pre-line break-words text-ink">
                                 {{ weakness.description }}
+                            </p>
+                            <p
+                                v-if="weakness.suggestion"
+                                class="mt-2 whitespace-pre-line break-words text-ink"
+                                data-testid="analysis-improvement-direction"
+                            >
+                                {{ weakness.suggestion }}
                             </p>
                             <p class="mt-2 text-xs text-muted">
                                 {{ t('workspace.checkup.contentAnalysis.references') }}

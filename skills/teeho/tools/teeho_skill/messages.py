@@ -21,6 +21,8 @@ ENGLISH = MappingProxyType(
         "referenceMax": "Insight model highest score for comparable notes",
         "referenceMin": "Insight model lowest score for comparable notes",
         "selectionReason": "Selection reason",
+        "semantic_similarity": "Related content",
+        "referenceModelScore": "Model score",
         "high_exposure": "High exposure",
         "rapid_growth": "Rapid growth",
         "referenceRange": "Score range of the middle 80% of comparable notes",

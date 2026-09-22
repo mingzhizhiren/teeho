@@ -92,6 +92,8 @@ export default {
             collectPerformance: '同类收藏相对表现',
             similarReference: '与当前笔记内容相关的参考样本',
             missingNoteUrl: '笔记地址已丢失',
+            referenceModelScore: '模型评分',
+            semanticReference: '内容相关',
             differencesTitle: '与同类优秀笔记的关键差异',
             structureMetrics: {
                 title: '笔记关键指标',

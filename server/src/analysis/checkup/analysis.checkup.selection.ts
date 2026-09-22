@@ -185,7 +185,15 @@ export function checkupReferences(samples: readonly SelectedCheckupNote[]): Chec
     const unique = excellentCheckupSamples(samples)
         .sort((left, right) => right.similarity - left.similarity)
         .slice(0, checkupOutputConstraints.maxReferences)
-    return unique.map(({ note, latest }) => ({
+    return mapCheckupReferences(unique)
+}
+
+/** 已通过资格的参考只映射展示字段，不再次筛选表现、赛道或年龄。 */
+export function mapCheckupReferences(
+    samples: readonly SelectedCheckupNote[],
+    reason = 'similar_content',
+): CheckupReference[] {
+    return samples.slice(0, checkupOutputConstraints.maxReferences).map(({ note, latest }) => ({
         noteId: note.noteId,
         title:
             note.title.length > checkupOutputConstraints.referenceTitleMaxLength
@@ -199,7 +207,7 @@ export function checkupReferences(samples: readonly SelectedCheckupNote[]): Chec
         collects: latest.collects!,
         comments: latest.comments,
         url: safeNoteUrl(note.noteUrl),
-        reason: 'similar_content',
+        reason,
     }))
 }
 

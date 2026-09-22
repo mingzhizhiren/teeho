@@ -36,7 +36,7 @@ export const riskMatchSchema = findingSchema
 export const contentAnalysisSchema = z
     .object({
         status: z.enum(['completed', 'fallback']),
-        scorePolicy: z.literal('consistency-weighted.v1').optional(),
+        scorePolicy: z.enum(['consistency-weighted.v1', 'consistency-weighted.v2']).optional(),
         consistency: z
             .object({
                 stars: z.number().int().min(0).max(CONTENT_ANALYSIS_LIMITS.stars),
@@ -58,6 +58,7 @@ export const contentAnalysisSchema = z
             .array(
                 findingSchema
                     .extend({
+                        suggestion: descriptionText.optional(),
                         referenceIds: z
                             .array(
                                 z.string().trim().min(1).max(CONTENT_ANALYSIS_LIMITS.referenceId),
@@ -121,9 +122,9 @@ export type ContentFinding = ContentAnalysis['consistency']['issues'][number]
 
 /** 新策略只对已完成的一星、二星报告保留部分原始分。 */
 export function contentScoreRetention(analysis: ContentAnalysis | undefined): number | null {
-    if (analysis?.status !== 'completed' || analysis.scorePolicy !== 'consistency-weighted.v1')
-        return null
-    const percentages: Readonly<Record<number, number>> = { 1: 25, 2: 50 }
+    if (analysis?.status !== 'completed' || !analysis.scorePolicy) return null
+    const percentages: Readonly<Record<number, number>> =
+        analysis.scorePolicy === 'consistency-weighted.v2' ? { 1: 30, 2: 60 } : { 1: 25, 2: 50 }
     return percentages[analysis.consistency.stars] ?? null
 }
 
@@ -176,9 +177,6 @@ export function contentAnalysisCopyLines(
         `${labels.consistency}: ${labels.stars(analysis.consistency.stars)}`,
         ...(analysis.status === 'fallback' ? [labels.fallback] : []),
         analysis.consistency.summary,
-        ...(analysis.status === 'completed' && analysis.consistency.stars === 0
-            ? [labels.scoreBlocked]
-            : []),
         ...analysis.consistency.issues.map((item) => formatContentFinding(item, labels)),
     ]
     if (analysis.status === 'fallback') return consistency
@@ -189,6 +187,7 @@ export function contentAnalysisCopyLines(
             ? analysis.weaknesses.map((item) =>
                   [
                       formatContentFinding(item, labels),
+                      ...(item.suggestion ? [item.suggestion] : []),
                       `${labels.references} ${notes
                           .filter((note) => item.referenceIds.includes(note.noteId))
                           .map((note) => note.title)

@@ -1,11 +1,28 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 import type { AnalysisResult } from './analysis.contract'
-import { formatEngagementTier } from './analysis.engagement-display'
-import { selectionReason } from './analysis.selection-reason'
+import { presentReference } from './analysis.selection-reason'
 import AnalysisStructureMetrics from './AnalysisStructureMetrics.vue'
-defineProps<{ result: AnalysisResult }>()
-const { t } = useI18n()
+const props = defineProps<{ result: AnalysisResult }>()
+const { t, n } = useI18n()
+const referenceNotes = computed(() =>
+    props.result.comparisonNotes.map((note) => ({
+        note,
+        presentation: presentReference(
+            note,
+            {
+                semanticReference: t('workspace.checkup.semanticReference'),
+                selectionReasons: {
+                    high_exposure: t('workspace.checkup.selectionReasons.high_exposure'),
+                    rapid_growth: t('workspace.checkup.selectionReasons.rapid_growth'),
+                },
+                rapidGrowth: t('workspace.checkup.rapidGrowth'),
+            },
+            n,
+        ),
+    })),
+)
 </script>
 
 <template>
@@ -21,7 +38,7 @@ const { t } = useI18n()
         <h2 class="text-lg font-semibold text-ink">{{ t('workspace.checkup.comparisons') }}</h2>
         <ul class="mt-4 space-y-4">
             <li
-                v-for="note in result.comparisonNotes"
+                v-for="{ note, presentation } in referenceNotes"
                 :id="`reference-${note.noteId}`"
                 :key="note.noteId"
                 class="scroll-mt-24 rounded-2xl border border-line p-4"
@@ -35,6 +52,14 @@ const { t } = useI18n()
                 >{{ note.title }}</a
                 >
                 <p v-else class="font-semibold text-ink">{{ note.title }}</p>
+                <p
+                    v-if="note.modelScore != null"
+                    class="mt-1 text-sm font-semibold text-ink"
+                    data-testid="reference-model-score"
+                >
+                    {{ t('workspace.checkup.referenceModelScore') }} ·
+                    {{ note.modelScore.toFixed(2) }} / 10
+                </p>
                 <p v-if="!note.url" class="mt-1 text-xs text-muted">
                     {{ t('workspace.checkup.missingNoteUrl') }}
                 </p>
@@ -50,13 +75,7 @@ const { t } = useI18n()
                         >
                             <dt>{{ t(`workspace.checkup.${metric}`) }}</dt>
                             <dd>
-                                {{
-                                    formatEngagementTier(
-                                        metric,
-                                        note[metric],
-                                        t('workspace.checkup.rapidGrowth'),
-                                    )
-                                }}
+                                {{ presentation.counts[metric] }}
                             </dd>
                         </div>
                     </dl>
@@ -65,7 +84,7 @@ const { t } = useI18n()
                         data-testid="comparison-selection-reason"
                         :aria-label="t('workspace.checkup.selectionReasonLabel')"
                     >
-                        {{ t(`workspace.checkup.selectionReasons.${selectionReason(note)}`) }}
+                        {{ presentation.reason }}
                     </span>
                 </div>
             </li>

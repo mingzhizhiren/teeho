@@ -28,6 +28,7 @@ export const contentConsistencySchema = z
     .strict()
 export const contentWeaknessSchema = contentFindingSchema
     .extend({
+        suggestion: z.string().trim().min(1).max(CONTENT_ANALYSIS_LIMITS.description).optional(),
         referenceIds: z
             .array(z.string().min(1).max(CONTENT_ANALYSIS_LIMITS.referenceId))
             .min(1)
@@ -43,7 +44,7 @@ export const contentRiskSchema = contentFindingSchema
     .strict()
 export const contentAnalysisSchema = z
     .object({
-        scorePolicy: z.literal('consistency-weighted.v1').optional(),
+        scorePolicy: z.enum(['consistency-weighted.v1', 'consistency-weighted.v2']).optional(),
         status: z.enum(['completed', 'fallback']),
         consistency: contentConsistencySchema,
         termRisks: z.array(contentRiskSchema).max(CONTENT_ANALYSIS_LIMITS.risks),
@@ -85,12 +86,17 @@ export type ContentLocation = z.infer<typeof contentLocationSchema>
 const ONE_STAR_MULTIPLIER = 0.25
 const TWO_STAR_MULTIPLIER = 0.5
 const CONSISTENCY_MULTIPLIERS = [0, ONE_STAR_MULTIPLIER, TWO_STAR_MULTIPLIER, 1, 1, 1] as const
+const V122_ONE_STAR_MULTIPLIER = 0.3
+const V122_TWO_STAR_MULTIPLIER = 0.6
+const V122_MULTIPLIERS = [0, V122_ONE_STAR_MULTIPLIER, V122_TWO_STAR_MULTIPLIER, 1, 1, 1] as const
 /** 按报告保存的规则计算折算比例，旧报告维持仅零星归零的口径。 */
 export function contentScoreMultiplier(
     analysis: Pick<ContentAnalysis, 'status' | 'consistency' | 'scorePolicy'>,
 ): number {
     if (analysis.status !== 'completed') return 1
     if (analysis.consistency.stars === 0) return 0
+    if (analysis.scorePolicy === 'consistency-weighted.v2')
+        return V122_MULTIPLIERS[analysis.consistency.stars] ?? 1
     return analysis.scorePolicy === 'consistency-weighted.v1'
         ? (CONSISTENCY_MULTIPLIERS[analysis.consistency.stars] ?? 1)
         : 1

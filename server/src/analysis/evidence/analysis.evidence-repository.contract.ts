@@ -24,6 +24,7 @@ export interface AnalysisEvidenceCandidate {
     fans?: number | null
     authorObservedAt?: string | null
     coverDescription?: string | null
+    modelTrackCode?: number | null
     coverSha?: string | null
     coverObservedAt?: string | null
     coverWidth?: number | null

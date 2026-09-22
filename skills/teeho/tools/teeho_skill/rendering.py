@@ -177,11 +177,16 @@ def _section(label: str, translate: Translate, icon: str = "") -> list[str]:
 
 def _comparison_lines(note: View, translate: Translate) -> list[str]:
     counts = [
-        translate(key) + ": " + (engagement_tier(key, note.get(key)) or translate("rapidGrowth"))
+        translate(key) + ": " + (
+            (str(note[key]) if note.get(key) is not None else "—")
+            if note.get("selectionReason") == "semantic_similarity"
+            else (engagement_tier(key, note.get(key)) or translate("rapidGrowth"))
+        )
         for key in ("likes", "collects", "comments")
     ]
     return [
         "📕 " + note["title"],
+        *([translate("referenceModelScore") + f": {note['modelScore']:.2f} / 10"] if note.get("modelScore") is not None else []),
         note["excerpt"][:COMPARISON_EXCERPT_LENGTH]
         + ("..." if len(note["excerpt"]) > COMPARISON_EXCERPT_LENGTH else ""),
         note["url"] or translate("missingNoteUrl"),

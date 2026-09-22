@@ -14,13 +14,15 @@ MAX_ISSUES = 5
 MAX_RISKS = 20
 MAX_WEAKNESSES = 5
 SCORE_POLICY = "consistency-weighted.v1"
+V122_SCORE_POLICY = "consistency-weighted.v2"
 
 
 def score_retention(analysis: dict[str, Any]) -> Optional[int]:
     """旧报告不套用新策略，失败兜底不降分。"""
-    if analysis.get("scorePolicy") != SCORE_POLICY or analysis["status"] != "completed":
+    if analysis.get("scorePolicy") not in (SCORE_POLICY, V122_SCORE_POLICY) or analysis["status"] != "completed":
         return None
-    return {1: 25, 2: 50}.get(analysis["consistency"]["stars"])
+    percentages = {1: 30, 2: 60} if analysis.get("scorePolicy") == V122_SCORE_POLICY else {1: 25, 2: 50}
+    return percentages.get(analysis["consistency"]["stars"])
 
 
 def expected_content_score(analysis: dict[str, Any]) -> Optional[float]:
@@ -71,6 +73,8 @@ def _findings(value: object, maximum: int, kind: str) -> list[dict[str, Any]]:
             if not isinstance(references, list) or not 1 <= len(references) <= 3:
                 raise ValueError("invalid_content_analysis")
             finding = {**finding, "referenceIds": [_text(key) for key in references]}
+            if "suggestion" in item:
+                finding = {**finding, "suggestion": _text(item["suggestion"])}
         findings = [*findings, finding]
     return findings
 
@@ -85,7 +89,7 @@ def read_content_analysis(value: object) -> Optional[dict[str, Any]]:
     ):
         raise ValueError("invalid_content_analysis")
     consistency = value.get("consistency")
-    if "scorePolicy" in value and value["scorePolicy"] != SCORE_POLICY:
+    if "scorePolicy" in value and value["scorePolicy"] not in (SCORE_POLICY, V122_SCORE_POLICY):
         raise ValueError("invalid_content_analysis_policy")
     if not isinstance(consistency, dict):
         raise ValueError("invalid_content_analysis")
@@ -143,6 +147,7 @@ def project_content_analysis(
         return {
             **item,
             "description": prose(item["description"]),
+            **({"suggestion": prose(item["suggestion"])} if "suggestion" in item else {}),
             **({"category": prose(item["category"])} if "category" in item else {}),
             "references": [
                 note["title"] for note in comparisons if note["id"] in references
@@ -175,6 +180,7 @@ def _finding_lines(item: dict[str, Any], translate: Callable[[str], str]) -> lis
     return [
         *rows,
         "  " + translate(item["description"]),
+        *(["  " + translate(item["suggestion"])] if "suggestion" in item else []),
         *(
             "  " + translate("references") + ": " + title
             for title in item["references"]
@@ -199,8 +205,6 @@ def content_analysis_lines(
     ]
     if analysis["status"] == "fallback":
         rows.append(translate("contentAnalysisFallback"))
-    elif stars == 0:
-        rows.append(translate("contentAnalysisZero"))
     rows.append(translate(analysis["summary"]))
     for key, heading, empty in (
         ("issues", None, None),

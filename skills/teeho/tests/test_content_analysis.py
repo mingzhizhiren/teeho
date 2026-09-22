@@ -63,6 +63,36 @@ def analysis(stars: int = 4, status: str = "completed") -> dict:
 
 
 class ContentAnalysisTests(unittest.TestCase):
+    def test_v122_zero_stars_does_not_accept_missing_references(self) -> None:
+        data = report()
+        result = data["task"]["result"]
+        result["contentAnalysis"] = {**analysis(0), "scorePolicy": "consistency-weighted.v2"}
+        result["comparisonNotes"] = []
+        result["primaryScore"]["value"] = 0
+        result["insight"]["score"] = 0
+        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+
+    def test_semantic_reference_keeps_zero_model_score_without_growth_claim(self) -> None:
+        data = report()
+        reference = data["task"]["result"]["comparisonNotes"][0]
+        reference.update({"reason": "semantic_similarity", "modelScore": 0, "likes": 1, "collects": 0})
+        view = create_presentation("task", data)
+        rendered = render_presentation(view)
+        self.assertIn("Model score: 0.00 / 10", rendered)
+        self.assertIn("Related content", rendered)
+        self.assertNotIn("Growing rapidly", rendered)
+
+    def test_v122_policy_keeps_saved_scores(self) -> None:
+        for stars, expected in ((1, 2.4), (2, 4.8)):
+            data = report()
+            result = data["task"]["result"]
+            result["contentAnalysis"] = {**analysis(stars), "originalScore": 8, "scorePolicy": "consistency-weighted.v2"}
+            result["primaryScore"]["value"] = expected
+            result["insight"]["score"] = expected
+            view = create_presentation("task", data)
+            self.assertEqual(view["state"], "completed")
+            self.assertEqual(view["data"]["score"], expected)
+
     def test_new_policy_scales_one_two_stars_and_rounds_half_up(self) -> None:
         for stars, original, expected in ((1, 4.42, 1.11), (2, 7.2, 3.6)):
             for source in ("insight", "radar_average"):
@@ -171,7 +201,7 @@ class ContentAnalysisTests(unittest.TestCase):
         self.assertEqual(view["state"], "completed")
         self.assertIn("0.00 / 10", render_presentation(view))
         self.assertIn("☆☆☆☆☆ (0/5)", render_presentation(view))
-        self.assertIn("final score is set to 0", render_presentation(view))
+        self.assertNotIn("final score is set to 0", render_presentation(view))
 
     def test_zero_radar_gate_still_checks_original_average(self) -> None:
         data = report()

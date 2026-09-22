@@ -126,6 +126,14 @@ export const checkupReferenceSchema = z
             .refine((value) => value.startsWith('https://'))
             .nullable(),
         reason: z.string(),
+        modelScore: z
+            .number()
+            .finite()
+            .min(0)
+            .max(checkupOutputConstraints.insightMaximumScore)
+            .nullable()
+            .optional(),
+        modelId: z.string().nullable().optional(),
     })
     .strict()
 export type CheckupReference = z.infer<typeof checkupReferenceSchema>
@@ -220,6 +228,16 @@ export const checkupReportSchema = z
     })
     .strict()
     .superRefine((report, context) => {
+        if (
+            report.contentAnalysis?.scorePolicy === 'consistency-weighted.v2' &&
+            !report.comparisonNotes.length
+        ) {
+            context.addIssue({
+                code: 'custom',
+                message: 'Missing reference notes',
+                path: ['comparisonNotes'],
+            })
+        }
         const primary = report.primaryScore
         const forceZero =
             report.contentAnalysis?.status === 'completed' &&

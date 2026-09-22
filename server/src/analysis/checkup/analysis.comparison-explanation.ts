@@ -51,9 +51,10 @@ export const comparisonExplanationJsonSchema: Record<string, unknown> = {
             maxItems: LIMITS.findings,
             items: {
                 ...findingJson,
-                required: [...findingJson.required, 'referenceIds'],
+                required: [...findingJson.required, 'referenceIds', 'suggestion'],
                 properties: {
                     ...findingProperties,
+                    suggestion: { type: 'string', minLength: 1, maxLength: LIMITS.description },
                     referenceIds: {
                         type: 'array',
                         minItems: 1,
@@ -144,6 +145,9 @@ export function comparisonExplanationPrompt(input: AgentResultGenerationInput): 
         'Use integer stars 0-5: 0 only for clear fundamental mismatch/unrelated materials; 1 severe mismatch; 2 substantial partial mismatch; 3 uncertain/mixed; 4 mostly consistent with minor gaps; 5 consistent. Missing/unclear materials are NOT proof of mismatch. Zero requires a located verbatim quote. Never invent audio or unseen video content.',
         'Issues and weaknesses: location names a supplied evidence field; evidence is an exact contiguous quote from that field. Explain concrete problems concisely. Weaknesses ONLY when supported by supplied comparable notes or algorithm facts; referenceIds must name those notes. No strengths, fabricated shortcomings, causal claims from scores, or judging length differences alone as poor quality.',
         'matchedTopicIds use only supplied public topic IDs. Empty arrays are valid when there is no supported finding.',
+        'For each supported weakness, suggestion gives a short concrete improvement direction at the quoted location. Explain the difference and reason in description, without rewriting a title, paragraph or whole note. Do not invent a problem to fill the list.',
+        'A reference modelScore is an authoritative model prediction, not semantic similarity or measured popularity. Never change it, infer a missing score, replace low-scoring references or transfer a reference score to the user. Use available scores and the supplied content to explain useful differences or comparable risks. Unscored references support factual differences only, never a model-based high/low judgment.',
+        'Consistency stars assess ONLY alignment within the user note and materials, never similarity to reference notes. Reference scores are unadjusted model scores; the user final score may have a consistency adjustment, so their numeric gap alone cannot prove a quality difference. Do not explain star multipliers or score-retention formulas to the user.',
         'riskCandidates are dictionary matches, not verdicts. In this same review, return dismissedRiskIds containing ONLY supplied IDs that are false positives in context (e.g. 最 in 最后/最近, 第一 in 第一步). Preserve plausible risks; do not create or rewrite risk terms or return explanations. Use [] when no candidates should be dismissed. This filtering must not affect consistency stars.',
         JSON.stringify({
             outputLanguage: outputLanguageForTask(input.task),
