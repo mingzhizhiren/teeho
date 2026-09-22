@@ -3,10 +3,22 @@ import { readCookie, accessTokenCookieName } from '../auth/auth.cookies'
 import { readLoginClientIp } from '../auth-throttle/auth-throttle.client-ip'
 import { env } from '../config/env'
 import type { SkillAuthController } from './skill-auth.controller'
+import { requireCompatibleSkill } from '../skill-distribution/skill-version'
+import { HTTP_STATUS } from '../config/constants'
 
 /** 设备授权的公开协议与浏览器确认入口。 */
 export function createSkillAuthRoutes(controller: SkillAuthController) {
     return new Elysia({ prefix: '/skill/auth' })
+        .onBeforeHandle(({ request, set }) => {
+            if (!/\/skill\/auth\/(start|token|anonymous)\/?$/.test(new URL(request.url).pathname))
+                return
+            const upgrade = requireCompatibleSkill(request)
+            if (upgrade) {
+                set.status = HTTP_STATUS.BAD_REQUEST
+                set.headers['cache-control'] = 'no-store'
+                return upgrade
+            }
+        })
         .onAfterHandle(({ set }) => {
             set.headers['cache-control'] = 'no-store'
         })

@@ -6,6 +6,7 @@ import { getCurrentUser } from '../auth/auth.service'
 import { API_CODES, HTTP_STATUS } from '../config/constants'
 import { fail } from '../utils/response'
 import { authenticateSkillToken } from '../skill-auth/skill-auth.runtime'
+import { requireCompatibleSkill } from '../skill-distribution/skill-version'
 
 /** 校验 `Authorization: Bearer` 是否存在；不满足时返回 `fail` 结果供路由短路 */
 export function requireAuth(authorization?: string) {
@@ -55,6 +56,8 @@ export const authenticatedApiPlugin = new Elysia({ name: 'authenticated-api' })
                     HTTP_STATUS.UNAUTHORIZED,
                     fail(API_CODES.UNAUTHORIZED, '登录已失效，请重新登录'),
                 )
+            const upgrade = requireCompatibleSkill(request)
+            if (upgrade) return status(HTTP_STATUS.BAD_REQUEST, upgrade)
             return { apiUser: identity.user, apiAuthSessionKey: identity.authSessionKey }
         }
         const authentication = await authenticateApiUser(readCookie(cookie, accessTokenCookieName))

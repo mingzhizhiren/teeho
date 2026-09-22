@@ -15,9 +15,9 @@
 本实例用于安装或升级题火 Skill。
 
 <!-- skill-version:start -->
-当前发布版本：**1.14.1**。
+当前发布版本：**2.1.0**。
 网站／本地下载：[题火技能包](/api/skill/download)。
-GitHub 下载：[题火技能包](https://github.com/mingzhizhiren/teeho/releases/download/v1.14.1/teeho-agent-skill.zip)。
+GitHub 下载：[题火技能包](https://github.com/mingzhizhiren/teeho/releases/download/v2.1.0/teeho-agent-skill.zip)。
 按下方渠道规则选择下载地址，安装或升级以本文版本和实际包内容为准。
 <!-- skill-version:end -->
 
@@ -38,6 +38,7 @@ Python 包以 `release_ready` 为安装开关。执行安装的 Agent 在 `relea
         "SKILL.md",
         "README.md",
         "endpoint.json",
+        "release.json",
         "tools/teeho.py",
         "tools/teeho_skill/__init__.py",
         "tools/teeho_skill/api.py",

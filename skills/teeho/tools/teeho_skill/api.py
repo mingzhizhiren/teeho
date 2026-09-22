@@ -13,6 +13,7 @@ from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 from . import constants
 from .config import normalize_api_url
 from .errors import TeehoError
+from .version import UPGRADE_REQUIRED_CODE, SkillUpgradeRequired, skill_version
 from .http_transport import HttpResponse, HttpTransport, validate_http_url
 
 UUID_PATTERN = re.compile(
@@ -121,6 +122,7 @@ class TeehoApi:
             method="GET" if body is None else "POST",
             route=route,
             headers={
+                "X-Teeho-Skill-Version": skill_version(),
                 **({"Content-Type": "application/json"} if body is not None else {}),
                 **({"Authorization": "Bearer " + _text(token)} if token else {}),
             },
@@ -159,6 +161,8 @@ class TeehoApi:
             raise TeehoError(invalid, response.status)
         if not 200 <= response.status < 300 or envelope["code"] != 0:
             self._parsed(response, "rejected")
+            if envelope["code"] == UPGRADE_REQUIRED_CODE:
+                raise SkillUpgradeRequired(response.status, self.base_url, envelope.get("data"))
             reason = _rejection(path, response.status, envelope)
             state = (
                 reason

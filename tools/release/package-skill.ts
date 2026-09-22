@@ -1,6 +1,8 @@
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises'
 import { resolve, dirname, join } from 'node:path'
 import { findPythonExecutable } from './python-runtime'
+import release from '../../skills/teeho/release.json'
+import { isCompatibleSkillVersion } from '../../server/src/skill-distribution/skill-version'
 const root = resolve(import.meta.dirname, '../..')
 const skillRoot = resolve(root, 'skills/teeho')
 
@@ -32,6 +34,7 @@ export async function collectSkillEntries(): Promise<SkillEntry[]> {
         'SKILL.md',
         'README.md',
         'endpoint.json',
+        'release.json',
         'references/uninstall.md',
         'resources/risk-database.json',
         ...toolFiles,
@@ -54,6 +57,10 @@ export async function packageSkill(output: string): Promise<string> {
     if (!version) {
         throw new Error('Skill version metadata is missing or invalid')
     }
+    if (version !== release.version)
+        throw new Error('Skill metadata and release.json versions differ')
+    if (!isCompatibleSkillVersion(release.version, release.minimumVersion))
+        throw new Error('Skill release must meet its minimum compatible version')
     const entries = await collectSkillEntries()
     await mkdir(dirname(resolve(output)), { recursive: true })
     const child = Bun.spawn(

@@ -63,14 +63,15 @@ def analysis(stars: int = 4, status: str = "completed") -> dict:
 
 
 class ContentAnalysisTests(unittest.TestCase):
-    def test_v122_zero_stars_does_not_accept_missing_references(self) -> None:
+
+    def test_saved_score_survives_missing_optional_references(self) -> None:
         data = report()
         result = data["task"]["result"]
         result["contentAnalysis"] = {**analysis(0), "scorePolicy": "consistency-weighted.v2"}
         result["comparisonNotes"] = []
         result["primaryScore"]["value"] = 0
         result["insight"]["score"] = 0
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        self.assertEqual(create_presentation("task", data)["state"], "completed")
 
     def test_semantic_reference_keeps_zero_model_score_without_growth_claim(self) -> None:
         data = report()
@@ -93,7 +94,7 @@ class ContentAnalysisTests(unittest.TestCase):
             self.assertEqual(view["state"], "completed")
             self.assertEqual(view["data"]["score"], expected)
 
-    def test_new_policy_scales_one_two_stars_and_rounds_half_up(self) -> None:
+    def test_old_policy_displays_saved_score_without_recalculation(self) -> None:
         for stars, original, expected in ((1, 4.42, 1.11), (2, 7.2, 3.6)):
             for source in ("insight", "radar_average"):
                 with self.subTest(stars=stars, source=source):
@@ -118,9 +119,7 @@ class ContentAnalysisTests(unittest.TestCase):
                         "25%" if stars == 1 else "50%", render_presentation(view)
                     )
                     result["primaryScore"]["value"] = original
-                    self.assertEqual(
-                        create_presentation("task", data)["state"], "invalid_response"
-                    )
+                    self.assertEqual(create_presentation("task", data)["state"], "completed")
 
     def test_new_policy_leaves_three_to_five_and_fallback_unchanged(self) -> None:
         for stars, status, policy in (
@@ -189,13 +188,13 @@ class ContentAnalysisTests(unittest.TestCase):
             rendered.index("Shortcomings compared"), rendered.index("Key note metrics")
         )
 
-    def test_completed_zero_stars_requires_zero_for_insight(self) -> None:
+    def test_consistency_stars_do_not_recalculate_final_score(self) -> None:
         data = report()
         result = data["task"]["result"]
         result["contentAnalysis"] = analysis(0)
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        self.assertEqual(create_presentation("task", data)["state"], "completed")
         result["primaryScore"]["value"] = 0
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        self.assertEqual(create_presentation("task", data)["state"], "completed")
         result["insight"]["score"] = 0
         view = create_presentation("task", data)
         self.assertEqual(view["state"], "completed")
@@ -203,7 +202,7 @@ class ContentAnalysisTests(unittest.TestCase):
         self.assertIn("☆☆☆☆☆ (0/5)", render_presentation(view))
         self.assertNotIn("final score is set to 0", render_presentation(view))
 
-    def test_zero_radar_gate_still_checks_original_average(self) -> None:
+    def test_average_score_does_not_require_original_radar_or_model_values(self) -> None:
         data = report()
         result = data["task"]["result"]
         result["insight"] = None
@@ -212,11 +211,11 @@ class ContentAnalysisTests(unittest.TestCase):
         result["contentAnalysis"] = analysis(0)
         self.assertEqual(create_presentation("task", data)["state"], "completed")
         result["contentAnalysis"]["originalScore"] = 8
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        self.assertEqual(create_presentation("task", data)["state"], "completed")
         result["contentAnalysis"]["originalScore"] = None
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        self.assertEqual(create_presentation("task", data)["state"], "completed")
         result.pop("contentAnalysis")
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        self.assertEqual(create_presentation("task", data)["state"], "completed")
 
     def test_zero_can_report_without_raw_model_score_or_reference_notes(self) -> None:
         data = report()
@@ -230,22 +229,22 @@ class ContentAnalysisTests(unittest.TestCase):
         self.assertEqual(view["state"], "completed")
         self.assertIn("0.00 / 10", render_presentation(view))
         result["contentAnalysis"] = analysis(3)
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        self.assertEqual(create_presentation("task", data)["state"], "completed")
         result["comparisonNotes"] = report()["task"]["result"]["comparisonNotes"]
         result["contentAnalysis"]["originalScore"] = None
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        self.assertEqual(create_presentation("task", data)["state"], "completed")
 
     def test_fallback_three_stars_is_explicit_and_does_not_lower_score(self) -> None:
         data = report()
         data["task"]["result"]["contentAnalysis"] = analysis(3, "fallback")
         rendered = render_presentation(create_presentation("task", data))
         self.assertIn("★★★☆☆ (3/5)", rendered)
-        self.assertIn("3 stars is a fallback", rendered)
+        self.assertIn("displayed rating is a fallback", rendered)
         self.assertIn("7.20 / 10", rendered)
         self.assertNotIn("No term risks were reported", rendered)
         self.assertNotIn("No supported shortcomings", rendered)
 
-    def test_invalid_stars_and_incorrect_nonzero_score_are_rejected(self) -> None:
+    def test_optional_consistency_does_not_invalidate_primary_score(self) -> None:
         for stars, status, original in (
             (True, "completed", 7.2),
             (6, "completed", 7.2),
@@ -258,9 +257,7 @@ class ContentAnalysisTests(unittest.TestCase):
                     **analysis(stars, status),
                     "originalScore": original,
                 }
-                self.assertEqual(
-                    create_presentation("task", data)["state"], "invalid_response"
-                )
+                self.assertEqual(create_presentation("task", data)["state"], "completed")
 
     def test_unknown_reference_is_not_displayed_as_supported_weakness(self) -> None:
         data = report()
@@ -275,7 +272,11 @@ class ContentAnalysisTests(unittest.TestCase):
                 }
             ],
         }
-        self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+        view = create_presentation("task", data)
+        self.assertEqual(view["state"], "completed")
+        self.assertEqual(view["data"]["contentAnalysis"]["weaknesses"], [])
+        self.assertNotIn("Unsupported reference.", render_presentation(view))
+        self.assertNotIn("No supported shortcomings were reported", render_presentation(view))
 
     def test_empty_findings_do_not_invent_weaknesses(self) -> None:
         data = report()

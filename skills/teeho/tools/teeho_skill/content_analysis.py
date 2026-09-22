@@ -1,43 +1,16 @@
 """内容分析的边界校验与公开展示投影。"""
 
-import math
-from decimal import Decimal, ROUND_HALF_UP
 from collections.abc import Callable
 from typing import Any, Optional
 
 from .messages import safe_text
+from .report_fields import read_optional
 
 LOCATIONS = frozenset(("title", "body", "topics", "cover", "content"))
 MAX_STARS = 5
-FALLBACK_STARS = 3
 MAX_ISSUES = 5
 MAX_RISKS = 20
 MAX_WEAKNESSES = 5
-SCORE_POLICY = "consistency-weighted.v1"
-V122_SCORE_POLICY = "consistency-weighted.v2"
-
-
-def score_retention(analysis: dict[str, Any]) -> Optional[int]:
-    """旧报告不套用新策略，失败兜底不降分。"""
-    if analysis.get("scorePolicy") not in (SCORE_POLICY, V122_SCORE_POLICY) or analysis["status"] != "completed":
-        return None
-    percentages = {1: 30, 2: 60} if analysis.get("scorePolicy") == V122_SCORE_POLICY else {1: 25, 2: 50}
-    return percentages.get(analysis["consistency"]["stars"])
-
-
-def expected_content_score(analysis: dict[str, Any]) -> Optional[float]:
-    """使用十进制四舍五入验证最终分，不修改报告。"""
-    if analysis["status"] == "completed" and analysis["consistency"]["stars"] == 0:
-        return 0
-    original = analysis["originalScore"]
-    percent = score_retention(analysis)
-    if percent is None or original is None:
-        return original
-    return float(
-        (Decimal(str(original)) * Decimal(percent) / Decimal(100)).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-    )
 
 
 def _text(value: object) -> str:
@@ -56,7 +29,9 @@ def _finding(value: object) -> dict[str, Any]:
     }
 
 
-def _findings(value: object, maximum: int, kind: str) -> list[dict[str, Any]]:
+def _findings(
+    value: object, maximum: int, kind: str, log: Optional[Callable] = None
+) -> list[dict[str, Any]]:
     if not isinstance(value, list) or len(value) > maximum:
         raise ValueError("invalid_content_analysis")
     findings = []
@@ -74,12 +49,21 @@ def _findings(value: object, maximum: int, kind: str) -> list[dict[str, Any]]:
                 raise ValueError("invalid_content_analysis")
             finding = {**finding, "referenceIds": [_text(key) for key in references]}
             if "suggestion" in item:
-                finding = {**finding, "suggestion": _text(item["suggestion"])}
+                suggestion = read_optional(
+                    "contentAnalysis.weaknesses.suggestion",
+                    lambda: _text(item["suggestion"]),
+                    None,
+                    log,
+                )
+                if suggestion:
+                    finding = {**finding, "suggestion": suggestion}
         findings = [*findings, finding]
     return findings
 
 
-def read_content_analysis(value: object) -> Optional[dict[str, Any]]:
+def read_content_analysis(
+    value: object, log: Optional[Callable] = None
+) -> Optional[dict[str, Any]]:
     """旧报告可缺省；新报告只接受完整的受约束结构。"""
     if value is None:
         return None
@@ -89,39 +73,35 @@ def read_content_analysis(value: object) -> Optional[dict[str, Any]]:
     ):
         raise ValueError("invalid_content_analysis")
     consistency = value.get("consistency")
-    if "scorePolicy" in value and value["scorePolicy"] not in (SCORE_POLICY, V122_SCORE_POLICY):
-        raise ValueError("invalid_content_analysis_policy")
     if not isinstance(consistency, dict):
         raise ValueError("invalid_content_analysis")
     stars = consistency.get("stars")
-    original = value.get("originalScore")
-    unavailable_zero = (
-        value["status"] == "completed" and stars == 0 and original is None
-    )
-    valid_original = (
-        type(original) in (int, float)
-        and math.isfinite(original)
-        and 0 <= original <= 10
-    )
     if (
         type(stars) is not int
         or not 0 <= stars <= MAX_STARS
-        or (value["status"] == "fallback" and stars != FALLBACK_STARS)
-        or "originalScore" not in value
-        or not (valid_original or unavailable_zero)
     ):
         raise ValueError("invalid_content_analysis")
-    issues = _findings(consistency.get("issues"), MAX_ISSUES, "issue")
-    risks = _findings(value.get("termRisks"), MAX_RISKS, "risk")
-    weaknesses = _findings(value.get("weaknesses"), MAX_WEAKNESSES, "weakness")
-    if (stars == 0 and not issues) or (
-        value["status"] == "fallback" and (issues or risks or weaknesses)
-    ):
-        raise ValueError("invalid_content_analysis")
+
+    def findings(items: object, maximum: int, kind: str) -> list[dict[str, Any]]:
+        if items is None:
+            return []
+        if not isinstance(items, list):
+            return read_optional(
+                "contentAnalysis." + kind, lambda: _findings(items, maximum, kind), [], log
+            )
+        return [
+            row
+            for item in items[:maximum]
+            for row in read_optional(
+                "contentAnalysis." + kind, lambda: _findings([item], maximum, kind, log), [], log
+            )
+        ]
+
+    issues = findings(consistency.get("issues"), MAX_ISSUES, "issue")
+    risks = findings(value.get("termRisks"), MAX_RISKS, "risk")
+    weaknesses = findings(value.get("weaknesses"), MAX_WEAKNESSES, "weakness")
     return {
         "status": value["status"],
-        "originalScore": original,
-        **({"scorePolicy": value["scorePolicy"]} if "scorePolicy" in value else {}),
         "consistency": {
             "stars": stars,
             "summary": _text(consistency.get("summary")),
@@ -129,14 +109,19 @@ def read_content_analysis(value: object) -> Optional[dict[str, Any]]:
         },
         "termRisks": risks,
         "weaknesses": weaknesses,
+        "weaknessesAvailable": isinstance(value.get("weaknesses"), list)
+        and len(weaknesses) == len(value["weaknesses"]),
     }
 
 
 def project_content_analysis(
-    value: object, prose: Callable[[object], str], comparisons: list[dict[str, Any]]
+    value: object,
+    prose: Callable[[object], str],
+    comparisons: list[dict[str, Any]],
+    log: Optional[Callable] = None,
 ) -> Optional[dict[str, Any]]:
     """说明走翻译流程；命中原文与引用标题保持原样。"""
-    analysis = read_content_analysis(value)
+    analysis = read_content_analysis(value, log)
     if analysis is None:
         return None
 
@@ -155,14 +140,22 @@ def project_content_analysis(
         }
 
     consistency = analysis["consistency"]
+    weaknesses = [
+        row
+        for item in analysis["weaknesses"]
+        for row in read_optional(
+            "contentAnalysis.weaknesses.referenceIds", lambda: [project(item)], [], log
+        )
+    ]
     return {
         "status": analysis["status"],
-        "retainedPercent": score_retention(analysis),
         "stars": consistency["stars"],
         "summary": prose(consistency["summary"]),
         "issues": [project(item) for item in consistency["issues"]],
         "termRisks": [project(item) for item in analysis["termRisks"]],
-        "weaknesses": [project(item) for item in analysis["weaknesses"]],
+        "weaknesses": weaknesses,
+        "weaknessesAvailable": analysis["weaknessesAvailable"]
+        and len(weaknesses) == len(analysis["weaknesses"]),
     }
 
 
@@ -215,7 +208,7 @@ def content_analysis_lines(
         if not analysis[key] and empty:
             rows.append(
                 translate("contentAnalysisUnavailable")
-                if analysis["status"] == "fallback"
+                if analysis["status"] == "fallback" or not analysis.get("weaknessesAvailable", True)
                 else translate(empty)
             )
         for item in analysis[key]:

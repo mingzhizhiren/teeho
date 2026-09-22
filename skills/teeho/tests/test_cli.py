@@ -78,6 +78,14 @@ class ApiFixture:
         self.anonymous = True
 
     def respond(self, path: str, body: dict) -> tuple[int, object]:
+        if self.mode == "upgrade" or (
+            self.mode == "upgrade_points" and path == "/api/points/summary"
+        ):
+            return 400, {
+                "reason": "skill_upgrade_required",
+                "minimumVersion": "2.2.0",
+                "latestVersion": "2.2.1",
+            }
         if self.mode == "html":
             return 503, "PRIVATE_STACK"
         if self.mode == "malformed":
@@ -170,7 +178,15 @@ class ApiFixture:
                     data
                     if isinstance(data, str)
                     else json.dumps(
-                        {"code": 0 if status == 200 else status, "data": data},
+                        {
+                            "code": (
+                                4260
+                                if isinstance(data, dict)
+                                and data.get("reason") == "skill_upgrade_required"
+                                else 0 if status == 200 else status
+                            ),
+                            "data": data,
+                        },
                         ensure_ascii=False,
                     )
                 )
@@ -260,6 +276,68 @@ class CliTests(unittest.TestCase):
         self.assertIn("translation", lines[0])
         self.assertIn("Title:", lines[0]["displayText"])
         self.assertEqual(self.fixture.calls, [])
+
+    def test_upgrade_preserves_identity_pending_task_and_resumes_without_resubmission(self) -> None:
+        code, _, _ = self.run_cli("diagnose", self.note)
+        self.assertEqual(code, 0)
+        identity_path = self.data_root / "identity.json"
+        pending_path = self.data_root / "accounts" / OWNER / "pending.json"
+        identity, pending = identity_path.read_bytes(), pending_path.read_bytes()
+        task_id = self.fixture.submissions[0]["submissionId"]
+        self.fixture.mode = "upgrade"
+        before = len(self.fixture.calls)
+        code, lines, _ = self.run_cli("resume")
+        self.assertEqual(code, 1)
+        self.assertEqual(lines[-1]["state"], "upgrade_required")
+        self.assertEqual(lines[-1]["nextAction"], "upgrade_skill")
+        self.assertEqual(len(self.fixture.calls), before + 1)
+        self.assertEqual(identity_path.read_bytes(), identity)
+        self.assertEqual(pending_path.read_bytes(), pending)
+        # 升级提示经过原有翻译与 render 接口后仍是停止重试的同一状态。
+        calls = len(self.fixture.calls)
+        code, rendered, _ = self.run_cli(
+            "render", {"presentationId": lines[-1]["presentationId"], "translations": {}}
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(rendered[-1]["nextAction"], "upgrade_skill")
+        self.assertEqual(len(self.fixture.calls), calls)
+        self.assertIn(self.base + "/skill/download", rendered[-1]["displayText"])
+        self.fixture.mode = "normal"
+        code, lines, _ = self.run_cli("resume")
+        self.assertEqual(code, 0)
+        self.assertEqual(lines[-1]["taskId"], task_id)
+        self.assertEqual(len(self.fixture.submissions), 1)
+
+    def test_upgrade_before_diagnosis_does_not_upload_or_submit(self) -> None:
+        self.run_cli("anonymous")
+        identity_path = self.data_root / "identity.json"
+        original = identity_path.read_bytes()
+        self.fixture.mode = "upgrade"
+        before = len(self.fixture.calls)
+        code, lines, _ = self.run_cli("diagnose", self.note)
+        self.assertEqual(code, 1)
+        self.assertEqual(lines[-1]["state"], "upgrade_required")
+        self.assertEqual(self.fixture.calls[before:], ["/api/points/summary"])
+        self.assertEqual(self.fixture.submissions, [])
+        self.assertEqual(identity_path.read_bytes(), original)
+
+    def test_upgrade_during_optional_points_read_delivers_saved_report_and_upgrade_notice(
+        self,
+    ) -> None:
+        self.run_cli("diagnose", self.note)
+        task_id = self.fixture.submissions[0]["submissionId"]
+        fixture = json.loads(
+            (TOOLS.parent / "tests/fixtures/presentation-golden.json").read_text(encoding="utf-8")
+        )
+        report = next(
+            case["result"]["task"]["result"] for case in fixture if case["name"] == "report"
+        )
+        self.fixture.tasks[task_id] = {"id": task_id, "status": "succeeded", "result": report}
+        self.fixture.mode = "upgrade_points"
+        code, lines, _ = self.run_cli("task", {"taskId": task_id})
+        self.assertEqual(code, 1)
+        self.assertEqual([line["state"] for line in lines], ["completed", "upgrade_required"])
+        self.assertEqual(len(self.fixture.submissions), 1)
 
     def test_help_topics_and_render_are_offline_without_login_or_diagnosis(self) -> None:
         self.data_root.mkdir(parents=True)
@@ -527,7 +605,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0, lines)
         rendered = lines[0]
         self.assertNotIn("话题需求", rendered["displayText"])
-        self.assertIn("点赞: 快速增长 · 收藏: 快速增长 · 评论: 快速增长", rendered["displayText"])
+        self.assertIn("点赞: 10 · 收藏: 2 · 评论: 0", rendered["displayText"])
         self.assertEqual(rendered["delivery"]["mode"], "verbatim")
         self.assertEqual(rendered["delivery"]["format"], "text_code_block")
         self.assertNotIn("command", rendered["delivery"])

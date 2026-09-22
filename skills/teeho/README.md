@@ -4,7 +4,15 @@ Agent 的日常调用协议集中在 [SKILL.md](SKILL.md)，[卸载](references/
 
 ## 版本与发布
 
-本目录是题火 Skill 的唯一源码，运行资源位于 `resources/`，无需同步或构建即可复制安装。版本以 `SKILL.md` 的 `metadata.version` 为准。
+本目录是题火 Skill 的唯一源码，运行资源位于 `resources/`，无需同步或构建即可复制安装。版本身份与最低兼容版本统一维护在 `release.json`；`SKILL.md` 的 `metadata.version` 必须一致，打包时校验。
+
+从 `2.1.0` 开始使用“大改动.功能.补丁”：BUG 修复递增补丁，功能增删改递增功能位，重大调整递增首位。普通算法、评分系数或可选展示字段更新不提高最低兼容版本；真正无法兼容时才提高 `minimumVersion`，必要的补丁也可成为最低版本。
+
+每个业务 API 请求由 `api.py` 自动携带 `X-Teeho-Skill-Version`。服务端返回 HTTP 400、业务 `code=4260`、`data.reason=skill_upgrade_required`，并提供最低/最新版本和本站下载路径；旧 `1.14.1` 只能显示既有固定参数错误提示。新工具优先识别该码，输出 `state=upgrade_required` 和 `nextAction=upgrade_skill`。缺失或非法版本同样拦截；真实身份仍须独立验证。网页 Cookie 请求不受技能版本门槛影响。
+
+`GET /api/skill/version` 与 `/api/skill/download` 始终可访问。开始授权、匿名创建、续期及已鉴权业务调用均检查版本；退出、浏览器审批和撤销入口不拦截。普通网络失败不转换成升级错误。升级只替换安装文件，已提交任务继续执行，本机身份、历史和待恢复记录保持原样。
+
+发布时先验证新包可以下载，再启用更高最低版本；后端发布包和静态技能包一并核验。网站版本与技能版本独立，下载后端缓存随重启更新。
 
 在本目录运行独立单元测试（仅需 Python）：
 
@@ -16,7 +24,7 @@ python -B -S -X utf8 -m unittest discover -s tests
 
 ```sh
 bun run test:skill
-bun test tools/release/package-skill.test.ts
+bun test _github/tools/release/package-skill.test.ts
 bun run package:skill
 ```
 
@@ -27,6 +35,8 @@ bun run package:skill
 打包清单在 `tools/release/package-skill.ts`：显式文档、`endpoint.json` 和递归收集的 Python 源码；排除测试、缓存、字节码、链接和用户数据。增删参考文件时同步清单及安装校验，归档链接由打包测试检查。
 
 ## 运行与模块
+
+报告解析严格检查任务身份、最终主分的基本类型与 0～10 范围、必要总结及链接安全。技能不复算分数，不要求 `schemaVersion` 或 `scorePolicy` 完全匹配；可选字段局部损坏时保留其他有效内容，未知来源使用通用标签。`report_optional_field_skipped` 记录字段路径，`report_core_invalid` 记录核心报告错误，均不记录报告原文。
 
 用户运行时只需 Python 3.9+ 标准库；开发和测试由根 Bun 脚本编排。`test:skill` 使用标准库 unittest，Python 由 `tools/release/python-runtime.ts` 选择，也可通过 `TEEHO_PYTHON` 指定可执行文件路径。
 

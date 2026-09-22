@@ -177,9 +177,11 @@ def _section(label: str, translate: Translate, icon: str = "") -> list[str]:
 
 def _comparison_lines(note: View, translate: Translate) -> list[str]:
     counts = [
-        translate(key) + ": " + (
+        translate(key)
+        + ": "
+        + (
             (str(note[key]) if note.get(key) is not None else "—")
-            if note.get("selectionReason") == "semantic_similarity"
+            if note.get("selectionReason") in ("semantic_similarity", "reference_note")
             else (engagement_tier(key, note.get(key)) or translate("rapidGrowth"))
         )
         for key in ("likes", "collects", "comments")
@@ -206,14 +208,16 @@ def _insight_lines(data: View, translate: Translate) -> list[str]:
     rows = [
         "🎯 "
         + translate(
-            "average" if data.get("scoreSource") == "radar_average" else "insight"
+            {"radar_average": "average", "insight": "insight"}.get(
+                data.get("scoreSource"), "finalScore"
+            )
         )
         + ": "
         + score
         + (" " + comparison_icon if comparison_icon and data["score"] is not None else "")
     ]
     reference = data.get("scoreReference")
-    if data.get("scoreSource") != "radar_average":
+    if data.get("scoreSource") == "insight":
         rows.extend(
             [
                 translate(label) + ": " + (
@@ -403,6 +407,17 @@ def _render_lines(view: View, translate: Translate) -> list[str]:
     data, kind = view["data"], view["kind"]
     if kind == "help":
         return help_lines(data.get("topic"), translate)
+    if kind == "upgrade":
+        return [
+            translate("skillUpgradeRequired"),
+            translate("skillUpgradeMessage"),
+            *[
+                translate(key) + ": " + data[key]
+                for key in ("currentVersion", "minimumVersion", "latestVersion")
+                if data.get(key)
+            ],
+            translate("skillDownload") + ": " + data["downloadUrl"],
+        ]
     if kind == "report":
         return _report_lines(view, translate)
     if kind in ("authorization", "onboarding", "status"):
@@ -526,6 +541,7 @@ def _validate_view(value: object) -> View:
         "summary",
         "status",
         "installation",
+        "upgrade",
         "history",
         "inspect",
         "notice",

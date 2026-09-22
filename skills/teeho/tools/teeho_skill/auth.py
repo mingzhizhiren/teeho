@@ -160,7 +160,7 @@ class AuthSession:
             try:
                 return operation(token)
             except TeehoError as error:
-                if error.status != 401:
+                if error.code == "skill_upgrade_required" or error.status != 401:
                     raise
                 # 仅明确未通过鉴权的请求重试一次；超时与其他写入失败由业务恢复。
                 identity = self._refresh(identity, "unauthorized", user_id)
@@ -172,12 +172,10 @@ class AuthSession:
         if identity["user"].get("isAnonymous"):
             raise TeehoError("anonymous_no_logout")
         try:
-            issued = self.public_api.exchange_token(identity.get("deviceToken"))
-            if issued["user"]["id"] != identity["user"]["id"]:
-                raise TeehoError("账号已切换，请使用原账号查询任务")
-            self.public_api.logout(issued["accessToken"])
+            # 注销端点可使用现有凭据撤销授权，无需经过可能被版本门槛拦截的续期。
+            self.public_api.logout(identity.get("accessToken"))
         except TeehoError as error:
-            if error.status != 401:
+            if error.code == "skill_upgrade_required" or error.status != 401:
                 raise
         (self.root / "identity.json").unlink(missing_ok=True)
         return {"signedOut": True}

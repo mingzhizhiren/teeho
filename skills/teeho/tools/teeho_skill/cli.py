@@ -15,6 +15,7 @@ from .constants import MAX_INPUT_BYTES
 from .debug import DebugLogger, command_log_level
 from .diagnosis import DiagnosisTools
 from .errors import TeehoError
+from .version import SkillUpgradeRequired
 from .help_content import HELP_TOPICS, help_result
 from .history import HistoryTools
 from .public_history import clear_public_owner, publish_anonymous_history, visible_history, visible_report
@@ -285,6 +286,10 @@ class CommandRunner:
         try:
             owner = require_id(_owner(self.identity), "login_required")
             points = points_snapshot(self.api.get_points(expected_user_id=owner))
+        except SkillUpgradeRequired:
+            # 先交付已取得的原报告，再明确交付升级状态，避免可选积分查询吞掉升级错误。
+            self.output(view)
+            raise
         except (TeehoError, OSError, ValueError):
             self.debug.log("remaining_points_unavailable", {"stage": "points"}, "warn")
             points = {"unavailable": True}
@@ -370,7 +375,9 @@ class CommandRunner:
                     self.store = PresentationStore(
                         self.auth.root, owner=_owner(self.auth.read_identity())
                     )
-                view = self._remaining_points(command, create_presentation(command, result))
+                view = self._remaining_points(
+                    command, create_presentation(command, result, log=self.debug.log)
+                )
                 self.output(view, None if view["state"] == "invalid_response" else data)
                 exit_code = int(view["state"] in ("invalid_response", "failed"))
         except BrokenPipeError:

@@ -15,6 +15,8 @@ from teeho_skill import constants
 from teeho_skill.api import TeehoApi
 from teeho_skill.errors import TeehoError
 from teeho_skill.http_transport import HttpTransport
+from teeho_skill.presentation import create_error_presentation
+from teeho_skill.rendering import render_presentation
 
 UID = "11111111-1111-4111-8111-111111111111"
 DEVICE = "a" * 64
@@ -44,6 +46,7 @@ SUBMISSION = {
 
 class Handler(BaseHTTPRequestHandler):
     requests, responses = [], {}
+    codes = {}
 
     def do_GET(self) -> None:
         self.handle_request()
@@ -63,7 +66,11 @@ class Handler(BaseHTTPRequestHandler):
         status, data = value if isinstance(value, tuple) else (200, value)
         message = data.get("message", "ok") if isinstance(data, dict) else "ok"
         payload = json.dumps(
-            {"code": 0 if status < 300 else status, "message": message, "data": data}
+            {
+                "code": Handler.codes.get(self.path, 0 if status < 300 else status),
+                "message": message,
+                "data": data,
+            }
         ).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -91,6 +98,7 @@ class ApiContractTests(unittest.TestCase):
     def setUp(self):
         Handler.requests.clear()
         Handler.responses.clear()
+        Handler.codes.clear()
         self.api = TeehoApi(
             f"http://127.0.0.1:{self.server.server_port}/api", HttpTransport()
         )
@@ -292,6 +300,7 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(call(), data)
                 actual, route, headers, body = Handler.requests[-1]
                 self.assertEqual((actual, route), (method, "/api" + path))
+                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.1.0")
                 (
                     self.assertEqual(json.loads(body), expected_body)
                     if expected_body is not None
@@ -313,6 +322,50 @@ class ApiContractTests(unittest.TestCase):
         self.assertEqual(self.auth_calls, [UID] * 11)
         for request in Handler.requests[:3]:
             self.assertNotIn("Authorization", request[2])
+
+    def test_upgrade_code_precedes_http_error_mapping_for_every_api(self):
+        calls = [
+            ("/skill/auth/start", lambda: self.api.start_login(DEVICE)),
+            ("/skill/auth/anonymous", lambda: self.api.create_anonymous_identity(DEVICE, MACHINE)),
+            ("/skill/auth/token", lambda: self.api.exchange_token(DEVICE)),
+            ("/skill/auth/logout", lambda: self.api.logout(TOKEN)),
+            ("/points/summary", self.api.get_points),
+            ("/analysis/task-config", self.api.get_task_config),
+            ("/analysis/media/upload-sessions", lambda: self.api.create_image_upload_session([])),
+            ("/analysis/media/statuses", lambda: self.api.get_media_statuses([UID])),
+            (f"/analysis/media/{UID}/complete", lambda: self.api.confirm_image_upload(UID)),
+            ("/analysis/video/upload-sessions", lambda: self.api.create_video_upload_session({})),
+            (f"/analysis/video/{UID}", lambda: self.api.get_video(UID)),
+            (f"/analysis/video/{UID}/complete", lambda: self.api.confirm_video_upload(UID)),
+            ("/analysis/tasks", lambda: self.api.submit_task(SUBMISSION)),
+            (f"/analysis/tasks/admissions/{UID}", lambda: self.api.get_admission(UID)),
+            (f"/analysis/tasks/{UID}", lambda: self.api.get_task(UID)),
+        ]
+        for path, call in calls:
+            with self.subTest(path=path):
+                Handler.codes["/api" + path] = 4260
+                Handler.responses[path] = (
+                    400,
+                    {
+                        "reason": "skill_upgrade_required",
+                        "minimumVersion": "2.2.0",
+                        "latestVersion": "2.3.1",
+                        "downloadPath": "/skill/download",
+                        "message": "untrusted server prose",
+                    },
+                )
+                before = len(Handler.requests)
+                with self.assertRaises(TeehoError) as raised:
+                    call()
+                self.assertEqual(raised.exception.code, "skill_upgrade_required")
+                self.assertEqual(len(Handler.requests), before + 1)
+                view = create_error_presentation(raised.exception)
+                self.assertEqual(view["state"], "upgrade_required")
+                self.assertEqual(view["nextAction"], "upgrade_skill")
+                text = render_presentation(view)
+                self.assertIn(self.api.base_url + "/skill/download", text)
+                self.assertIn("2.2.0", text)
+                self.assertNotIn("untrusted server prose", text)
 
     def test_upload_file_descriptor_and_direct_url(self):
         with tempfile.TemporaryDirectory() as d:

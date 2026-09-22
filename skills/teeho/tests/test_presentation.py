@@ -74,12 +74,15 @@ class PresentationTests(unittest.TestCase):
         for marker in ('🟢', '🟡', '🟠', '\x1b['):
             self.assertNotIn(marker, text)
 
-    def test_report_requires_current_version_and_explicit_primary_score(self) -> None:
+    def test_report_requires_explicit_primary_score_but_not_exact_schema_version(self) -> None:
         fixture = next(case for case in FIXTURES if case["name"] == "report")
         for version, primary in (("analysis-result.v6", {"source": "insight", "value": 7.2}), ("analysis-result.v7", None)):
             data = copy.deepcopy(fixture["result"])
             data["task"]["result"] = {**data["task"]["result"], "schemaVersion": version, "primaryScore": primary}
-            self.assertEqual(create_presentation("task", data)["state"], "invalid_response")
+            self.assertEqual(
+                create_presentation("task", data)["state"],
+                "completed" if primary else "invalid_response",
+            )
 
     def test_report_paths_render_literally_outside_translation_fields(self) -> None:
         fixture = next(case for case in FIXTURES if case["name"] == "report")

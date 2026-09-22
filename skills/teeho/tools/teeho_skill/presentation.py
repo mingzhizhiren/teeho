@@ -10,6 +10,8 @@ from .help_content import resolve_help_topic
 from .history import local_media
 from .structure_metrics import project_structure_metrics
 from .errors import TeehoError
+from .version import SkillUpgradeRequired
+from .report_fields import read_optional
 from .score import read_primary_score
 from .content_analysis import project_content_analysis, read_content_analysis
 from .risk_matches import project_risk_matches
@@ -34,7 +36,7 @@ PENDING = frozenset(
     )
 )
 MAX_SAFE_INTEGER = 9007199254740991
-IDENTIFIER = re.compile(r"[a-f0-9-]{36}", re.IGNORECASE)
+IDENTIFIER = re.compile(r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}", re.IGNORECASE)
 View = dict[str, Any]
 
 
@@ -78,6 +80,7 @@ def _billing(task: View) -> View:
         "settled": "charged",
     }
     status = task.get("pointReservationStatus")
+    status = status if isinstance(status, str) else None
     return {
         "price": (
             _number(task.get("pointCost"))
@@ -88,32 +91,23 @@ def _billing(task: View) -> View:
     }
 
 
-def _make_report(task: View, saved: bool, historical: bool) -> View:
+def _make_report(task: View, saved: bool, historical: bool, log: Optional[Callable] = None) -> View:
     result = task.get("result")
     if not isinstance(result, dict):
         return _invalid()
     conclusion = result.get("qualitativeConclusion")
-    if result.get("schemaVersion") != "analysis-result.v7" or not isinstance(result.get("radar"), dict):
-        return _invalid()
     if not isinstance(conclusion, dict) or not isinstance(
         conclusion.get("summary"), str
     ):
         return _invalid()
-    analysis = read_content_analysis(result.get("contentAnalysis"))
-    forced_zero = bool(analysis and analysis["status"] == "completed"
-                       and analysis["consistency"]["stars"] == 0
-                       and analysis.get("scorePolicy") != "consistency-weighted.v2")
-    if (
-        not isinstance(result.get("comparisonNotes"), list)
-        or (not result["comparisonNotes"] and not forced_zero)
-    ):
+    if not conclusion["summary"].strip() or _identifier(task.get("id")) is None:
         return _invalid()
-    if not isinstance(result.get("differences"), list):
-        return _invalid()
-    return _report_view(task, result, saved, historical)
+    return _report_view(task, result, saved, historical, log)
 
 
-def _report_view(task: View, result: View, saved: bool, historical: bool) -> View:
+def _report_view(
+    task: View, result: View, saved: bool, historical: bool, log: Optional[Callable] = None
+) -> View:
     texts: dict[str, str] = {}
 
     def prose(value: object) -> str:
@@ -124,10 +118,13 @@ def _report_view(task: View, result: View, saved: bool, historical: bool) -> Vie
 
     comparisons = [
         _comparison(note, prose)
-        for note in (result.get("comparisonNotes") or [])
+        for note in (
+            result.get("comparisonNotes") if isinstance(result.get("comparisonNotes"), list) else []
+        )
         if isinstance(note, dict)
     ]
-    insight = result.get("insight") or {}
+    insight = result.get("insight") if isinstance(result.get("insight"), dict) else {}
+    radar = result.get("radar") if isinstance(result.get("radar"), dict) else {}
     primary_score = read_primary_score(result)
     conclusion = result["qualitativeConclusion"]
     data = {
@@ -137,7 +134,9 @@ def _report_view(task: View, result: View, saved: bool, historical: bool) -> Vie
         "billing": _billing(task),
         "score": primary_score["value"],
         "scoreSource": primary_score["source"],
-        "customMetrics": read_custom_metrics(result.get("customMetrics")),
+        "customMetrics": read_optional(
+            "customMetrics", lambda: read_custom_metrics(result.get("customMetrics"), log), [], log
+        ),
         "limited": insight.get("limited") is True,
         "weightedReference": (
             isinstance(insight.get("reference"), dict)
@@ -158,15 +157,27 @@ def _report_view(task: View, result: View, saved: bool, historical: bool) -> Vie
             if insight.get("comparison") in ("above", "near", "below")
             else None
         ),
-        "scores": [_number(result["radar"].get(key), 10) for key in RADAR_METRICS],
+        "scores": [_number(radar.get(key), 10) for key in RADAR_METRICS],
         "summary": prose(conclusion["summary"]),
         "comparisons": comparisons,
-        "riskMatches": project_risk_matches(result, task, prose),
+        "riskMatches": read_optional(
+            "riskMatches", lambda: project_risk_matches(result, task, prose), None, log
+        ),
         "riskReviewStatus": result.get("riskReviewStatus"),
-        "structureMetrics": project_structure_metrics(result),
-        **({"contentAnalysis": project_content_analysis(
-            result["contentAnalysis"], prose, comparisons
-        )} if result.get("contentAnalysis") is not None else {}),
+        "structureMetrics": read_optional(
+            "structureMetrics",
+            lambda: project_structure_metrics(result),
+            project_structure_metrics({}),
+            log,
+        ),
+        "contentAnalysis": read_optional(
+            "contentAnalysis",
+            lambda: project_content_analysis(
+                result.get("contentAnalysis"), prose, comparisons, log
+            ),
+            None,
+            log,
+        ),
         "differences": [
             {
                 "feature": item["feature"],
@@ -177,10 +188,17 @@ def _report_view(task: View, result: View, saved: bool, historical: bool) -> Vie
                 "references": [
                     note["title"]
                     for note in comparisons
-                    if note["id"] in item.get("referenceIds", [])
+                    if note["id"]
+                    in (
+                        item.get("referenceIds")
+                        if isinstance(item.get("referenceIds"), list)
+                        else []
+                    )
                 ],
             }
-            for item in result.get("differences", [])
+            for item in (
+                result.get("differences") if isinstance(result.get("differences"), list) else []
+            )
             if isinstance(item, dict)
             and item.get("feature")
             in (
@@ -190,8 +208,7 @@ def _report_view(task: View, result: View, saved: bool, historical: bool) -> Vie
                 "paragraphLength",
                 "lexicalVariety",
             )
-            and item.get("severity")
-            in ("aligned", "minor", "moderate", "major", "critical")
+            and item.get("severity") in ("aligned", "minor", "moderate", "major", "critical")
         ][:3],
     }
     return {**_base("completed", "report"), "texts": texts, "data": data}
@@ -199,7 +216,15 @@ def _report_view(task: View, result: View, saved: bool, historical: bool) -> Vie
 
 def _comparison(note: View, prose: Callable[[object], str]) -> View:
     return {
-        "selectionReason": "semantic_similarity" if note.get("reason") == "semantic_similarity" else selection_reason(note).value,
+        "selectionReason": (
+            "semantic_similarity"
+            if note.get("reason") == "semantic_similarity"
+            else (
+                selection_reason(note).value
+                if note.get("reason") in (None, "high_exposure", "rapid_growth")
+                else "reference_note"
+            )
+        ),
         "modelScore": _number(note.get("modelScore"), 10),
         "id": safe_text(note.get("noteId")),
         "title": safe_text(note.get("title")),
@@ -208,19 +233,17 @@ def _comparison(note: View, prose: Callable[[object], str]) -> View:
         "collects": _number(note.get("collects")),
         "comments": _number(note.get("comments")),
         "reason": prose(note.get("reason")),
-        "url": safe_url(
-            note.get("noteUrl", note.get("url")), allow_platform_access=True
-        ),
+        "url": safe_url(note.get("noteUrl", note.get("url")), allow_platform_access=True),
     }
 
 
-def _task_presentation(command: str, result: View) -> View:
+def _task_presentation(command: str, result: View, log: Optional[Callable] = None) -> View:
     task = result["task"]
     if not isinstance(task, dict) or not isinstance(task.get("status"), str):
         return _invalid()
     status = task["status"]
     if status in ("succeeded", "completed"):
-        view = _make_report(task, result.get("saved", False), command == "history")
+        view = _make_report(task, result.get("saved", False), command == "history", log)
         if view["state"] == "invalid_response":
             return {
                 **view,
@@ -406,13 +429,22 @@ def _local_view(command: str, result: View) -> View:
     return _invalid()
 
 
-def create_presentation(command: str, result: object, anonymous: bool = False) -> View:
+def create_presentation(
+    command: str, result: object, anonymous: bool = False, *, log: Optional[Callable] = None
+) -> View:
     """只转换已知响应形状；错误数据回退固定提示。"""
     try:
         if not isinstance(result, dict):
             return _invalid()
         if isinstance(result.get("task"), (dict, list)) or result.get("task"):
-            return _task_presentation(command, result)
+            view = _task_presentation(command, result, log)
+            if view["state"] == "invalid_response" and log:
+                log(
+                    "report_core_invalid",
+                    {"stage": "core", "errorCode": "invalid_core_fields"},
+                    "error",
+                )
+            return view
         if result.get("preparing") is True:
             return _notice("preparing", "preparingMessage", "resume")
         if command == "task_summary":
@@ -442,11 +474,16 @@ def create_presentation(command: str, result: object, anonymous: bool = False) -
                 else _invalid()
             )
         return _local_view(command, result)
-    except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
+    except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as error:
+        if log:
+            log(
+                "report_core_invalid", {"stage": "core", "errorCode": type(error).__name__}, "error"
+            )
         return _invalid()
 
 
 ERRORS = {
+    "invalid_skill_installation": ("invalid_configuration", "configurationError", "upgrade_skill"),
     "invalid_help_topic": ("invalid_input", "helpTopicInvalid", "help"),
     "missing_cover": ("invalid_input", "missingCover", "correct_input"),
     "指定封面必须在本次图片中": (
@@ -494,6 +531,8 @@ ERRORS = {
 
 def create_error_presentation(error: BaseException) -> View:
     """内部错误只参与映射，不进入展示或元数据。"""
+    if isinstance(error, SkillUpgradeRequired):
+        return {**_base("upgrade_required", "upgrade", "upgrade_skill"), "data": error.details}
     code, status = getattr(error, "code", None), getattr(error, "status", None)
     if isinstance(error, PermissionError) or code in ("EPERM", "EACCES"):
         return _notice("permission_required", "permission", "request_permission")

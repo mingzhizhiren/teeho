@@ -26,6 +26,7 @@ from teeho_skill.config import normalize_api_url, read_installation
 from teeho_skill.debug import DebugLogger, command_log_level
 from teeho_skill.device import machine_identifier
 from teeho_skill.errors import TeehoError
+from teeho_skill.version import SkillUpgradeRequired
 from teeho_skill.http_transport import HttpTransport
 from teeho_skill.locking import lock_directory, process_is_running
 from teeho_skill.storage import ensure_private_directory, is_link, read_json, write_json
@@ -248,9 +249,30 @@ class RuntimeTests(unittest.TestCase):
 
     def test_expired_authorization_can_logout_without_network_details(self) -> None:
         self.identity()
-        public = SimpleNamespace(exchange_token=Mock(side_effect=TeehoError("login_required", 401)))
+        public = SimpleNamespace(logout=Mock(side_effect=TeehoError("login_required", 401)))
         self.assertEqual(self.session(public).logout(), {"signedOut": True})
         self.assertIsNone(read_json(self.root / "identity.json"))
+
+    def test_logout_uses_existing_credential_without_upgrade_blocked_refresh(self) -> None:
+        self.identity()
+        public = SimpleNamespace(
+            exchange_token=Mock(side_effect=SkillUpgradeRequired(400, BASE_URL, {})),
+            logout=Mock(return_value={"revoked": True}),
+        )
+        self.assertEqual(self.session(public).logout(), {"signedOut": True})
+        public.exchange_token.assert_not_called()
+        public.logout.assert_called_once_with(ISSUED["accessToken"])
+
+    def test_upgrade_error_never_refreshes_even_if_http_status_is_401(self) -> None:
+        self.identity()
+        before = (self.root / "identity.json").read_bytes()
+        public = SimpleNamespace(exchange_token=Mock(return_value=ISSUED))
+        operation = Mock(side_effect=SkillUpgradeRequired(401, BASE_URL, {}))
+        with self.assertRaises(SkillUpgradeRequired):
+            self.session(public).authorized(operation, USER_ID)
+        operation.assert_called_once()
+        public.exchange_token.assert_not_called()
+        self.assertEqual((self.root / "identity.json").read_bytes(), before)
 
     def test_anonymous_failure_reuses_pending_token_and_requires_real_machine(
         self,

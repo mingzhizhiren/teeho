@@ -30,13 +30,16 @@ NUMBER_FIELDS = frozenset(
 BOOLEAN_FIELDS = frozenset(
     "anonymous saved hasRadar translationAvailable hasTask submitting".split()
 )
-STRING_FIELDS = frozenset("command method route state nextAction template errorCode stage".split())
+STRING_FIELDS = frozenset(
+    "command method route state nextAction template errorCode stage fieldPath".split()
+)
 
 
 def command_log_level(state: str) -> str:
     if state in {"failed", "invalid_response", "unavailable", "service_unavailable", "local_error"}:
         return "error"
     if state in {
+        "upgrade_required",
         "anonymous_limit",
         "invalid_input",
         "invalid_request",
