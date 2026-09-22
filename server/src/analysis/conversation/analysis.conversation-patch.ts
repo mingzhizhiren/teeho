@@ -59,6 +59,33 @@ function hasClearInstruction(message: string, field: string): boolean {
     )
 }
 
+function replacementOperand(value: string): string {
+    return value.trim().replace(/^[“「‘"'](.*)[”」’"']$/u, '$1')
+}
+
+/** 仅认可用户对当前字段明确指定的字面替换，不能夹带模型改写。 */
+function matchesExplicitReplacement(
+    input: ConversationGroundingInput,
+    name: string,
+    value: string,
+): boolean {
+    if (name !== 'title' && name !== 'body') return false
+    const field = input.completeDraft.fields[name]
+    if (field.source !== 'user_input' || !field.value) return false
+    const expected = input.message.split(/[；;。\n]/u).reduce((text, clause) => {
+        const instruction = clause.trim().match(
+            /^(?:请)?(?:将|把)?(标题|正文|内容)(?:中)?(?:的)?\s*(.+?)\s*(?:替换为|替换成|改为|改成)\s*(.+)$/u,
+        )
+        if (!instruction) return text
+        const [, label, from, to] = instruction
+        if ((label === '标题' ? 'title' : 'body') !== name) return text
+        const source = replacementOperand(from!)
+        const target = replacementOperand(to!)
+        return source && target ? text.split(source).join(target) : text
+    }, field.value)
+    return expected !== field.value && groundingText(expected, false) === groundingText(value, false)
+}
+
 /** 模型补丁必须能追溯到用户提供的文字，不能通过伪造 source 代写。 */
 export function groundConversationDraftPatch(
     input: ConversationGroundingInput,
@@ -80,9 +107,9 @@ export function groundConversationDraftPatch(
                       const text = groundingText(value, name === 'topics')
                       return (
                           text.length > 0 &&
-                          sources.some((source) =>
+                          (sources.some((source) =>
                               groundingText(source, name === 'topics').includes(text),
-                          )
+                          ) || matchesExplicitReplacement(input, name, value))
                       )
                   })
         if (!grounded) {

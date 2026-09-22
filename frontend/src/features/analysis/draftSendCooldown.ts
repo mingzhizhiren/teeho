@@ -7,7 +7,7 @@ const draftSendCooldownDataSchema = z
     .object({
         retryAfterSeconds: z.number().int().nonnegative(),
         retryAt: z.string().datetime({ offset: true }),
-        reason: z.enum(['rolling_agent_usage']).optional(),
+        reason: z.enum(['rolling_agent_usage', 'analysis_preparation_rate']).optional(),
         canUpgrade: z.boolean().optional(),
     })
     .strict()
@@ -49,7 +49,10 @@ export function resolveDraftSendCooldown(error: unknown, receivedAt = new Date()
     }
     const remainingSeconds = parsed.data.retryAfterSeconds
     return {
-        reason: parsed.data.reason ?? ('send_window' as const),
+        reason:
+            parsed.data.reason === 'rolling_agent_usage'
+                ? ('rolling_agent_usage' as const)
+                : ('send_window' as const),
         retryAt: parsed.data.retryAt,
         retryAtMs: receivedAt.getTime() + remainingSeconds * TIME_MS.SECOND,
         remainingSeconds,

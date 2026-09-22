@@ -1907,7 +1907,8 @@ async function restorePendingConversationInput(pending: AnalysisConversationPend
     }
     pendingConversationTurn.value = null
     agentComposerText.value = pending.message
-    await persistCurrentConversation()
+    // 失败回合没有提交新草稿，恢复上一份完整草稿的确认入口并同步持久化。
+    if (!(await confirmCurrentDraft())) await persistCurrentConversation()
 }
 
 /** ACK 已由另一页面完成时，以共享密文快照收敛，不再用旧页面状态覆盖。 */

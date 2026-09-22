@@ -7,6 +7,25 @@ import {
 import { ApiRequestError } from '@/utils/apiRequestError'
 
 describe('draft send cooldown', () => {
+    test('识别服务端实际发送窗口原因并进入冷却，而不是提示 Agent 失败', () => {
+        const cooldown = resolveDraftSendCooldown(
+            new ApiRequestError('草稿发送次数已达上限，请稍后再试', {
+                code: 4290,
+                status: 429,
+                data: {
+                    reason: 'analysis_preparation_rate',
+                    retryAfterSeconds: 120,
+                    retryAt: '2026-09-22T04:42:00.000Z',
+                },
+            }),
+            new Date('2026-09-22T04:40:00.000Z'),
+        )
+        expect(cooldown).toMatchObject({
+            reason: 'send_window',
+            remainingSeconds: 120,
+            waitMinutes: 2,
+        })
+    })
     test('uses the server retry boundary and rounds the visible wait up to minutes', () => {
         const cooldown = resolveDraftSendCooldown(
             new ApiRequestError('草稿发送次数已达上限，请稍后再试', {

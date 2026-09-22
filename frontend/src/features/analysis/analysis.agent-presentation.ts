@@ -393,7 +393,6 @@ export function presentAgentConversationTurn(
                 text: selector.select('defer_media_analysis'),
                 showConfirmation: Boolean(
                     turn.completeDraft?.fields.title.value?.trim() &&
-                    turn.completeDraft.fields.body.value?.trim() &&
                     turn.completeDraft.fields.topics.value.length,
                 ),
             }

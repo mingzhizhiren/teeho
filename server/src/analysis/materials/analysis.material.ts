@@ -1,8 +1,13 @@
+import { z } from 'zod'
 import type { CheckupEvaluationInput } from '../checkup/analysis.checkup.evaluation'
 import { resolveAnalysisCover } from '../media/analysis.cover'
 import {
     AgentContractError,
+    AgentCancelledError,
     AgentProviderError,
+    agentProviderErrorLogFields,
+    readAgentProviderExecutionMetadata,
+    readAgentUnparseableOutput,
     type AgentResultGenerationInput,
 } from '../providers/analysis.provider'
 import { outputLanguageForTask } from '../providers/analysis.provider-dto'
@@ -99,41 +104,95 @@ async function callMaterial(
     }
     const parse = (raw: unknown): unknown => {
         if (request.kind === 'classification') return normalizeMaterialClassification(raw)
+        if (readAgentUnparseableOutput(raw) !== null) {
+            throw new AgentContractError('素材理解结果不是合法 JSON', {
+                ruleId: `material.${request.kind}.json`,
+                validationFieldPaths: ['$'],
+            })
+        }
         const parsed = materialDescriptionSchema.safeParse(raw)
-        if (!parsed.success) throw new AgentContractError('素材理解结果无效')
+        if (!parsed.success)
+            throw new AgentContractError('素材理解结果无效', {
+                ruleId: `material.${request.kind}.schema`,
+                validationFieldPaths: parsed.error.issues.map(
+                    (issue) => issue.path.join('.') || '$',
+                ),
+                cause: parsed.error,
+            })
         return parsed.data
     }
     const run = async (retry: boolean): Promise<unknown> => {
-        const output = await input.agent.usage.execute({
-            userId: input.task.userId,
-            association: { kind: 'task', id: input.task.id },
-            requestId,
-            stage: 'generate_result',
-            provider: input.agent.descriptor,
-            promptVersion: materialPromptVersions[request.kind],
-            attemptNumber: retry ? RETRY_ATTEMPT : 1,
-            media: {
-                imageInputCount:
-                    request.images.length - (request.videoEvidence?.frames.length ?? 0),
-                videoFrameInputCount: request.videoEvidence?.frames.length ?? 0,
-            },
-            invoke: () => invoke.call(input.agent.provider, materialRequest),
-            parse,
-            shouldRetry: (error) =>
-                !retry && error instanceof AgentProviderError && error.retryable,
-        })
-        return output.value
+        input.signal.throwIfAborted()
+        const startedAt = performance.now()
+        try {
+            const output = await input.agent.usage.execute({
+                userId: input.task.userId,
+                association: { kind: 'task', id: input.task.id },
+                requestId,
+                stage: 'generate_result',
+                provider: input.agent.descriptor,
+                promptVersion: materialPromptVersions[request.kind],
+                attemptNumber: retry ? RETRY_ATTEMPT : 1,
+                media: {
+                    imageInputCount:
+                        request.images.length - (request.videoEvidence?.frames.length ?? 0),
+                    videoFrameInputCount: request.videoEvidence?.frames.length ?? 0,
+                },
+                invoke: () => invoke.call(input.agent.provider, materialRequest),
+                parse,
+                shouldRetry: (error) =>
+                    !retry && error instanceof AgentProviderError && error.retryable,
+            })
+            return output.value
+        } catch (error) {
+            if (!input.signal.aborted && !(error instanceof AgentCancelledError)) {
+                const validation =
+                    error instanceof AgentContractError && error.cause instanceof z.ZodError
+                        ? error.cause.issues.map((issue) => ({
+                              code: issue.code,
+                              path: issue.path.join('.') || '$',
+                              ...(issue.code === 'invalid_type'
+                                  ? { expected: issue.expected, received: issue.received }
+                                  : {}),
+                              ...(issue.code === 'too_big' ? { maximum: issue.maximum } : {}),
+                              ...(issue.code === 'too_small' ? { minimum: issue.minimum } : {}),
+                              ...(issue.code === 'unrecognized_keys'
+                                  ? { keyCount: issue.keys.length }
+                                  : {}),
+                          }))
+                        : []
+                input.log.error(
+                    {
+                        event: 'analysis_material_attempt_failed',
+                        ...agentProviderErrorLogFields(error, false),
+                        taskId: input.task.id,
+                        taskRequestId: input.requestId,
+                        requestId,
+                        materialKind: request.kind,
+                        promptVersion: materialPromptVersions[request.kind],
+                        provider: input.agent.descriptor.provider,
+                        model: input.agent.descriptor.model,
+                        attemptNumber: retry ? RETRY_ATTEMPT : 1,
+                        durationMs: Math.round(performance.now() - startedAt),
+                        executionId: readAgentProviderExecutionMetadata(error)?.executionId ?? null,
+                        validationIssues: validation,
+                        retryDecision:
+                            !retry && error instanceof AgentProviderError && error.retryable
+                                ? 'retry'
+                                : 'fail',
+                    },
+                    '素材理解调用失败',
+                )
+            }
+            throw error
+        }
     }
     try {
         return await run(false)
     } catch (error) {
         if (input.signal.aborted || !(error instanceof AgentProviderError) || !error.retryable)
             throw error
-        try {
-            return await run(true)
-        } catch (retryError) {
-            throw new AgentContractError('素材理解重试失败', { cause: retryError })
-        }
+        return run(true)
     }
 }
 
@@ -153,7 +212,11 @@ export async function understandTaskMaterials(
         },
     }
     const coverImage = resolveAnalysisCover(task, input.media.images, input.media.videoEvidence)
-    if (!coverImage) throw new AgentContractError('请提供可用封面')
+    if (!coverImage)
+        throw new AgentContractError('请提供可用封面', {
+            ruleId: 'material.cover.unavailable',
+            validationFieldPaths: ['coverReference', 'media.images'],
+        })
     const cover = materialDescriptionSchema.parse(
         await callMaterial(input, { ...base, kind: 'cover', images: [coverImage] }),
     ).description
@@ -192,7 +255,7 @@ export async function understandTaskMaterials(
         )
         return { cover, content, ...classification }
     } catch (error) {
-        if (input.signal.aborted) throw error
+        if (input.signal.aborted || error instanceof AgentCancelledError) throw error
         input.log.warn(
             { event: 'analysis_classification_fallback', taskId: input.task.id },
             '分类失败，使用其他类',

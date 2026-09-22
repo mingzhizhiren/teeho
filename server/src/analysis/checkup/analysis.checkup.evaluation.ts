@@ -82,7 +82,7 @@ export interface CheckupEvaluationInput {
         imageInputCount: number
         videoFrameInputCount: number
     }
-    log: Pick<typeof logger, 'debug' | 'warn'>
+    log: Pick<typeof logger, 'debug' | 'warn' | 'error'>
 }
 
 export interface CheckupEvaluation {
