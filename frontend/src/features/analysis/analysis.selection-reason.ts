@@ -21,20 +21,15 @@ interface ReferencePresentation {
     readonly counts: Readonly<Record<keyof typeof HIGH_EXPOSURE, string>>
 }
 
-/** 页面与复制共用入选理由和数量语义，数字格式由展示入口决定。 */
+/** 页面与复制共用入选理由及固定互动档位。 */
 export function presentReference(
     note: ReferenceDisplayNote,
     labels: ReferenceDisplayLabels,
-    formatCount: (value: number) => string = String,
 ): ReferencePresentation {
     const isSemantic = note.reason === 'semantic_similarity'
     const count = (metric: keyof typeof HIGH_EXPOSURE): string => {
         const value = note[metric]
-        return isSemantic
-            ? value === null
-                ? '—'
-                : formatCount(value)
-            : formatEngagementTier(metric, value, labels.rapidGrowth)
+        return formatEngagementTier(metric, value, labels.rapidGrowth)
     }
     return {
         reason: isSemantic

@@ -179,11 +179,7 @@ def _comparison_lines(note: View, translate: Translate) -> list[str]:
     counts = [
         translate(key)
         + ": "
-        + (
-            (str(note[key]) if note.get(key) is not None else "—")
-            if note.get("selectionReason") in ("semantic_similarity", "reference_note")
-            else (engagement_tier(key, note.get(key)) or translate("rapidGrowth"))
-        )
+        + (engagement_tier(key, note.get(key)) or translate("rapidGrowth"))
         for key in ("likes", "collects", "comments")
     ]
     return [

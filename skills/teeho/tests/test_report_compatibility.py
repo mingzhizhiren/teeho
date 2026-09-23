@@ -107,7 +107,7 @@ class ReportCompatibilityTests(unittest.TestCase):
         note.update({"reason": "future-recall", "modelScore": "not-a-number", "likes": 0})
         text = render_presentation(create_presentation("task", data))
         self.assertIn(note["title"], text)
-        self.assertNotIn("Growing rapidly", text)
+        self.assertNotIn("Selection reason: Growing rapidly", text)
         self.assertNotIn("Model score:", text)
 
     def test_corrupt_core_score_is_never_replaced_with_zero(self):

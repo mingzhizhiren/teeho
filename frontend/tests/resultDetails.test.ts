@@ -55,7 +55,7 @@ const labels: ResultCopyLabels = {
     structureMetric: (name, value) => `${name}: ${value ?? '—'}`,
 }
 
-test('参考展示保留语义真实数量和旧查询档位，不混淆零与缺失', () => {
+test('复制语义和 SQL 参考均保留原有数量档位', () => {
     const note = { ...checkupResult.comparisonNotes[0]!, likes: 1000, collects: 0, comments: null }
     const copyLabels = {
         ...labels,
@@ -66,7 +66,7 @@ test('参考展示保留语义真实数量和旧查询档位，不混淆零与�
         { ...checkupResult, comparisonNotes: [{ ...note, reason: 'semantic_similarity' }] },
         copyLabels,
     )
-    expect(semantic).toContain('Likes: 1000\nSaves: 0\nComments: —')
+    expect(semantic).toContain('Likes: 1K+\nSaves: Growing rapidly\nComments: Growing rapidly')
     expect(semantic).toContain('Related content')
     const legacy = buildResultCopyText(
         { ...checkupResult, comparisonNotes: [{ ...note, reason: 'similar_content' }] },

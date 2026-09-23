@@ -64,6 +64,18 @@ def analysis(stars: int = 4, status: str = "completed") -> dict:
 
 class ContentAnalysisTests(unittest.TestCase):
 
+    def test_all_reference_sources_render_engagement_tiers(self) -> None:
+        for reason in ("semantic_similarity", "similar_content", "reference_note"):
+            with self.subTest(reason=reason):
+                data = report()
+                reference = data["task"]["result"]["comparisonNotes"][0]
+                reference.update({"reason": reason, "likes": 2847, "collects": 2639, "comments": 41})
+                rendered = render_presentation(create_presentation("task", data))
+                for tier in ("1K+", "10+"):
+                    self.assertIn(tier, rendered)
+                for exact in ("2847", "2639", "41"):
+                    self.assertNotIn(exact, rendered)
+
     def test_four_reference_suggestion_survives_projection_and_rendering(self) -> None:
         data = report()
         result = data["task"]["result"]
@@ -104,7 +116,7 @@ class ContentAnalysisTests(unittest.TestCase):
         result["insight"]["score"] = 0
         self.assertEqual(create_presentation("task", data)["state"], "completed")
 
-    def test_semantic_reference_keeps_zero_model_score_without_growth_claim(self) -> None:
+    def test_semantic_reference_keeps_zero_score_and_low_count_tiers(self) -> None:
         data = report()
         reference = data["task"]["result"]["comparisonNotes"][0]
         reference.update({"reason": "semantic_similarity", "modelScore": 0, "likes": 1, "collects": 0})
@@ -112,7 +124,8 @@ class ContentAnalysisTests(unittest.TestCase):
         rendered = render_presentation(view)
         self.assertIn("Model score: 0.00 / 10", rendered)
         self.assertIn("Related content", rendered)
-        self.assertNotIn("Growing rapidly", rendered)
+        self.assertIn("Likes: Growing rapidly", rendered)
+        self.assertIn("Selection reason: Related content", rendered)
 
     def test_v122_policy_keeps_saved_scores(self) -> None:
         for stars, expected in ((1, 2.4), (2, 4.8)):

@@ -80,7 +80,7 @@ describe('released Skill API compatibility', () => {
                 data: {
                     reason: 'skill_upgrade_required',
                     minimumVersion: '2.1.0',
-                    latestVersion: '2.1.0',
+                    latestVersion: '2.1.1',
                     downloadPath: '/skill/download',
                 },
             })

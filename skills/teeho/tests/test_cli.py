@@ -605,7 +605,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0, lines)
         rendered = lines[0]
         self.assertNotIn("话题需求", rendered["displayText"])
-        self.assertIn("点赞: 10 · 收藏: 2 · 评论: 0", rendered["displayText"])
+        self.assertIn("点赞: 快速增长 · 收藏: 快速增长 · 评论: 快速增长", rendered["displayText"])
         self.assertEqual(rendered["delivery"]["mode"], "verbatim")
         self.assertEqual(rendered["delivery"]["format"], "text_code_block")
         self.assertNotIn("command", rendered["delivery"])

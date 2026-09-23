@@ -300,7 +300,7 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(call(), data)
                 actual, route, headers, body = Handler.requests[-1]
                 self.assertEqual((actual, route), (method, "/api" + path))
-                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.1.0")
+                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.1.1")
                 (
                     self.assertEqual(json.loads(body), expected_body)
                     if expected_body is not None

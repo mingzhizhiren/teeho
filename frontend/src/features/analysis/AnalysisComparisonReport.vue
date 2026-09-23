@@ -5,22 +5,18 @@ import type { AnalysisResult } from './analysis.contract'
 import { presentReference } from './analysis.selection-reason'
 import AnalysisStructureMetrics from './AnalysisStructureMetrics.vue'
 const props = defineProps<{ result: AnalysisResult }>()
-const { t, n } = useI18n()
+const { t } = useI18n()
 const referenceNotes = computed(() =>
     props.result.comparisonNotes.map((note) => ({
         note,
-        presentation: presentReference(
-            note,
-            {
-                semanticReference: t('workspace.checkup.semanticReference'),
-                selectionReasons: {
-                    high_exposure: t('workspace.checkup.selectionReasons.high_exposure'),
-                    rapid_growth: t('workspace.checkup.selectionReasons.rapid_growth'),
-                },
-                rapidGrowth: t('workspace.checkup.rapidGrowth'),
+        presentation: presentReference(note, {
+            semanticReference: t('workspace.checkup.semanticReference'),
+            selectionReasons: {
+                high_exposure: t('workspace.checkup.selectionReasons.high_exposure'),
+                rapid_growth: t('workspace.checkup.selectionReasons.rapid_growth'),
             },
-            n,
-        ),
+            rapidGrowth: t('workspace.checkup.rapidGrowth'),
+        }),
     })),
 )
 </script>
