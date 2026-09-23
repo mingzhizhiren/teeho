@@ -1,4 +1,4 @@
-# 社区版独立 Supabase 项目。不要把本目录链接到题火线上或已有私有数据库。
+
 project_id = "teeho-community"
 
 [api]
@@ -53,6 +53,6 @@ skip_nonce_check = false
 
 [functions.cleanup-analysis-media]
 enabled = true
-# 由函数校验高熵共享密钥；不是匿名清理接口。
+
 verify_jwt = false
 entrypoint = "./functions/cleanup-analysis-media/index.ts"
