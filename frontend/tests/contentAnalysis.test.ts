@@ -15,6 +15,36 @@ const newReport = {
     contentAnalysis: contentAnalysisFixture,
 }
 
+test('显式允许无参考的内容评分报告可读取，缺省及必需参考仍严格校验', () => {
+    const report = {
+        ...newReport,
+        referenceRequirement: 'optional',
+        contentAnalysis: {
+            ...contentAnalysisFixture,
+            scorePolicy: 'consistency-weighted.v2',
+            consistency: { ...contentAnalysisFixture.consistency, stars: 3 },
+            weaknesses: [],
+        },
+        insight: null,
+        primaryScore: { source: 'radar_average', value: 7 },
+        radar: Object.fromEntries(
+            Object.keys(checkupResult.radar).map((dimension) => [dimension, 7]),
+        ),
+        comparisonNotes: [],
+        differences: [],
+    }
+    expect(analysisResultSchema.safeParse(report).success).toBe(true)
+    expect(
+        analysisResultSchema.safeParse({ ...report, referenceRequirement: undefined }).success,
+    ).toBe(false)
+    expect(
+        analysisResultSchema.safeParse({ ...report, referenceRequirement: 'required' }).success,
+    ).toBe(false)
+    expect(
+        analysisResultSchema.safeParse({ ...report, referenceRequirement: 'invalid' }).success,
+    ).toBe(false)
+})
+
 test('v122 新策略采用30%与60%，旧策略继续保持25%与50%', () => {
     for (const [policy, stars, expected] of [
         ['consistency-weighted.v2', 1, 2.4],

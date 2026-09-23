@@ -6,6 +6,20 @@ import { createPluginRuntime, PluginError } from './runtime'
 import { loadPluginRuntime } from './loader'
 
 describe('example plugin contract', () => {
+    test('参考要求默认保持必需，基础插件明确选择可选并冻结到运行时身份', () => {
+        const optional = createPluginRuntime(configuration)
+        const required = createPluginRuntime({ ...configuration, referenceRequirement: undefined })
+        expect(optional.referenceRequirement).toBe('optional')
+        expect(required.referenceRequirement).toBe('required')
+        expect(optional.version).not.toBe(required.version)
+        expect(() =>
+            createPluginRuntime({
+                ...configuration,
+                // @ts-expect-error 验证外部配置不能用任意字符串绕过参考要求。
+                referenceRequirement: 'invalid',
+            }),
+        ).toThrow()
+    })
     test('只用公开配置与合成 JSON 就能计算六维和展示项，输入保持不变', async () => {
         const runtime = await loadPluginRuntime(
             fileURLToPath(new URL('../../../plugins/example/config.ts', import.meta.url)),

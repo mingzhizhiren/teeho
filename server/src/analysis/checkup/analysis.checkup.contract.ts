@@ -143,6 +143,7 @@ export const checkupReportSchema = z
         schemaVersion: z.enum(['analysis-result.v6', 'analysis-result.v7']),
         contentAnalysis: contentAnalysisSchema.optional(),
         riskMatches: z.array(contentRiskSchema).optional(),
+        referenceRequirement: z.enum(['required', 'optional']).optional(),
         riskReviewStatus: z.enum(['completed', 'unavailable']).optional(),
         customMetrics: z.array(customMetricSchema).max(customMetricLimits.count).optional(),
         structureMetrics: structureMetricsSchema,
@@ -230,6 +231,7 @@ export const checkupReportSchema = z
     .superRefine((report, context) => {
         if (
             report.contentAnalysis?.scorePolicy === 'consistency-weighted.v2' &&
+            report.referenceRequirement !== 'optional' &&
             !report.comparisonNotes.length
         ) {
             context.addIssue({
@@ -262,7 +264,12 @@ export const checkupReportSchema = z
             return
         }
         if (forceZero && primary.value !== 0) invalid()
-        if (!forceZero && !report.comparisonNotes.length) invalid()
+        if (
+            !forceZero &&
+            !report.comparisonNotes.length &&
+            report.referenceRequirement !== 'optional'
+        )
+            invalid()
         if (primary.source === 'insight') {
             if (!report.insight || primary.value !== report.insight.score) invalid()
             if (

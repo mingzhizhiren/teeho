@@ -3,6 +3,7 @@ import { examplePlugin } from './index'
 
 /** 默认插件装配；由部署者选择一个来源、六个算法与展示指标。 */
 const configuration: PluginConfiguration = {
+    referenceRequirement: 'optional',
     plugins: [examplePlugin],
     dataSource: 'example/json',
     algorithms: Object.fromEntries(

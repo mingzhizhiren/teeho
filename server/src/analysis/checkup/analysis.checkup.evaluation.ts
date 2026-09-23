@@ -286,7 +286,7 @@ export async function evaluateAnalysisCheckup(
             return { value: fallbackContentExplanation(generationInput), metadata: null }
         })
     const forceZero = tracked.value.status === 'completed' && tracked.value.consistency.stars === 0
-    if (!references.length)
+    if (!references.length && input.plugins.referenceRequirement !== 'optional')
         throw new AnalysisReferenceUnavailableError({
             candidateCount: evidence.notes.length,
             selectedCount: samples.length,
@@ -349,6 +349,9 @@ export async function evaluateAnalysisCheckup(
             : null
     const result = checkupReportSchema.parse({
         schemaVersion: 'analysis-result.v7',
+        ...(input.plugins.referenceRequirement === 'optional'
+            ? { referenceRequirement: 'optional' as const }
+            : {}),
         riskReviewStatus:
             !reviewCandidates.length || tracked.value.dismissedRiskIds !== undefined
                 ? 'completed'

@@ -81,6 +81,8 @@ export interface TeehoPlugin {
 }
 
 export interface PluginConfiguration {
+    /** 缺省要求有效参考；纯内容算法可明确选择 optional。 */
+    readonly referenceRequirement?: 'required' | 'optional'
     readonly plugins: readonly TeehoPlugin[]
     readonly dataSource: AnalysisEvidenceSource | string
     readonly algorithms: Readonly<Record<RadarMetric, string>>
@@ -89,6 +91,7 @@ export interface PluginConfiguration {
 
 /** 宿主只使用这一执行入口，不区分官方与自定义实现。 */
 export interface PluginRuntime {
+    readonly referenceRequirement?: 'required' | 'optional'
     readonly version: string
     readonly dataSource: AnalysisEvidenceSource
     readonly topicSource?: CheckupTopicEvidenceSource

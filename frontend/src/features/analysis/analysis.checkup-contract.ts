@@ -173,6 +173,7 @@ export const analysisResultSchema = z
                 bonus: z.number().min(0).max(1),
             })
             .strict(),
+        referenceRequirement: z.enum(['required', 'optional']).optional(),
         comparisonNotes: z
             .array(
                 z
@@ -206,6 +207,7 @@ export const analysisResultSchema = z
             report.contentAnalysis.consistency.stars === 0
         if (
             (!isBlocked || report.contentAnalysis?.scorePolicy === 'consistency-weighted.v2') &&
+            report.referenceRequirement !== 'optional' &&
             report.comparisonNotes.length === 0
         ) {
             context.addIssue({

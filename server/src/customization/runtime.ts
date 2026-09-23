@@ -79,6 +79,9 @@ function validateDependencies(
 
 /** 验证配置后冻结执行组合；每次执行独立计算声明的指标。 */
 export function createPluginRuntime(config: PluginConfiguration): PluginRuntime {
+    const referenceRequirement = z
+        .enum(['required', 'optional'])
+        .parse(config.referenceRequirement ?? 'required')
     unique(config.plugins)
     const sources = unique(
         config.plugins
@@ -144,11 +147,13 @@ export function createPluginRuntime(config: PluginConfiguration): PluginRuntime 
         return algorithm
     })
     return {
+        referenceRequirement,
         version: createHash('sha256')
             .update(
                 JSON.stringify({
                     plugins: config.plugins.map((plugin) => [plugin.id, plugin.version]),
                     algorithms: config.algorithms,
+                    ...(referenceRequirement === 'optional' ? { referenceRequirement } : {}),
                     metrics: [...metrics.values()].map((metric) => [metric.id, metric.version]),
                 }),
             )
