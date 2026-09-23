@@ -99,7 +99,7 @@ afterEach(async () => {
     await database?.close()
 })
 
-describe('community repository lifecycle against its own schema', () => {
+describe('repository lifecycle against its schema', () => {
     test('创建→领取→保存结果→成功，不需要积分表且跨账号无法读取', async () => {
         const id = '00000000-0000-4000-8000-000000000111'
         expect(await createTask(id)).toBe(id)

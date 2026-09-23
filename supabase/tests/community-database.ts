@@ -49,7 +49,7 @@ const platformFixture = `
     $$;
 `
 
-/** 在内存 PostgreSQL 中执行全部社区迁移；不读取连接配置、不接触远端。 */
+/** 在内存 PostgreSQL 中执行全部数据库迁移；不读取连接配置、不接触远端。 */
 export async function createCommunityDatabase(): Promise<PGlite> {
     const database = new PGlite()
     try {

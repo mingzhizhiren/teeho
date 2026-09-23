@@ -1,4 +1,4 @@
--- 社区版短期数据清理；扩展由 Supabase PostgreSQL 提供，不导入对象或密钥。
+-- 题火短期数据清理；扩展由 Supabase PostgreSQL 提供，不导入对象或密钥。
 
 CREATE SCHEMA IF NOT EXISTS extensions;
 

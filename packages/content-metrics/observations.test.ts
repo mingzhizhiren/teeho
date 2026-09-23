@@ -6,7 +6,7 @@ import {
 } from './observations'
 import { extractStructureFeatures } from './structure'
 
-test('社区案例排序只使用截止时点前的最新实际观察，不修改输入', () => {
+test('案例排序只使用截止时点前的最新实际观察，不修改输入', () => {
     const observations = Object.freeze([
         Object.freeze({ observedAt: '2026-09-01T00:00:00Z', likes: 2, collects: 1 }),
         Object.freeze({ observedAt: '2026-09-03T00:00:00Z', likes: 999, collects: 999 }),

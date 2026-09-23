@@ -39,7 +39,7 @@ export interface ResultExtension {
     onCopied(target: ResultCopyTarget): Promise<void>
 }
 
-/** 版本组合入口；社区核心不导入私有实现。 */
+/** 运行时组合入口；共享模块不依赖部署扩展。 */
 export interface FrontendRuntime {
     readonly workspaceHeader: Component | null
     readonly accountOverview: Component | null
@@ -115,7 +115,7 @@ const communityRuntime: FrontendRuntime = {
 
 let runtime: FrontendRuntime = communityRuntime
 
-/** 在应用入口一次性装配版本扩展；默认直接运行社区版。 */
+/** 在应用入口一次性装配运行时扩展。 */
 export function configureFrontendRuntime(extension: FrontendRuntime): void {
     runtime = extension
 }

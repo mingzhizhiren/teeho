@@ -59,7 +59,7 @@ const communityTaskPolicy: TaskPolicy = {
 
 let configuredTaskPolicy: TaskPolicy = communityTaskPolicy
 
-/** 只由进程装配入口绑定部署策略；默认社区版没有商业账户依赖。 */
+/** 只由进程装配入口绑定部署策略；默认配置没有商业账户依赖。 */
 export function configureTaskPolicy(policy: TaskPolicy): void {
     configuredTaskPolicy = policy
 }

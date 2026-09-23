@@ -1,4 +1,4 @@
-/** 社区案例筛选的时间与数量边界；不包含模型或商业评分权重。 */
+/** 案例筛选的时间与数量边界；不包含模型或商业评分权重。 */
 export const PERFORMANCE = {
     version: 'community-observed-interactions.v1',
     dayMs: 86_400_000,

@@ -1,4 +1,4 @@
-/** 社区应用的固定路由。 */
+/** 题火应用的固定路由。 */
 export const appRoutePaths = {
     login: '/login',
     register: '/register',

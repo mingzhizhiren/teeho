@@ -245,9 +245,8 @@ export default {
         goToLogin: 'Back to sign in',
         oauthFailed: 'Google sign-in was not completed. Please try again.',
     },
-    community: {
-        source: 'Teeho Community · Source on GitHub',
-        description:
-            'Runs with the example plugin and synthetic data. Results demonstrate the workflow and do not use the official data service.',
+    siteFooter: {
+        source: 'Teeho · Source on GitHub',
+        description: 'Developed by Jerry.',
     },
 }

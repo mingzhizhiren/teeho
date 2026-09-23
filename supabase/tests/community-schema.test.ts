@@ -96,7 +96,7 @@ async function expectSqlFailure(
     }
 }
 
-describe('社区版独立数据库', () => {
+describe('题火数据库', () => {
     let database: PGlite
     beforeAll(async () => {
         database = await createCommunityDatabase()

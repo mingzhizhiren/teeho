@@ -1,4 +1,4 @@
-"""使用 Python 标准库生成可重复的社区 ZIP 技能包。"""
+"""使用 Python 标准库生成可重复的 ZIP 技能包。"""
 
 import base64
 import json

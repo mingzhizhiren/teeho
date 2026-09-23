@@ -16,8 +16,6 @@ Provide your note's title, body, topics, cover, images, and video. Using `Xiaoho
 
 ## 🔧 Design philosophy
 
-> **Self-hosted community edition**: This repository includes the community frontend/backend, plugin SDK, and example synthetic data source. See the [setup and testing guide (Chinese)](docs/development/community.md). The private Insight Model, collected datasets, and commercial operations described below are not included. The Agent Skill remains independently installable.
-
 ### **Quantitative analysis**
 
 Teeho feeds collected note data into its proprietary `Insight Model`. `Machine learning` produces a continuously updated model on which all subsequent scoring is based—similar to quantitative trading, where large volumes of candlestick data are used to build an investment model.
@@ -242,10 +240,9 @@ Teeho collects large volumes of note data through crawlers, while video analysis
 
 </details>
 
-## 📌 What's next
+## 📝 Deployment documentation
 
-- 📝 Add metrics and strengthen the model so scoring becomes more accurate and quantitative metrics become easier to understand.
-- 📝 Teeho's Agent Skill is currently source-available. The web client and backend will be released progressively, together with plugin customization interfaces. Developers will be able to use their own note data to customize quantitative algorithms and produce analysis results.
+For installation steps, see the [self-hosting guide](docs/deployment/install.en.md). The source does not include the hosted service's private Insight Model, collected data, or commercial operations systems; the Agent Skill can still be installed independently.
 
 It would be my honor if this tool helps you 👍
 

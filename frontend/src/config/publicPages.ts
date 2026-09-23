@@ -1,4 +1,4 @@
-/** 部署者可以在自己的组合入口注册公开文档；社区工作区默认不被索引。 */
+/** 部署者可以在自己的组合入口注册公开文档；工作区默认不被索引。 */
 export interface PublicPageRegistration {
     readonly path: string
     readonly titleKey: string

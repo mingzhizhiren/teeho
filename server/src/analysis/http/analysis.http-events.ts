@@ -24,7 +24,7 @@ export interface AnalysisHttpEvents {
 
 let events: AnalysisHttpEvents = {}
 
-/** 部署侧可观察受理事件；默认社区版不采集推广或运营数据。 */
+/** 部署侧可观察受理事件；默认配置不采集推广或运营数据。 */
 export function configureAnalysisHttpEvents(value: AnalysisHttpEvents): void {
     events = value
 }

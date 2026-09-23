@@ -16,7 +16,7 @@ const identity = {
     canChangePassword: false,
 }
 
-describe('released Skill community compatibility', () => {
+describe('released Skill API compatibility', () => {
     it('compares numeric components and permits a mandatory patch floor', () => {
         expect(isCompatibleSkillVersion('2.1.10', '2.1.9')).toBe(true)
         expect(isCompatibleSkillVersion('2.1.9', '2.1.10')).toBe(false)

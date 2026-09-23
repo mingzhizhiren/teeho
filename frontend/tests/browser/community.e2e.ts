@@ -125,7 +125,7 @@ async function installCommunityApi(
     return { requests }
 }
 
-test('community workspace loads without commercial or telemetry requests', async ({ page }) => {
+test('workspace loads without commercial or telemetry requests', async ({ page }) => {
     const api = await installCommunityApi(page)
     const errors: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
@@ -144,7 +144,7 @@ test('community workspace loads without commercial or telemetry requests', async
     expect(errors).toEqual([])
 })
 
-test('community registration uses the same auth flow without official legal or paid UI', async ({
+test('registration uses the same auth flow without official legal or paid UI', async ({
     page,
 }) => {
     const api = await installCommunityApi(page, false)

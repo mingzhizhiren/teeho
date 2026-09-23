@@ -240,8 +240,8 @@ export default {
         goToLogin: '返回登录',
         oauthFailed: 'Google 登录未完成，请重试',
     },
-    community: {
-        source: '题火社区版 · GitHub 源码',
-        description: '使用示例插件和合成数据运行；诊断结果用于演示，不代表官方数据服务。',
+    siteFooter: {
+        source: '题火 · GitHub 源码',
+        description: '由 Jerry 开发。',
     },
 }

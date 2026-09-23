@@ -3,7 +3,7 @@ import { appRoutePaths } from '@/config/appRoutes'
 import { useAuthStore } from '@/stores/auth'
 import { resolveSafeRedirect } from '@/utils/redirect'
 
-/** 社区路由只装配诊断、账号和 Agent Skill。 */
+/** 路由只装配诊断、账号和 Agent Skill。 */
 export function createAppRouter(
     history: RouterHistory,
     options: { installAuthGuard: boolean },

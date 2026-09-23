@@ -5,7 +5,7 @@ export function isVideoEnabled(environment: Pick<typeof env, 'VIDEO_ENABLED'> = 
     return environment.VIDEO_ENABLED
 }
 
-/** 社区版没有积分账户；兼容旧客户端读取的配置字段。 */
+/** 默认部署不启用积分账户；兼容旧客户端读取的配置字段。 */
 export const deploymentCapabilities = {
     mode: env.TEEHO_DEPLOYMENT_MODE,
     pointsEnabled: false,

@@ -5,7 +5,7 @@ import { communityTaskFixture } from '../test/community-task.fixture'
 import { createPluginRuntime, PluginError } from './runtime'
 import { loadPluginRuntime } from './loader'
 
-describe('community example plugin contract', () => {
+describe('example plugin contract', () => {
     test('只用公开配置与合成 JSON 就能计算六维和展示项，输入保持不变', async () => {
         const runtime = await loadPluginRuntime(
             fileURLToPath(new URL('../../../plugins/example/config.ts', import.meta.url)),

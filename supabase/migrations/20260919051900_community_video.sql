@@ -1,4 +1,4 @@
--- 社区版视频预处理、证据和短期恢复存储；不包含任何媒体对象。
+-- 题火视频预处理、证据和短期恢复存储；不包含任何媒体对象。
 -- analysis_video_assets
 
 CREATE TABLE public.analysis_video_assets (

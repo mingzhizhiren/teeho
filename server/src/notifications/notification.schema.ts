@@ -11,7 +11,7 @@ export const analysisCompletedPayloadSchema = z
     })
     .strict()
 
-/** 社区默认只允许分析完成通知，部署方可扩展受控模板。 */
+/** 默认只允许分析完成通知，部署方可扩展受控模板。 */
 export const businessNotificationContentSchema = z
     .object({ type: z.literal('analysis.completed'), payload: analysisCompletedPayloadSchema })
     .strict()

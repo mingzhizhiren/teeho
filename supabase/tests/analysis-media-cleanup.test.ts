@@ -6,7 +6,7 @@ import {
 
 const assetId = '00000000-0000-4000-8000-000000000001'
 
-describe('社区媒体清理', () => {
+describe('媒体清理', () => {
     test('校验 RPC 输出和对象路径，拒绝越界路径与缺失字段', () => {
         expect(
             parseCleanupCandidates([

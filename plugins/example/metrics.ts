@@ -7,7 +7,7 @@ export const shapeSchema = z.object({
     questions: z.number(),
     variety: z.number(),
 })
-/** 社区教学用原文特征，不调用模型或外部数据。 */
+/** 教学示例使用的原文特征，不调用模型或外部数据。 */
 export const shapeMetric: DataMetric = {
     kind: 'feature',
     id: 'example/shape',

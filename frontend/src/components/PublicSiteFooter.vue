@@ -10,8 +10,8 @@ const { t } = useI18n()
             class="font-semibold text-brand"
             target="_blank"
             rel="noopener noreferrer"
-        >{{ t('community.source') }}</a
+        >{{ t('siteFooter.source') }}</a
         >
-        <p class="mt-2">{{ t('community.description') }}</p>
+        <p class="mt-2">{{ t('siteFooter.description') }}</p>
     </footer>
 </template>

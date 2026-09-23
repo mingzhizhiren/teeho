@@ -2,7 +2,7 @@ import { radarMetricNames, type RadarAlgorithm } from '../sdk'
 import { shapeSchema } from './metrics'
 
 const RULES = { max: 10, decimals: 100, titleLength: 8, bodyLength: 40, paragraphs: 2 } as const
-/** 社区示例的简单教学规则，不代表官方预测或质量结论。 */
+/** 示例算法的简单教学规则，不代表实际预测或质量结论。 */
 export const exampleAlgorithms: readonly RadarAlgorithm[] = radarMetricNames.map(
     (dimension): RadarAlgorithm => ({
         id: `example/${dimension}`,

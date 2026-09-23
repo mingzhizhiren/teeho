@@ -45,7 +45,7 @@ export type InsightPredictor = (
 
 let predictor: InsightPredictor | undefined
 
-/** 装配可选的主分实现；社区默认只使用插件六维平均分。 */
+/** 装配可选的主分实现；默认只使用插件六维平均分。 */
 export function configureInsightPredictor(value: InsightPredictor): void {
     predictor = value
 }

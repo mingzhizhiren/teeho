@@ -107,7 +107,7 @@ export async function createApplication() {
             data: {
                 name: 'teeho API',
                 status: 'healthy',
-                mode: 'community',
+                mode: 'self-hosted',
                 time: new Date().toISOString(),
             },
         }))
