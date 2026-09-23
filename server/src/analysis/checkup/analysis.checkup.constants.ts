@@ -1,7 +1,7 @@
 /** 算法及评分口径的单一版本来源。 */
 export const checkupVersions = {
     algorithm: 'radar-rules.v120.2',
-    selection: 'checkup-selection.v6',
+    selection: 'checkup-selection.v7',
     score: 'insight-consistency-score.v2',
     explanation: 'content-analysis.v4',
 } as const
@@ -25,7 +25,8 @@ export const checkupOutputConstraints = {
     maxStrengths: 6,
     maxRisks: 12,
     maxUncertainties: 12,
-    maxReferences: 3,
+    maxReferences: 4,
+    maxDifferences: 3,
     referenceTitleMaxLength: 80,
     excerptMaxLength: 300,
     decimalScale: 100,

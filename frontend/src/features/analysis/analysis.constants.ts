@@ -18,7 +18,7 @@ export const analysisUiConstraints = {
     customTrackNameMaxLength: 100,
     scoreMaximum: 100,
     scoreDisplayDecimalPlaces: 2,
-    referenceSourcesMaximum: 3,
+    referenceSourcesMaximum: 4,
     agentTypingIntervalMs: agentTypingIntervalMilliseconds,
     agentTypingMaximumDurationMs: agentTypingMaximumDurationMilliseconds,
     actionToastDurationMs: 3_000,

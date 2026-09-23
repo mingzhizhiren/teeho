@@ -210,7 +210,7 @@ export const checkupReportSchema = z
             .strict()
             .nullable(),
         radar: radarScoresSchema,
-        differences: z.array(differenceSchema).max(checkupOutputConstraints.maxReferences),
+        differences: z.array(differenceSchema).max(checkupOutputConstraints.maxDifferences),
         qualitativeConclusion: z
             .object({
                 summary: z.string().trim().min(1).max(checkupOutputConstraints.summaryMaxLength),

@@ -7,7 +7,7 @@ export const CONTENT_ANALYSIS_LIMITS = {
     risks: 20,
     evidence: 500,
     description: 800,
-    references: 3,
+    references: 4,
     referenceId: 120,
     maximumScore: 10,
 } as const

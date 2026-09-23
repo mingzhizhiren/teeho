@@ -36,6 +36,7 @@ export default {
         previewComplete: '安装完毕',
         previewReply: '题火 Skill 已准备就绪，可以开始诊断你的笔记了。',
         navLabel: '题火 Skill',
+        workspaceNavLabel: 'agent技能',
         title: '把题火带进你的 Agent',
         description:
             '直接把已有的小红书笔记或笔记文件夹交给你的 Agent，使用题火完成诊断，并查询任务和本机历史报告。',

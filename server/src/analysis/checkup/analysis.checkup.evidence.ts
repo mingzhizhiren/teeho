@@ -74,12 +74,19 @@ export async function loadCheckupEvidence(
         )
     } catch (error) {
         if (input.signal.aborted) throw input.signal.reason ?? error
-        if (error instanceof PluginError) throw error
+        if (
+            error instanceof PluginError &&
+            (!input.referenceSource || error.category !== 'source_failed')
+        )
+            throw error
         input.log.warn(
             {
                 event: 'analysis_note_evidence_degraded',
                 taskId: input.task.id,
                 reason: 'load_failed',
+                ...(error instanceof PluginError
+                    ? { capability: error.capability, errorCategory: error.category }
+                    : {}),
             },
             '笔记参考数据暂不可用',
         )
@@ -114,7 +121,7 @@ export async function loadCheckupEvidence(
             input.log.debug(
                 {
                     event: 'analysis_reference_recall',
-                    source: referenceEvidence.notes.length ? 'semantic' : 'sql',
+                    source: 'semantic',
                     count: referenceEvidence.notes.length,
                     candidateCount: recalled.aggregate.totalNoteCount,
                     durationMs: Date.now() - started,
@@ -123,7 +130,7 @@ export async function loadCheckupEvidence(
                     taskId: input.task.id,
                     requestId: input.requestId,
                 },
-                '参考召回完成',
+                '语义候选召回完成，交由两路合并选择',
             )
         } catch (error) {
             input.signal.throwIfAborted()

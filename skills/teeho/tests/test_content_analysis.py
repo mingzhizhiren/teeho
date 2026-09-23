@@ -64,6 +64,37 @@ def analysis(stars: int = 4, status: str = "completed") -> dict:
 
 class ContentAnalysisTests(unittest.TestCase):
 
+    def test_four_reference_suggestion_survives_projection_and_rendering(self) -> None:
+        data = report()
+        result = data["task"]["result"]
+        reference = result["comparisonNotes"][0]
+        references = [
+            {**reference, "noteId": f"reference-{index}", "title": f"Reference {index}"}
+            for index in range(1, 5)
+        ]
+        result["comparisonNotes"] = references
+        result["contentAnalysis"] = {
+            **analysis(),
+            "weaknesses": [{
+                "location": "body",
+                "evidence": "Coffee guide",
+                "description": "Add the missing comparison.",
+                "suggestion": "Describe the serving size.",
+                "referenceIds": [item["noteId"] for item in references],
+            }],
+        }
+        view = create_presentation("task", data)
+        self.assertEqual(view["state"], "completed")
+        detail = view["data"]["contentAnalysis"]
+        self.assertTrue(detail["weaknessesAvailable"])
+        self.assertEqual(len(detail["weaknesses"]), 1)
+        self.assertEqual(
+            detail["weaknesses"][0]["references"],
+            ["Reference 1", "Reference 2", "Reference 3", "Reference 4"],
+        )
+        self.assertIn("Describe the serving size.", render_presentation(view))
+        self.assertEqual(view["data"]["score"], 7.2)
+
     def test_saved_score_survives_missing_optional_references(self) -> None:
         data = report()
         result = data["task"]["result"]

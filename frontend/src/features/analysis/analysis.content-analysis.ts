@@ -9,7 +9,7 @@ const CONTENT_ANALYSIS_LIMITS = {
     issues: 5,
     risks: 20,
     weaknesses: 5,
-    references: 3,
+    references: 4,
     referenceId: 120,
 } as const
 

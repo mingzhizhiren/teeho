@@ -156,6 +156,7 @@ export function selectCheckupNotes(
 /** 案例与差异共享优秀群体及稳定排序，保留原始笔记身份。 */
 export function excellentCheckupSamples(
     samples: readonly SelectedCheckupNote[],
+    minimumPoolSize = 1,
 ): SelectedCheckupNote[] {
     if (!samples.length) return []
     const asOf = new Date(
@@ -175,14 +176,17 @@ export function excellentCheckupSamples(
         )
     const pool =
         ranked.length >= PERFORMANCE.minimumSamples
-            ? ranked.slice(0, Math.max(1, Math.ceil(ranked.length * PERFORMANCE.topFraction)))
+            ? ranked.slice(
+                  0,
+                  Math.max(minimumPoolSize, Math.ceil(ranked.length * PERFORMANCE.topFraction)),
+              )
             : ranked
     return pool
 }
 
 /** 用户仅看到有限对照，不返回采集时间或原始数据库记录。 */
 export function checkupReferences(samples: readonly SelectedCheckupNote[]): CheckupReference[] {
-    const unique = excellentCheckupSamples(samples)
+    const unique = excellentCheckupSamples(samples, checkupOutputConstraints.maxReferences)
         .sort((left, right) => right.similarity - left.similarity)
         .slice(0, checkupOutputConstraints.maxReferences)
     return mapCheckupReferences(unique)

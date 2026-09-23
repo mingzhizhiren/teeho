@@ -31,13 +31,9 @@ import { checkupOutputConstraints, checkupVersions } from './analysis.checkup.co
 import { checkupReportSchema, roundCheckupScore } from './analysis.checkup.contract'
 import { loadCheckupEvidence } from './analysis.checkup.evidence'
 import type { AnalysisQuantificationEvidenceStore } from './analysis.checkup.evidence-store'
-import { checkupReferences, selectCheckupNotes } from './analysis.checkup.selection'
+import { selectCheckupNotes } from './analysis.checkup.selection'
+import { selectHybridReferences } from './analysis.hybrid-references'
 import { scoreCheckupReferences } from './analysis.reference-scoring'
-import {
-    readSemanticReferenceEvidence,
-    semanticReferenceSamples,
-} from './analysis.reference-evidence'
-import { mapCheckupReferences } from './analysis.checkup.selection'
 import {
     checkupTopicEvidenceSchema,
     type CheckupTopicEvidence,
@@ -159,14 +155,23 @@ export async function evaluateAnalysisCheckup(
         input.media.videoEvidence,
     )
     const samples = selectCheckupNotes(evidence, task)
-    const semanticEvidence = readSemanticReferenceEvidence(evidence)
-    const referenceEvidence = semanticEvidence ?? evidence
-    const selectedReferences = semanticEvidence
-        ? mapCheckupReferences(
-              semanticReferenceSamples(semanticEvidence, task),
-              'semantic_similarity',
-          )
-        : checkupReferences(samples)
+    const { references: selectedReferences, scoringEvidence } = selectHybridReferences(
+        evidence,
+        samples,
+        task,
+    )
+    input.log.debug(
+        {
+            event: 'analysis_reference_selection',
+            taskId: input.task.id,
+            sqlCount: selectedReferences.filter((note) => note.reason === 'similar_content').length,
+            semanticCount: selectedReferences.filter(
+                (note) => note.reason === 'semantic_similarity',
+            ).length,
+            count: selectedReferences.length,
+        },
+        '两路参考合并完成',
+    )
     const publication =
         task.publishedAt ??
         new Date(Date.parse(input.task.processingStartedAt) + SHANGHAI_OFFSET_MS)
@@ -189,7 +194,7 @@ export async function evaluateAnalysisCheckup(
         : null
     const references = await scoreCheckupReferences({
         references: selectedReferences,
-        evidence: referenceEvidence,
+        evidence: scoringEvidence,
         predict: input.insightEnabled ? (input.predict ?? predictInsight) : undefined,
         expectedModelId: insight?.modelId ?? null,
         signal: input.signal,

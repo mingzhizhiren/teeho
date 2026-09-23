@@ -45,10 +45,10 @@ onBeforeUnmount(() => {
                         <BrandMark compact />
                     </RouterLink>
                     <RouterLink
-                        to="/"
+                        to="/skill"
                         class="hidden rounded-lg px-2 py-2 text-sm font-semibold text-muted transition hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:block sm:px-3"
                     >
-                        {{ t('pages.home') }}
+                        {{ t('skillInstall.workspaceNavLabel') }}
                     </RouterLink>
                 </div>
 

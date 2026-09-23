@@ -11,6 +11,7 @@ MAX_STARS = 5
 MAX_ISSUES = 5
 MAX_RISKS = 20
 MAX_WEAKNESSES = 5
+MAX_REFERENCES = 4
 
 
 def _text(value: object) -> str:
@@ -45,7 +46,7 @@ def _findings(
             }
         if kind == "weakness":
             references = item.get("referenceIds")
-            if not isinstance(references, list) or not 1 <= len(references) <= 3:
+            if not isinstance(references, list) or not 1 <= len(references) <= MAX_REFERENCES:
                 raise ValueError("invalid_content_analysis")
             finding = {**finding, "referenceIds": [_text(key) for key in references]}
             if "suggestion" in item:

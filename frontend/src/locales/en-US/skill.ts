@@ -37,6 +37,7 @@ export default {
         previewComplete: 'Installation complete',
         previewReply: 'Teeho Skill is ready. You can now start a note checkup.',
         navLabel: 'Teeho Skill',
+        workspaceNavLabel: 'Agent Skill',
         title: 'Bring Teeho to your agent',
         description:
             'Give your agent an existing Xiaohongshu note or a folder of materials. Use Teeho to diagnose the note, check tasks, and read local reports.',
