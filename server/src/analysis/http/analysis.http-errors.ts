@@ -141,9 +141,14 @@ export function domainErrorResponse(error: unknown) {
         }
     }
     if (error instanceof AgentProviderError) {
+        const invalidOutput = error.category === 'invalid_output'
         return {
             status: 503,
-            response: fail(API_CODES.INTERNAL_ERROR, '服务器功能异常'),
+            response: fail(
+                API_CODES.INTERNAL_ERROR,
+                invalidOutput ? '生成结果未通过校验' : 'AI 服务暂时不可用',
+                { reason: invalidOutput ? 'agent_output_invalid' : 'agent_service_unavailable' },
+            ),
         }
     }
     throw error

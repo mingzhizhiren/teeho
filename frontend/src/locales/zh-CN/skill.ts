@@ -66,6 +66,7 @@ export default {
         insightLimited: '可用参考信息有限',
         missingCover: '请上传封面后再开始分析',
         devices: '设备授权管理',
+        deviceLimit: '每个账号最多保留 5 个有效授权，超出后自动撤销最早创建的授权。',
         refresh: '刷新',
         loadMore: '加载更多设备',
         loading: '正在读取设备授权…',

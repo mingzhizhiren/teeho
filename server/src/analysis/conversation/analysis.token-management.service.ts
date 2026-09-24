@@ -1,5 +1,4 @@
 import { TIME_MS } from '../../config/constants'
-import { env } from '../../config/env'
 import { withTransaction, type DatabaseExecutor } from '../../db/database'
 import {
     canUseConversation,
@@ -10,6 +9,7 @@ import { resolveAnalysisConversationTurnLeaseSeconds } from '../analysis.constan
 import { AnalysisRollingUsageExhaustedError } from '../analysis.errors'
 import {
     AgentContractError,
+    AgentProviderError,
     readAgentProviderExecutionMetadata,
 } from '../providers/analysis.provider'
 import type {
@@ -327,7 +327,7 @@ export function createAnalysisTokenManagementService(
                 leaseId: string
             }
             usageCall: ManagedUsageCall<T>
-            retryUsageCall?: ManagedUsageCall<T>
+            retryUsageCalls?: readonly ManagedUsageCall<T>[]
             onClaimed?: () => Promise<void>
             onSettled?: (
                 executor: DatabaseExecutor,
@@ -384,9 +384,7 @@ export function createAnalysisTokenManagementService(
                     browserInstanceId: input.authority.browserInstanceId,
                     contentKind: input.authority.contentKind,
                     leaseId: input.authority.leaseId,
-                    leaseDurationSeconds: resolveAnalysisConversationTurnLeaseSeconds(
-                        env.TEEHO_AGENT_TIMEOUT_SECONDS,
-                    ),
+                    leaseDurationSeconds: resolveAnalysisConversationTurnLeaseSeconds(),
                 })
                 lease = {
                     userId: input.userId,
@@ -429,15 +427,17 @@ export function createAnalysisTokenManagementService(
                             throw error
                         }
                     }
-                    let tracked: Awaited<ReturnType<typeof executeUsageCall>>
-                    try {
-                        tracked = await executeUsageCall(input.usageCall)
-                    } catch (error) {
-                        if (!input.retryUsageCall || !input.usageCall.shouldRetry(error)) {
-                            throw error
+                    const calls = [input.usageCall, ...(input.retryUsageCalls ?? [])]
+                    let tracked: Awaited<ReturnType<typeof executeUsageCall>> | undefined
+                    for (const [index, call] of calls.entries()) {
+                        try {
+                            tracked = await executeUsageCall(call)
+                            break
+                        } catch (error) {
+                            if (!calls[index + 1] || !call.shouldRetry(error)) throw error
                         }
-                        tracked = await executeUsageCall(input.retryUsageCall)
                     }
+                    if (!tracked) throw new Error('Agent conversation attempts exhausted')
                     value = tracked.value
                     settledRollingUsage = enforceLimits
                         ? await rollingUsage.inspect(input.userId, entitlementSnapshot)
@@ -462,6 +462,7 @@ export function createAnalysisTokenManagementService(
                           )
                         : null
                     if (
+                        (error instanceof AgentProviderError && error.category === 'timeout') ||
                         !enforceLimits ||
                         (!settledRollingUsage.exhausted &&
                             (!(error instanceof AgentContractError) ||

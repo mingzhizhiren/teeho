@@ -134,29 +134,34 @@ export function createSkillAuthService(deps: SkillAuthDependencies) {
             if (!user) throw new SkillAuthError(HTTP_STATUS.UNAUTHORIZED, 'login_required')
             const found = await store.find('codeHash', skillDigest(userCode))
             if (!found) throw new SkillAuthError(HTTP_STATUS.BAD_REQUEST, 'invalid_user_code')
-            return store.update(found.id, (grant) => {
-                if (
-                    !grant ||
-                    grant.revoked ||
-                    (grant.expiresAt !== null && grant.expiresAt <= now()) ||
-                    (grant.userId !== null && grant.userId !== user.id) ||
-                    (grant.userId === null && grant.pendingUntil <= now())
-                )
-                    throw new SkillAuthError(HTTP_STATUS.BAD_REQUEST, 'invalid_user_code')
-                // 已批准的同账号重试只恢复原结果，不延长临时期限或升级长期授权。
-                const expiresAt = grant.userId
-                    ? grant.expiresAt
-                    : remember
-                      ? null
-                      : now() + SKILL_AUTH.temporaryMs
-                return {
-                    grant: { ...grant, userId: user.id, expiresAt },
-                    result: {
-                        approved: true,
-                        expiresAt: expiresAt === null ? null : new Date(expiresAt).toISOString(),
-                    },
-                }
-            })
+            return store.update(
+                found.id,
+                (grant) => {
+                    if (
+                        !grant ||
+                        grant.revoked ||
+                        (grant.expiresAt !== null && grant.expiresAt <= now()) ||
+                        (grant.userId !== null && grant.userId !== user.id) ||
+                        (grant.userId === null && grant.pendingUntil <= now())
+                    )
+                        throw new SkillAuthError(HTTP_STATUS.BAD_REQUEST, 'invalid_user_code')
+                    // 已批准的同账号重试只恢复原结果，不延长临时期限或升级长期授权。
+                    const expiresAt = grant.userId
+                        ? grant.expiresAt
+                        : remember
+                          ? null
+                          : now() + SKILL_AUTH.temporaryMs
+                    return {
+                        grant: { ...grant, userId: user.id, expiresAt },
+                        result: {
+                            approved: true,
+                            expiresAt:
+                                expiresAt === null ? null : new Date(expiresAt).toISOString(),
+                        },
+                    }
+                },
+                { userId: user.id, now: now() },
+            )
         },
         async token(deviceToken: string, ip: string) {
             await throttle('token-ip:' + ip)

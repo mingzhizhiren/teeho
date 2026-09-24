@@ -25,6 +25,7 @@ export interface AnalysisEvidenceCandidate {
     authorObservedAt?: string | null
     coverDescription?: string | null
     modelTrackCode?: number | null
+    modelTrackCodes?: number[]
     coverSha?: string | null
     coverObservedAt?: string | null
     coverWidth?: number | null

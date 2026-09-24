@@ -70,6 +70,8 @@ class DiagnosisTools:
     def _pending(self, scope: AccountScope) -> Optional[dict]:
         try:
             state = read_json(scope.root / "pending.json")
+        except PermissionError:
+            raise
         except (TeehoError, OSError, ValueError) as error:
             raise TeehoError("本地任务记录无法读取") from error
         if state is None:
@@ -133,10 +135,16 @@ class DiagnosisTools:
         if not isinstance(task, dict) or task.get("id") != task_id:
             raise TeehoError("任务暂不可用")
         if task.get("result"):
-            state = self._pending(scope)
-            matching = state if state and state.get("taskId") == task_id else None
+            try:
+                state = self._pending(scope)
+                matching = state if state and state.get("taskId") == task_id else None
+                media = local_media(matching)
+            except TeehoError:
+                # 权威结果已取得，本地恢复记录损坏不能阻止交付；保留原文件供恢复。
+                self.log("report_pending_unavailable", {"taskId": task_id, "errorCode": "invalid_local_data"}, "warn")
+                matching = None
+                media = local_media(None)
             saved = self._save_report(scope, task, matching)
-            media = local_media(matching)
             if saved:
                 report = HistoryTools(self.root, scope.user_id).read(task_id)
                 media = local_media(report.get("localMedia"))

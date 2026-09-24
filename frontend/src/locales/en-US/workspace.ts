@@ -371,8 +371,9 @@ export default {
             conversationSuperseded: 'This conversation was started on another page.',
             syncing:
                 'Syncing the previous conversation. Your content is restored; controls are temporarily disabled.',
+            disconnected: 'Disconnected',
             syncRetrying:
-                'Status sync is retrying. Your messages and media are preserved; controls remain disabled.',
+                'Service temporarily unavailable. Reconnecting automatically. Your messages, draft and media are preserved.',
             coordinationUnavailable:
                 'This page cannot send safely right now. Refresh the page and try again.',
             localConversationUnavailable:

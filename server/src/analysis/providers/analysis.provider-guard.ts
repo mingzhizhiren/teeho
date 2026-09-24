@@ -1,3 +1,5 @@
+import { TIME_MS } from '../../config/constants'
+import { analysisConversationConstraints } from '../analysis.constants'
 import type { MaterialUnderstandingInput } from '../materials/analysis.material'
 import type {
     WebResearchCollectionInput,
@@ -114,6 +116,7 @@ class ProviderCallGuard {
     async run<Input extends GuardedProviderInput>(
         input: Input,
         invoke: (guardedInput: Input) => Promise<unknown>,
+        timeoutMs = this.callTimeoutMs,
     ): Promise<unknown> {
         if (input.signal.aborted) {
             throw new AgentCancelledError('等待 Provider 时调用已取消', input.signal.reason)
@@ -125,7 +128,7 @@ class ProviderCallGuard {
         const timeout = setTimeout(() => {
             timedOut = true
             controller.abort(new AgentTimeoutError())
-        }, this.callTimeoutMs)
+        }, timeoutMs)
         let release: Release | undefined
         let execution: Promise<unknown> | undefined
         let rejectOnAbort: (() => void) | undefined
@@ -208,8 +211,12 @@ export class GuardedAgentProvider implements AgentProvider {
                 }),
             )
         }
-        return this.guard.run(input, (guardedInput) =>
-            this.provider.formConversationTurn!(guardedInput),
+        const attemptIndex = (input.correlation?.attempt ?? 1) - 1
+        const timeouts = analysisConversationConstraints.providerAttemptTimeoutSeconds
+        return this.guard.run(
+            input,
+            (guardedInput) => this.provider.formConversationTurn!(guardedInput),
+            (timeouts[attemptIndex] ?? timeouts[0]) * TIME_MS.SECOND,
         )
     }
 

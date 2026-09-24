@@ -26,6 +26,7 @@ interface ReferenceScoringInput {
 function predictReference(
     note: AnalysisEvidenceSet['notes'][number],
     input: ReferenceScoringInput,
+    trackCode: number,
 ) {
     return input.predict!(
         {
@@ -37,7 +38,7 @@ function predictReference(
             publishedAt: REFERENCE_MODEL_DATE.format(new Date(note.publishedAt)),
         },
         input.evidence.selectedAt,
-        note.modelTrackCode!,
+        trackCode,
         [],
     )
 }
@@ -49,7 +50,12 @@ async function scoreReference(
     const started = Date.now()
     const note = input.evidence.notes.find((item) => item.noteId === reference.noteId)
     if (!note || !input.predict) return reference
-    if (note.modelTrackCode == null) {
+    const trackCodes = [
+        ...new Set(
+            note.modelTrackCodes ?? (note.modelTrackCode == null ? [] : [note.modelTrackCode]),
+        ),
+    ]
+    if (trackCodes.length === 0) {
         input.onUnavailable('reference_classification_unavailable', Date.now() - started)
         return { ...reference, modelScore: null }
     }
@@ -57,22 +63,29 @@ async function scoreReference(
     let abort: () => void = () => undefined
     try {
         signal.throwIfAborted()
-        const prediction = await Promise.race([
-            predictReference(note, input),
+        const predictions = await Promise.race([
+            Promise.all(trackCodes.map((track) => predictReference(note, input, track))),
             new Promise<never>((_, reject) => {
                 abort = () => reject(signal.reason)
                 signal.addEventListener('abort', abort, { once: true })
             }),
         ])
-        const parsed = predictionSchema.safeParse(prediction)
-        if (!parsed.success || parsed.data.modelId !== input.expectedModelId) {
+        const parsed = z.array(predictionSchema).safeParse(predictions)
+        if (
+            !parsed.success ||
+            parsed.data.some((prediction) => prediction.modelId !== input.expectedModelId)
+        ) {
             input.onUnavailable('unavailable', Date.now() - started)
             return { ...reference, modelScore: null }
         }
         return {
             ...reference,
-            modelScore: roundCheckupScore(parsed.data.baseScore),
-            modelId: parsed.data.modelId,
+            // 参考库没有主次排序，全部真实分类等权参与，避免按代码顺序偏向某赛道。
+            modelScore: roundCheckupScore(
+                parsed.data.reduce((sum, prediction) => sum + prediction.baseScore, 0) /
+                    parsed.data.length,
+            ),
+            modelId: input.expectedModelId,
         }
     } catch {
         input.signal.throwIfAborted()

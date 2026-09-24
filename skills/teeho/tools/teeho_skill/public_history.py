@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .errors import TeehoError
-from .history import HistoryTools, REPORT_FILE, _identifier, _report
+from .history import HistoryTools, REPORT_FILE, _identifier, _report, unavailable_report
 from .storage import MAX_JSON_BYTES, _windows_dacl, _windows_user_sid, is_link, read_json
 
 
@@ -89,8 +89,17 @@ def public_reports() -> list[dict[str, Any]]:
     directory = _checked_directory()
     if not directory.exists():
         return []
-    return [read_public_report(path.stem) for path in directory.iterdir()
-            if REPORT_FILE.fullmatch(path.name) and path.is_file() and not is_link(path)]
+    reports = []
+    for path in directory.iterdir():
+        if not REPORT_FILE.fullmatch(path.name) or not path.is_file() or is_link(path):
+            continue
+        try:
+            report = read_public_report(path.stem)
+            HistoryTools._summary(report)
+            reports.append(report)
+        except TeehoError:
+            reports.append(unavailable_report(path.stem))
+    return reports
 
 
 def publish_anonymous_history(root: Path, identity: Optional[dict]) -> None:
@@ -100,6 +109,8 @@ def publish_anonymous_history(root: Path, identity: Optional[dict]) -> None:
         return
     history = HistoryTools(root, user["id"])
     for record in history.list():
+        if record.get("unavailable") is True:
+            continue
         publish_report(history.read(record["id"]), user["id"])
 
 

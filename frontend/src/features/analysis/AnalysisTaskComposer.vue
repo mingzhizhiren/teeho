@@ -65,6 +65,7 @@ import { createBrowserAnalysisConversationPersistence } from './analysis.convers
 import {
     createAgentPresentationSelector,
     presentAgentConversationTurn,
+    presentAgentConversationFailure,
 } from './analysis.agent-presentation'
 import {
     confirmDraftRevision,
@@ -182,8 +183,8 @@ const operationsLocked = computed(
         checkingStorage.value,
 )
 const conversationSyncMessage = computed(() => {
-    if (!localConversationVisible.value) return ''
     if (conversationInitializationFailed.value) return t('workspace.agentChat.syncRetrying')
+    if (!localConversationVisible.value) return ''
     return !conversationPersistenceReady.value || conversationRecoveryPending.value
         ? t('workspace.agentChat.syncing')
         : ''
@@ -1715,7 +1716,7 @@ async function initializeFreshConversationAuthority(
             persistence === conversationPersistence
         ) {
             conversationInitializationFailed.value = true
-            formError.value = t('workspace.agentChat.coordinationUnavailable')
+            formError.value = ''
         }
         return false
     } finally {
@@ -1763,6 +1764,7 @@ async function runFreshConversationAuthorityPreflight(
     conversationPersistenceReady.value = false
     while (persistence === conversationPersistence && !conversationSessionAuthorityReady) {
         const initialized = await initializeFreshConversationAuthority(persistence)
+        if (persistence !== conversationPersistence) return
         if (initialized) {
             formError.value = ''
             conversationPersistenceReady.value = true
@@ -1855,6 +1857,7 @@ async function acknowledgeAndFinalizeConversationTurn(
 }
 
 function stopConversationRecovery() {
+    conversationRecoveryPending.value = false
     conversationRecoveryGeneration += 1
     if (activeConversationRecoveryGeneration !== null) {
         activeConversationRecoveryGeneration = null
@@ -1936,7 +1939,10 @@ async function restoreAcknowledgedConversationTurn(
 }
 
 /** 同一浏览器仅由持有回合锁的页面领取临时结果。 */
-async function recoverPendingConversationTurn(persistence: AnalysisConversationPersistence) {
+async function recoverPendingConversationTurn(
+    persistence: AnalysisConversationPersistence,
+    failure?: unknown,
+) {
     const pending = pendingConversationTurn.value
     if (!pending) return
     conversationRecoveryPending.value = true
@@ -1961,7 +1967,13 @@ async function recoverPendingConversationTurn(persistence: AnalysisConversationP
                         return null
                     conversationInitializationFailed.value = false
                 } catch {
+                    if (
+                        generation !== conversationRecoveryGeneration ||
+                        persistence !== conversationPersistence
+                    )
+                        return null
                     conversationInitializationFailed.value = true
+                    agentMessages.value = agentMessages.value.filter((message) => !message.thinking)
                     await waitForConversationRecoveryPoll()
                     continue
                 }
@@ -2056,6 +2068,7 @@ async function recoverPendingConversationTurn(persistence: AnalysisConversationP
                     await restorePendingConversationInput(pending)
                     return { kind: 'failed' as const }
                 }
+                ensurePendingConversationMessages(pending)
                 await waitForConversationRecoveryPoll()
             }
             return null
@@ -2064,7 +2077,7 @@ async function recoverPendingConversationTurn(persistence: AnalysisConversationP
         if (locked.status === 'busy') {
             await waitForConversationRecoveryPoll()
             if (generation === conversationRecoveryGeneration) {
-                await recoverPendingConversationTurn(persistence)
+                await recoverPendingConversationTurn(persistence, failure)
             }
             return
         }
@@ -2100,7 +2113,7 @@ async function recoverPendingConversationTurn(persistence: AnalysisConversationP
         }
         if (locked.value.kind === 'failed') {
             await appendTypedAgentMessage(
-                agentPresentationSelector.select('technical_failure'),
+                presentAgentConversationFailure(failure, locale.value),
                 'technical_failure',
             )
         }
@@ -2108,8 +2121,8 @@ async function recoverPendingConversationTurn(persistence: AnalysisConversationP
         if (activeConversationRecoveryGeneration === generation) {
             activeConversationRecoveryGeneration = null
             previewing.value = false
+            conversationRecoveryPending.value = false
         }
-        conversationRecoveryPending.value = false
     }
 }
 
@@ -2307,7 +2320,7 @@ async function sendRealConversationTurn(config: AnalysisTaskConfig) {
             !busy &&
             !cooldownStarted
         ) {
-            void recoverPendingConversationTurn(persistence)
+            void recoverPendingConversationTurn(persistence, error)
             return
         }
         requestFailed = true
@@ -2333,7 +2346,7 @@ async function sendRealConversationTurn(config: AnalysisTaskConfig) {
         } else if (!cooldownStarted) {
             formError.value = ''
             await appendTypedAgentMessage(
-                agentPresentationSelector.select('technical_failure'),
+                presentAgentConversationFailure(error, locale.value),
                 'technical_failure',
             )
         }

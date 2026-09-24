@@ -85,6 +85,8 @@ function matchesExplicitReplacement(
     if (name !== 'title' && name !== 'body') return false
     const field = input.completeDraft.fields[name]
     if (field.source !== 'user_input' || !field.value) return false
+    // 与原文溯源使用相同的空白归一化，仅用于校验，不改写草稿的排版。
+    const original = groundingText(field.value, false)
     const expected = input.message.split(/[；;。\n]/u).reduce((text, clause) => {
         const instruction = clause
             .trim()
@@ -94,13 +96,11 @@ function matchesExplicitReplacement(
         if (!instruction) return text
         const [, label, from, to] = instruction
         if ((label === '标题' ? 'title' : 'body') !== name) return text
-        const source = replacementOperand(from!)
-        const target = replacementOperand(to!)
+        const source = groundingText(replacementOperand(from!), false)
+        const target = groundingText(replacementOperand(to!), false)
         return source && target ? text.split(source).join(target) : text
-    }, field.value)
-    return (
-        expected !== field.value && groundingText(expected, false) === groundingText(value, false)
-    )
+    }, original)
+    return expected !== original && expected === groundingText(value, false)
 }
 
 /** 模型补丁必须能追溯到用户提供的文字，不能通过伪造 source 代写。 */

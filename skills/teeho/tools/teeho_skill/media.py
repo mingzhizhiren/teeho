@@ -158,8 +158,8 @@ class MediaTools:
         return state, None
 
     def _prepare_video(self, state: dict) -> tuple[dict, bool]:
-        file = self.video_descriptor(state["video"])
         if not state.get("videoSession"):
+            file = self.video_descriptor(state["video"])
             result = self.api.create_video_upload_session(file, expected_user_id=self.user_id)
             state = {**state, "videoSession": result.get("session")}
             self.save(state)
@@ -170,6 +170,7 @@ class MediaTools:
         video_id = require_id(video.get("id"), "视频上传资格无效")
         current = self._video_status(video_id)
         if current in ("awaiting_upload", "uploading"):
+            file = self.video_descriptor(state["video"])
             self.api.upload_file(
                 video["upload"],
                 Path(state["video"]),
@@ -218,10 +219,10 @@ class MediaTools:
         return assets
 
     def _upload_images(self, state: dict) -> dict:
-        files = [image_descriptor(path) for path in state["images"]]
-        if sum(file["byteSize"] for file in files) > MAX_TOTAL_IMAGE_BYTES:
-            raise TeehoError("图片总大小超过限制")
-        if not state["assets"] and files:
+        if not state["assets"] and state["images"]:
+            files = [image_descriptor(path) for path in state["images"]]
+            if sum(file["byteSize"] for file in files) > MAX_TOTAL_IMAGE_BYTES:
+                raise TeehoError("图片总大小超过限制")
             response = self.api.create_image_upload_session(files, expected_user_id=self.user_id)
             session = response.get("session")
             assets = session.get("assets") if isinstance(session, dict) else None
@@ -233,12 +234,12 @@ class MediaTools:
                 require_id(asset.get("id"), "上传凭据无效")
             state = {**state, "assets": assets}
             self.save(state)
-        if len(state["assets"]) != len(files):
+        if len(state["assets"]) != len(state["images"]):
             raise TeehoError("上传凭据无效")
         for index, asset in enumerate(state["assets"]):
             if asset.get("uploaded") is True:
                 continue
-            self._upload_image(asset, state["images"][index], files[index])
+            self._upload_image(asset, state["images"][index])
             state = {
                 **state,
                 "assets": [
@@ -249,7 +250,7 @@ class MediaTools:
             self.save(state)
         return state
 
-    def _upload_image(self, asset: dict, path: str, file: dict) -> None:
+    def _upload_image(self, asset: dict, path: str) -> None:
         current = self._statuses([asset["id"]])[0]
         if current["state"] in ("uploaded", "processing", "ready"):
             return
@@ -257,6 +258,7 @@ class MediaTools:
             raise TeehoError("图片状态不可上传，请重新选择素材")
         if not isinstance(asset.get("uploadUrl"), str):
             raise TeehoError("上传凭据无效")
+        file = image_descriptor(path)
         self.api.upload_file(
             asset["uploadUrl"], Path(path), file["declaredMediaType"], file["fileName"]
         )

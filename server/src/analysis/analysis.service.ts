@@ -1,12 +1,11 @@
 import { TIME_MS } from '../config/constants'
-import { env } from '../config/env'
 import {
     createVideoEvidenceSnapshot,
     loadReadyVideoEvidenceForReference,
 } from '../video/video.analysis-evidence'
 import type { ReadyVideoAnalysisEvidence } from '../video/video.repository'
 import { analysisTaskConfig } from './analysis.config'
-import { analysisExecutionConstraints } from './analysis.constants'
+import { resolveAnalysisConversationTurnLeaseSeconds } from './analysis.constants'
 import { AnalysisSubmissionConflictError, AnalysisTaskStateError } from './analysis.errors'
 import { createAnalysisFingerprints, createAnalysisMediaHashes } from './analysis.fingerprints'
 import {
@@ -135,10 +134,7 @@ export async function getAnalysisTaskConfig() {
             ...deploymentCapabilities,
             pointsEnabled: policy.pointsEnabled,
             preparationRequestTimeoutMs:
-                env.TEEHO_AGENT_TIMEOUT_SECONDS *
-                    analysisExecutionConstraints.maxDraftPreparationAttempts *
-                    TIME_MS.SECOND +
-                analysisExecutionConstraints.preparationRequestMarginMs,
+                resolveAnalysisConversationTurnLeaseSeconds() * TIME_MS.SECOND,
         },
     }
 }

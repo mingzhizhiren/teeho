@@ -93,15 +93,25 @@ def _object_pairs(pairs: list[tuple[str, object]]) -> dict:
 
 
 def read_input(file_path: Optional[str], stdin: Optional[BinaryIO] = None) -> dict:
-    """限制输入字节，统一解码 UTF-8，兼容 Windows UTF-8 BOM。"""
+    """兼容路径、误传的内联 JSON 与 stdin，统一保留大小和结构校验。"""
     source = stdin if stdin is not None else sys.stdin.buffer
-    if file_path:
-        path = Path(file_path)
-        info = path.stat()
-        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_INPUT_BYTES:
+    inline = file_path.lstrip("\ufeff \t\r\n") if file_path else ""
+    if inline.startswith(("{", "[")):
+        if len(inline) > MAX_INPUT_BYTES:
             raise TeehoError("input_too_large")
-        with path.open("rb") as stream:
-            data = stream.read(MAX_INPUT_BYTES + 1)
+        data = inline.encode("utf-8")
+    elif file_path:
+        path = Path(file_path)
+        try:
+            info = path.stat()
+            if not stat.S_ISREG(info.st_mode):
+                raise TeehoError("input_file_invalid")
+            if info.st_size > MAX_INPUT_BYTES:
+                raise TeehoError("input_too_large")
+            with path.open("rb") as stream:
+                data = stream.read(MAX_INPUT_BYTES + 1)
+        except (FileNotFoundError, NotADirectoryError, IsADirectoryError) as error:
+            raise TeehoError("input_file_invalid") from error
     else:
         if source.isatty():
             return {}

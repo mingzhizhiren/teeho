@@ -9,6 +9,10 @@ METRIC_NAMES = (
     "listItemCount", "topicCount",
 )
 LEVELS = ("aligned", "minor", "moderate", "major", "critical")
+LEVEL_ICONS = {
+    "aligned": "🟢", "minor": "🟡", "moderate": "🟠",
+    "major": "🔴", "critical": "🔴",
+}
 
 
 def _number(value: object) -> bool:
@@ -51,7 +55,8 @@ def structure_metric_lines(
             return number(float(rounded)) + ("%" if ratio else "")
         level = ("metricMissing" if value is None else
                  "metric_" + reference["severity"] if reference else "metricInsufficient")
-        lines.append(translate(name) + ": " + (formatted(value) if value is not None else translate("unavailable")) + " · " + translate(level))
+        icon = LEVEL_ICONS[reference["severity"]] if value is not None and reference else "⚪"
+        lines.append(icon + " " + translate(name) + ": " + (formatted(value) if value is not None else translate("unavailable")) + " · " + translate(level))
         lines.append(translate("peerRange") + ": " + (
             formatted(reference["low"]) + " ~ " + formatted(reference["high"])
             if reference else translate("metricInsufficient")

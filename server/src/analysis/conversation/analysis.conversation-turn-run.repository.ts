@@ -1,6 +1,5 @@
 import { sql } from 'drizzle-orm'
 
-import { env } from '../../config/env'
 import { db, type DatabaseExecutor } from '../../db/database'
 import { resolveAnalysisConversationTurnLeaseSeconds } from '../analysis.constants'
 import type { AnalysisConversationTurnResult } from './analysis.conversation.contract'
@@ -145,7 +144,7 @@ export async function beginAnalysisConversationTurnRun(
             ${input.generation},
             ${input.browserInstanceId}::uuid,
             clock_timestamp() + make_interval(
-                secs => ${resolveAnalysisConversationTurnLeaseSeconds(env.TEEHO_AGENT_TIMEOUT_SECONDS)}
+                secs => ${resolveAnalysisConversationTurnLeaseSeconds()}
             )
         )
         ON CONFLICT DO NOTHING
@@ -185,7 +184,7 @@ export async function renewAnalysisConversationTurnRun(
         SET processing_expires_at = LEAST(
                 expires_at,
                 clock_timestamp() + make_interval(
-                    secs => ${resolveAnalysisConversationTurnLeaseSeconds(env.TEEHO_AGENT_TIMEOUT_SECONDS)}
+                    secs => ${resolveAnalysisConversationTurnLeaseSeconds()}
                 )
             ),
             updated_at = clock_timestamp()

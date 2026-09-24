@@ -25,6 +25,25 @@ const leaseId = '00000000-0000-4000-8000-000000000004'
 describe('analysis conversation authority repository', () => {
     beforeEach(() => vi.clearAllMocks())
 
+    it.each([
+        ['2026-09-24 01:46:16.881473+00', '2026-09-24T01:46:16.881Z'],
+        [new Date('2026-09-24T01:46:16.881Z'), '2026-09-24T01:46:16.881Z'],
+        [null, null],
+    ])('会话租约时间统一输出 ISO 格式：%s', async (leaseExpiresAt, expected) => {
+        databaseMocks.execute.mockResolvedValueOnce([
+            {
+                sessionId,
+                generation: 39,
+                browserInstanceId,
+                status: 'processing',
+                contentKind: null,
+                leaseExpiresAt,
+                consumedTokens: '0',
+            },
+        ])
+        expect((await getAnalysisConversationControl(userId))?.leaseExpiresAt).toBe(expected)
+    })
+
     it('用单条 UPSERT 在租约空闲时接管并只把代数递增一', async () => {
         databaseMocks.execute.mockResolvedValueOnce([
             {

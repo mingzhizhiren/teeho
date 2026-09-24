@@ -52,7 +52,7 @@ class PresentationTests(unittest.TestCase):
                     self.assertEqual(rendered.get("toolsData"), metadata)
                     self.assertEqual(rendered["state"], "ready")
 
-    def test_six_frozen_note_metrics_replace_legacy_differences_without_colors(self) -> None:
+    def test_six_frozen_note_metrics_include_color_icons(self) -> None:
         data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
         metrics = {'titleLength': 10, 'titleEmojiRatio': 0, 'bodyLength': 192,
                    'paragraphLength': 95, 'listItemCount': 0, 'topicCount': 7}
@@ -71,8 +71,8 @@ class PresentationTests(unittest.TestCase):
         self.assertIn('Average paragraph length: 95', text)
         self.assertIn('List / step item count: 0', text)
         self.assertIn('Topic count: 7', text)
-        for marker in ('🟢', '🟡', '🟠', '\x1b['):
-            self.assertNotIn(marker, text)
+        self.assertEqual(text.count('🟠 '), 6)
+        self.assertNotIn('\x1b[', text)
 
     def test_report_requires_explicit_primary_score_but_not_exact_schema_version(self) -> None:
         fixture = next(case for case in FIXTURES if case["name"] == "report")

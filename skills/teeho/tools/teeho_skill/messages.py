@@ -181,6 +181,7 @@ ENGLISH = MappingProxyType(
         "skillDownload": "Download skill",
         "invalidRequest": "The request was rejected. Check the input and update the skill if needed.",
         "encodingInvalid": "The input appears to have lost text encoding. Save the original content as UTF-8 JSON and use --input-file. No diagnosis was submitted.",
+        "inputFileInvalid": "The input file does not exist or is not a regular file. Pass an existing JSON file path or a JSON object to --input-file, or omit it to use standard input. Existing tasks and local history have not been changed.",
         "invalidResponse": "The returned data is incomplete or unreadable. Query the same task again; do not submit a new diagnosis.",
         "conflict": "The operation conflicts with the current state. Check the existing task or authorization before retrying.",
         "permission": "Local file access was denied. Allow access to the skill, materials, and Teeho data directory, then retry.",

@@ -45,6 +45,7 @@ onBeforeUnmount(() => controller.abort())
 </script>
 <template>
     <h2 class="text-2xl font-semibold text-ink">{{ t('skillAuth.devices') }}</h2>
+    <p class="mt-3 text-sm leading-6 text-muted">{{ t('skillAuth.deviceLimit') }}</p>
     <p v-if="failed" role="alert" class="mt-4 text-ink">{{ t('skillAuth.devicesError') }}</p>
     <button :disabled="pending" class="mt-4 text-brand" @click="load()">
         {{ t('skillAuth.refresh') }}

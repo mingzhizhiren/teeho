@@ -44,9 +44,32 @@ export class MemorySkillStore implements SkillStore {
     async update<T>(
         id: string,
         operation: (grant: SkillGrant | null) => { grant: SkillGrant | null; result: T },
+        approval?: { readonly userId: string; readonly now: number },
     ): Promise<T> {
-        const updated = operation(this.records[id] ?? null)
+        const previous = this.records[id] ?? null
+        const updated = operation(previous)
         if (updated.grant) this.records = { ...this.records, [id]: updated.grant }
+        if (approval && previous?.userId === null && updated.grant?.userId === approval.userId) {
+            const old = Object.values(this.records)
+                .filter(
+                    (grant) =>
+                        grant.id !== id &&
+                        grant.userId === approval.userId &&
+                        !grant.revoked &&
+                        (grant.expiresAt === null || grant.expiresAt > approval.now),
+                )
+                .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id))
+                .slice(SKILL_AUTH.maxActiveDevices - 1)
+            this.records = {
+                ...this.records,
+                ...Object.fromEntries(
+                    old.map((grant) => [
+                        grant.id,
+                        { ...grant, revoked: true, accessHash: null, accessUntil: 0 },
+                    ]),
+                ),
+            }
+        }
         return updated.result
     }
     async list(userId: string, page: SkillDevicePageRequest): Promise<readonly SkillGrant[]> {

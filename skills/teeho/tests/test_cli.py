@@ -201,6 +201,49 @@ class ApiFixture:
 
 
 class CliTests(unittest.TestCase):
+    def test_explicit_task_recovers_report_despite_corrupt_pending(self) -> None:
+        self.run_cli("diagnose", self.note)
+        task_id = self.fixture.submissions[0]["submissionId"]
+        fixtures = json.loads((Path(__file__).parent / "fixtures" / "presentation-golden.json").read_text(encoding="utf-8"))
+        report_task = next(case for case in fixtures if case["name"] == "report")["result"]["task"]
+        self.fixture.tasks[task_id] = {**report_task, "id": task_id}
+        pending = self.data_root / "accounts" / OWNER / "pending.json"
+        pending.write_text("{broken", encoding="utf-8")
+        code, lines, logs = self.run_cli("task", {"taskId": task_id})
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(lines[-1]["state"], "completed")
+        self.assertTrue(any(log["event"] == "report_pending_unavailable" for log in logs))
+        self.assertEqual(pending.read_text(encoding="utf-8"), "{broken")
+        self.assertEqual(len(self.fixture.submissions), 1)
+
+    def test_inline_input_file_queries_existing_anonymous_task_without_resubmission(self) -> None:
+        self.run_cli("diagnose", self.note)
+        task_id = self.fixture.submissions[0]["submissionId"]
+        for argument in ("{}", json.dumps({"taskId": task_id})):
+            code, lines, _ = self.run_cli("task", input_file=argument)
+            self.assertEqual(code, 0, lines)
+            self.assertEqual(lines[-1]["taskId"], task_id)
+        code, lines, _ = self.run_cli("history", input_file="{}")
+        self.assertEqual(code, 0, lines)
+        self.assertNotEqual(lines[-1]["state"], "local_error")
+        self.assertEqual(len(self.fixture.submissions), 1)
+
+    def test_missing_input_file_is_not_reported_as_corrupt_local_task(self) -> None:
+        code, lines, _ = self.run_cli("task", input_file=self.home / "missing.json")
+        self.assertEqual(code, 1)
+        self.assertEqual(lines[-1]["state"], "invalid_input")
+        self.assertEqual(lines[-1]["nextAction"], "correct_input")
+        self.assertIn("input file", lines[-1]["displayText"].lower())
+        self.assertEqual(self.fixture.calls, [])
+
+    def test_inline_input_keeps_json_validation_and_size_limits(self) -> None:
+        self.assertEqual(read_input(' \ufeff {"taskId":"example"}'), {"taskId": "example"})
+        for invalid in ('{broken', '[]', '{"a":1,"a":2}', '{"a":NaN}'):
+            with self.subTest(value=invalid), self.assertRaises(TeehoError):
+                read_input(invalid)
+        with self.assertRaisesRegex(TeehoError, "input_too_large"):
+            read_input('{"a":"' + 'x' * MAX_INPUT_BYTES + '"}')
+
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory(prefix="teeho-python-cli-")
         self.addCleanup(self.directory.cleanup)
@@ -220,7 +263,7 @@ class CliTests(unittest.TestCase):
         self.data_root = self.home / "servers" / hashlib.sha256(self.base.encode()).hexdigest()
 
     def run_cli(
-        self, command: str, value: object = None, *, input_file: Optional[Path] = None
+        self, command: str, value: object = None, *, input_file: Optional[typing.Union[Path, str]] = None
     ) -> tuple[int, list[dict], list[dict]]:
         data = (
             value

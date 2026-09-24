@@ -27,15 +27,99 @@ vi.mock('../db/database', async () => {
 import { PostgresSkillStore } from '@teeho/community-server/skill-auth/skill-auth.repository'
 import { createSkillAuthController } from '@teeho/community-server/skill-auth/skill-auth.controller'
 import { createSkillAuthRoutes } from '@teeho/community-server/skill-auth/skill-auth.routes'
+import { createSkillAuthService, skillDigest } from './skill-auth.service'
 
 describe('设备管理 HTTP 与实际 PostgreSQL 查询', () => {
     beforeAll(async () => {
         await boundary.connection!.exec(
             'create table public.skill_device_grants(id text primary key, payload jsonb not null)',
         )
+        await boundary.connection!.exec(
+            'create table public.skill_request_limits(key text primary key, window_id bigint, count integer)',
+        )
     })
     afterAll(async () => {
         await boundary.connection?.close()
+    })
+
+    it('并发批准后仅保留五个有效授权', async () => {
+        const now = Date.parse('2026-09-24T01:00:00Z')
+        const user = { id: crypto.randomUUID(), email: null, canChangePassword: true }
+        const store = new PostgresSkillStore()
+        const ids = Array.from({ length: 7 }, (_, index) => skillDigest(`parallel-${index}`))
+        for (const [index, id] of ids.entries()) {
+            await store.insert({
+                id,
+                codeHash: skillDigest(`parallel-code-${index}`),
+                deviceName: 'test',
+                createdAt: now + index,
+                pendingUntil: now + 1000,
+                userId: index < 4 ? user.id : null,
+                expiresAt: null,
+                revoked: false,
+                accessHash: null,
+                accessUntil: 0,
+            })
+        }
+        const service = createSkillAuthService({
+            store,
+            now: () => now,
+            origin: 'http://localhost',
+            resolveBrowser: async () => user,
+            findUser: async () => user,
+        })
+        await Promise.all(
+            [4, 5, 6].map((index) =>
+                service.approve(`parallel-code-${index}`, true, 'browser', 'parallel-ip'),
+            ),
+        )
+        expect((await store.list(user.id, { now })).map((grant) => grant.id)).toEqual(
+            ids.slice(2).reverse(),
+        )
+    })
+
+    it('第六个授权原子淘汰最旧项，重复批准不淘汰，旧访问凭据立即失效', async () => {
+        const now = Date.parse('2026-09-24T00:00:00Z')
+        const user = { id: crypto.randomUUID(), email: null, canChangePassword: true }
+        const other = crypto.randomUUID()
+        const store = new PostgresSkillStore()
+        const ids = Array.from({ length: 8 }, (_, index) => skillDigest(`limit-test-${index}`))
+        for (const [index, id] of ids.entries())
+            await store.insert({
+                id,
+                codeHash: skillDigest(`code-${index}`),
+                deviceName: 'test',
+                createdAt: now + index,
+                pendingUntil: now + 1000,
+                userId: index === 5 ? null : index === 6 ? other : user.id,
+                expiresAt: index === 7 ? now : null,
+                revoked: false,
+                accessHash: skillDigest(`access-${index}`),
+                accessUntil: now + 1000,
+            })
+        const service = createSkillAuthService({
+            store,
+            now: () => now,
+            origin: 'http://localhost',
+            resolveBrowser: async () => user,
+            findUser: async () => user,
+        })
+        await service.approve('code-5', true, 'browser', 'ip')
+        expect((await store.list(user.id, { now })).map((grant) => grant.id)).toEqual(
+            ids.slice(1, 6).reverse(),
+        )
+        expect(await store.find('id', ids[0]!)).toMatchObject({
+            revoked: true,
+            accessHash: null,
+            accessUntil: 0,
+        })
+        await expect(service.authenticate('access-0')).rejects.toMatchObject({
+            reason: 'authorization_expired',
+        })
+        expect(await store.find('id', ids[6]!)).toMatchObject({ revoked: false })
+        expect(await store.find('id', ids[7]!)).toMatchObject({ revoked: false })
+        await service.approve('code-5', true, 'browser', 'ip')
+        expect(await store.list(user.id, { now })).toHaveLength(5)
     })
 
     it('已撤销记录不遮挡有效设备，同一创建时间跨页不遗漏且只能撤销本人设备', async () => {

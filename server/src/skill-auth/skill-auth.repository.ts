@@ -68,19 +68,45 @@ export class PostgresSkillStore implements SkillStore {
     async update<T>(
         id: string,
         operation: (grant: SkillGrant | null) => { grant: SkillGrant | null; result: T },
+        approval?: { readonly userId: string; readonly now: number },
     ): Promise<T> {
         return withTransaction(async (tx) => {
+            if (approval)
+                await tx.execute(
+                    sql`select pg_advisory_xact_lock(hashtextextended(${'skill-account:' + approval.userId},0))`,
+                )
             await tx.execute(
                 sql`select pg_advisory_xact_lock(hashtextextended(${'skill:' + id},0))`,
             )
             const rows = await tx.execute(
                 sql`select payload from public.skill_device_grants where id=${id} for update`,
             )
-            const updated = operation(rows[0] ? grantSchema.parse(rows[0].payload) : null)
+            const previous = rows[0] ? grantSchema.parse(rows[0].payload) : null
+            const updated = operation(previous)
             if (updated.grant)
                 await tx.execute(
                     sql`update public.skill_device_grants set payload=${JSON.stringify(updated.grant)}::jsonb where id=${id}`,
                 )
+            if (
+                approval &&
+                previous?.userId === null &&
+                updated.grant?.userId === approval.userId
+            ) {
+                await tx.execute(sql`
+                    WITH oldest AS (
+                        SELECT id FROM public.skill_device_grants
+                        WHERE payload->>'userId'=${approval.userId}
+                          AND payload->>'revoked'='false' AND id<>${id}
+                          AND (payload->>'expiresAt' IS NULL OR (payload->>'expiresAt')::bigint>${approval.now})
+                        ORDER BY (payload->>'createdAt')::bigint DESC, id DESC
+                        OFFSET ${SKILL_AUTH.maxActiveDevices - 1}
+                        FOR UPDATE
+                    )
+                    UPDATE public.skill_device_grants AS grants
+                    SET payload=grants.payload || '{"revoked":true,"accessHash":null,"accessUntil":0}'::jsonb
+                    FROM oldest WHERE grants.id=oldest.id
+                `)
+            }
             return updated.result
         })
     }

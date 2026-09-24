@@ -1,3 +1,4 @@
+import { ApiRequestError } from '@/utils/apiRequestError'
 import type {
     AgentConversationAction,
     AgentConversationQuestion,
@@ -5,6 +6,25 @@ import type {
 } from './analysis.conversation'
 
 type AgentPresentationLocale = 'zh-CN' | 'en-US'
+
+/** 只用服务端明确提供的安全分类说明原因，未知失败不猜测为服务故障。 */
+export function presentAgentConversationFailure(error: unknown, locale: string): string {
+    const data = error instanceof ApiRequestError ? error.data : null
+    const reason = data && typeof data === 'object' && 'reason' in data ? data.reason : null
+    if (reason === 'agent_output_invalid') {
+        return locale === 'en-US'
+            ? 'The AI draft update did not pass validation and was not applied. Your original draft and input are preserved. You can edit directly in Expert mode.'
+            : 'AI 返回的草稿修改未通过校验，本次修改未生效。原草稿和输入已保留，你可以在专家模式直接修改。'
+    }
+    if (reason === 'agent_service_unavailable') {
+        return locale === 'en-US'
+            ? 'The AI service is temporarily unavailable. Your original draft and input are preserved. Try again later or edit directly in Expert mode.'
+            : 'AI 服务暂时不可用，本次草稿更新未完成。原草稿和输入已保留，请稍后重试，或在专家模式直接修改。'
+    }
+    return locale === 'en-US'
+        ? 'This draft update was not completed. Your original draft and input are preserved. You can edit directly in Expert mode.'
+        : '本次草稿更新未完成，原草稿和输入已保留。你可以在专家模式直接修改。'
+}
 export type AgentPresentationAction =
     | 'greeting'
     | 'adjustment'
@@ -140,21 +160,7 @@ const zhCnCatalog = {
             '，本次停止新的 Agent 回合，专家表单仍可继续编辑。',
         ],
     ),
-    technical_failure: combine(
-        [
-            '这轮暂时没有处理完成',
-            'Agent 刚刚没有成功返回',
-            '当前请求遇到了一点波动',
-            '这次整理暂时中断了',
-            '我还没能完成这轮草稿更新',
-        ],
-        [
-            '，你的输入还在，可以直接重试。',
-            '，原消息已保留，请再次发送。',
-            '，不会写入正式历史，稍后重试即可。',
-            '，草稿没有被部分修改，请重试。',
-        ],
-    ),
+    technical_failure: [presentAgentConversationFailure(undefined, 'zh-CN')],
 } satisfies Record<AgentPresentationAction, string[]>
 
 const enUsCatalog = {
@@ -293,21 +299,7 @@ const enUsCatalog = {
             '. New Agent turns are paused, and the Expert form remains editable.',
         ],
     ),
-    technical_failure: combine(
-        [
-            'This round did not finish',
-            'The Agent did not return successfully',
-            'The request hit a temporary problem',
-            'Draft forming was interrupted',
-            'I could not complete this draft update',
-        ],
-        [
-            ', but your input is still here for retry.',
-            '. The original message is preserved; send it again.',
-            '. It did not enter formal history, so retry when ready.',
-            '. No partial draft changes were applied; retry it.',
-        ],
-    ),
+    technical_failure: [presentAgentConversationFailure(undefined, 'en-US')],
 } satisfies Record<AgentPresentationAction, string[]>
 
 export const agentPresentationCatalogs = {

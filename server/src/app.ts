@@ -1,4 +1,5 @@
 import { createApplication } from './app.composition'
+import { recoverInterruptedConversations } from './analysis/conversation/analysis.conversation-startup.service'
 import { env } from './config/env'
 import { createListenOptions } from './config/server'
 import { closeDatabaseConnection } from './db/database'
@@ -75,6 +76,16 @@ async function startServer() {
         '服务器正在启动',
     )
     const { options, protocol } = createListenOptions()
+    try {
+        await recoverInterruptedConversations()
+    } catch (error) {
+        logger.error(
+            { event: 'analysis_conversation_startup_recovery_failed', err: error },
+            '聊天启动恢复失败，停止开放接口',
+        )
+        await stopApplication(application, closeDatabaseConnection)
+        throw error
+    }
     await application.workspaceEventListener.start()
     application.app.listen(options)
     application.worker.start()

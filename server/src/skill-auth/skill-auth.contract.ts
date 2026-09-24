@@ -14,6 +14,7 @@ export const SKILL_AUTH = {
     maxDeviceName: 80,
     hashLength: 64,
     devicePageSize: 100,
+    maxActiveDevices: 5,
     anonymousPerIpPerDay: 20,
 } as const
 export const deviceTokenSchema = z.string().regex(/^[a-f0-9]{64}$/)
@@ -72,6 +73,7 @@ export interface SkillStore {
     update<T>(
         id: string,
         operation: (grant: SkillGrant | null) => { grant: SkillGrant | null; result: T },
+        approval?: { readonly userId: string; readonly now: number },
     ): Promise<T>
     list(userId: string, page: SkillDevicePageRequest): Promise<readonly SkillGrant[]>
     consume(key: string, limit: number, window: number): Promise<boolean>

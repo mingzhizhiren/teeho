@@ -105,15 +105,25 @@ class HistoryTools:
             return []
 
     def list(self) -> list[dict[str, Any]]:
-        """按保存时间倒序列出当前账号历史摘要。"""
-        reports = [
-            self.read(path.stem) for path in self._files() if REPORT_FILE.fullmatch(path.name)
-        ]
-        records = [self._summary(report) for report in reports]
+        """隔离损坏记录并保留明确提示，不让单份报告阻断全部历史。"""
+        records = []
+        for path in self._files():
+            if not REPORT_FILE.fullmatch(path.name):
+                continue
+            try:
+                records.append(self._summary(self.read(path.stem)))
+            except TeehoError:
+                records.append(self._summary(unavailable_report(path.stem)))
         return sorted(records, key=lambda record: record["savedAt"], reverse=True)
 
     @staticmethod
     def _summary(report: dict[str, Any]) -> dict[str, Any]:
+        if report.get("unavailable") is True:
+            return {
+                "id": report["task"]["id"], "savedAt": "", "cover": None,
+                "localMedia": local_media(None), "unavailable": True,
+                "summary": "This local report is damaged or unavailable. Other reports are unaffected.",
+            }
         result = report["task"].get("result")
         conclusion = result.get("qualitativeConclusion") if isinstance(result, dict) else None
         summary = conclusion.get("summary", "") if isinstance(conclusion, dict) else ""
@@ -135,3 +145,8 @@ class HistoryTools:
             if HISTORY_FILE.fullmatch(path.name):
                 path.unlink()
         return {"cleared": True}
+
+
+def unavailable_report(task_id: str) -> dict[str, Any]:
+    """列表占位，不伪造报告内容或所有权，不用于详情读取。"""
+    return {"task": {"id": _identifier(task_id)}, "savedAt": "", "unavailable": True}

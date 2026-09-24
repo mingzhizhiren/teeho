@@ -523,6 +523,7 @@ ERRORS = {
     "invalid_response": ("invalid_response", "invalidResponse", None),
     "invalid_input": ("invalid_input", "invalidRequest", "correct_input"),
     "input_encoding_invalid": ("invalid_input", "encodingInvalid", "correct_input"),
+    "input_file_invalid": ("invalid_input", "inputFileInvalid", "correct_input"),
     "input_too_large": ("invalid_input", "invalidRequest", "correct_input"),
     "unknown_command": ("invalid_input", "invalidRequest", "help"),
     "invalid_local_data": ("local_error", "localData", None),

@@ -60,6 +60,9 @@ export const analysisEvidenceNoteSchema = z
     .object({
         noteId: z.string().min(1).max(analysisEvidenceConstraints.noteIdMaxLength),
         trackCodes: z.array(z.number().int().nonnegative()).optional(),
+        modelTrackCodes: z
+            .array(z.number().int().min(0).max(checkupOutputConstraints.maximumTrackCode))
+            .optional(),
         modelTrackCode: z
             .number()
             .int()

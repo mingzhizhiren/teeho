@@ -67,7 +67,11 @@ export {
 
 const initialConversationAttempt = 1
 const repairConversationAttempt = 2
-type ConversationAttempt = typeof initialConversationAttempt | typeof repairConversationAttempt
+const finalConversationAttempt = 3
+type ConversationAttempt =
+    | typeof initialConversationAttempt
+    | typeof repairConversationAttempt
+    | typeof finalConversationAttempt
 type MergedAgentConversationTurn = AgentConversationTurn & {
     readonly completeDraft: AnalysisConversationDraft
 }
@@ -351,8 +355,11 @@ export function createAnalysisConversationService(
                     }),
                 parse: (raw: unknown) => mergeConversationTurn(input, raw),
                 shouldRetry: (error: unknown) =>
-                    attemptNumber === initialConversationAttempt &&
-                    error instanceof AgentContractError,
+                    (attemptNumber < finalConversationAttempt &&
+                        error instanceof AgentProviderError &&
+                        error.category === 'timeout') ||
+                    (attemptNumber === initialConversationAttempt &&
+                        error instanceof AgentContractError),
             })
             let settledResult: AnalysisConversationTurnResult | null = null
             const managed = await tokenManagement.executeConversationTurn({
@@ -366,7 +373,10 @@ export function createAnalysisConversationService(
                     leaseId: input.session.requestId,
                 },
                 usageCall: createUsageCall(initialConversationAttempt),
-                retryUsageCall: createUsageCall(repairConversationAttempt),
+                retryUsageCalls: [
+                    createUsageCall(repairConversationAttempt),
+                    createUsageCall(finalConversationAttempt),
+                ],
                 onClaimed,
                 onSettled: onSettledResult
                     ? async (executor, outcome) => {

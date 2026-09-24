@@ -13,6 +13,8 @@ const providerMaximumSingleMebibytes = 20
 const openAiMaximumBatchMebibytes = 45
 const geminiMaximumBatchMebibytes = 18
 const secondsPerMinute = TIME_MS.MINUTE / TIME_MS.SECOND
+const conversationInitialTimeoutSeconds = 30
+const conversationRetryTimeoutSeconds = 60
 
 /** 共享草稿素材上传的账号级滚动窗口。 */
 export const analysisMediaUploadAdmissionRules = {
@@ -123,16 +125,22 @@ export const analysisExecutionConstraints = {
 
 /** 账号控制的 Agent 会话租约策略。 */
 export const analysisConversationConstraints = {
-    providerAttemptLimit: 2,
+    providerAttemptTimeoutSeconds: [
+        conversationInitialTimeoutSeconds,
+        conversationRetryTimeoutSeconds,
+        conversationRetryTimeoutSeconds,
+    ] as const,
     settlementGraceSeconds: 30,
     historyCompressionEstimatedTokenThreshold: 12_000,
 } as const
 
 /** 回合租约覆盖全部 Provider 尝试与最终数据库结算。 */
-export function resolveAnalysisConversationTurnLeaseSeconds(providerTimeoutSeconds: number) {
+export function resolveAnalysisConversationTurnLeaseSeconds(): number {
     return (
-        providerTimeoutSeconds * analysisConversationConstraints.providerAttemptLimit +
-        analysisConversationConstraints.settlementGraceSeconds
+        analysisConversationConstraints.providerAttemptTimeoutSeconds.reduce<number>(
+            (total, seconds) => total + seconds,
+            0,
+        ) + analysisConversationConstraints.settlementGraceSeconds
     )
 }
 

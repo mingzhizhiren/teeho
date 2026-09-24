@@ -42,6 +42,10 @@ export function reconcileConversationAuthority(
         }
         return { kind: 'ended' }
     }
+    // 首次发送前的新草稿只保存在本地；上一代会话不能被误判为对新草稿的接管。
+    if (local.generation > control.generation && local.sessionId !== control.sessionId) {
+        return { kind: 'current' }
+    }
     if (
         local.browserInstanceId !== control.browserInstanceId ||
         local.sessionId !== control.sessionId

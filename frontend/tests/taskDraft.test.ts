@@ -105,7 +105,7 @@ const config: AnalysisTaskConfig = {
     runtime: {
         mode: 'cloud',
         pointsEnabled: true,
-        preparationRequestTimeoutMs: 390_000,
+        preparationRequestTimeoutMs: 180_000,
     },
 }
 

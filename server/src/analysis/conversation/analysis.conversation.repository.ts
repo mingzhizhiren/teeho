@@ -78,9 +78,7 @@ function snapshotFromRow(row: AnalysisConversationControlRow): AnalysisConversat
         status: row.status,
         contentKind: row.contentKind,
         leaseExpiresAt:
-            row.leaseExpiresAt instanceof Date
-                ? row.leaseExpiresAt.toISOString()
-                : row.leaseExpiresAt,
+            row.leaseExpiresAt == null ? null : new Date(row.leaseExpiresAt).toISOString(),
         consumedTokens: Number(row.consumedTokens),
     }
 }

@@ -68,6 +68,7 @@ export default {
         insightLimited: 'Limited supporting information',
         missingCover: 'Upload a cover before starting the analysis.',
         devices: 'Device authorizations',
+        deviceLimit: 'Each account can keep up to 5 active authorizations. Authorizing another automatically revokes the oldest one.',
         refresh: 'Refresh',
         loadMore: 'Load more devices',
         loading: 'Loading device authorizations…',

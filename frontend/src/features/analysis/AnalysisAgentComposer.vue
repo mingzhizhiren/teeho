@@ -218,7 +218,7 @@ watch(
     >
         <p
             v-if="conversationSyncMessage"
-            class="mb-3 text-sm text-muted"
+            class="mb-3 text-sm text-red-700 dark:text-red-200"
             role="status"
             data-testid="conversation-sync-status"
         >
@@ -426,12 +426,18 @@ watch(
                             data-primary-action="send"
                             :aria-label="
                                 isSendPending
-                                    ? t('workspace.agentChat.waiting')
+                                    ? conversationSyncMessage
+                                        ? t('workspace.agentChat.disconnected')
+                                        : t('workspace.agentChat.waiting')
                                     : t('workspace.agentChat.send')
                             "
                             :disabled="!canSend"
                         >
-                            <span v-if="isSendPending">{{ t('workspace.agentChat.waiting') }}</span>
+                            <span v-if="isSendPending">{{
+                                conversationSyncMessage
+                                    ? t('workspace.agentChat.disconnected')
+                                    : t('workspace.agentChat.waiting')
+                            }}</span>
                             <AppIcon v-else name="send" />
                         </button>
                     </div>
