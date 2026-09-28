@@ -358,7 +358,12 @@ class TeehoApi:
                     "",
                 )
             )
-        response = self.transport.upload(target, path, declared_media_type, file_name)
+        try:
+            response = self.transport.upload(target, path, declared_media_type, file_name)
+        except TeehoError as error:
+            if error.code == "request_failed" and declared_media_type.startswith("video/"):
+                raise TeehoError("video_upload_failed") from error
+            raise
         if 200 <= response.status < 300:
             return
         try:

@@ -196,7 +196,7 @@ async function callMaterial(
     }
 }
 
-/** 按依赖逐步执行；失败仅重试当前步骤，不重复已理解的封面。 */
+/** 封面与正文并行理解，分类等待两者；失败仅重试对应素材步骤。 */
 export async function understandTaskMaterials(
     input: CheckupEvaluationInput,
 ): Promise<UnderstoodMaterials> {
@@ -217,22 +217,28 @@ export async function understandTaskMaterials(
             ruleId: 'material.cover.unavailable',
             validationFieldPaths: ['coverReference', 'media.images'],
         })
-    const cover = materialDescriptionSchema.parse(
-        await callMaterial(input, { ...base, kind: 'cover', images: [coverImage] }),
-    ).description
     // 自动封面仍是视频内容的一部分，保留完整帧序列与时间元数据。
     const contentImages = task.coverReference
         ? input.media.images.filter((image) => image !== coverImage)
         : input.media.images
-    const content = contentImages.length
-        ? materialDescriptionSchema.parse(
-              await callMaterial(input, {
+    // 等待两路调用和用量结算完成，避免失败后遗留仍在运行的模型请求。
+    const [coverResult, contentResult] = await Promise.allSettled([
+        callMaterial(input, { ...base, kind: 'cover', images: [coverImage] }),
+        contentImages.length
+            ? callMaterial(input, {
                   ...base,
                   kind: 'content',
                   images: contentImages,
                   videoEvidence: input.media.videoEvidence,
-              }),
-          ).description
+              })
+            : Promise.resolve(null),
+    ])
+    input.signal.throwIfAborted()
+    if (coverResult.status === 'rejected') throw coverResult.reason
+    if (contentResult.status === 'rejected') throw contentResult.reason
+    const cover = materialDescriptionSchema.parse(coverResult.value).description
+    const content = contentResult.value
+        ? materialDescriptionSchema.parse(contentResult.value).description
         : null
     try {
         const classification = materialClassificationSchema.parse(

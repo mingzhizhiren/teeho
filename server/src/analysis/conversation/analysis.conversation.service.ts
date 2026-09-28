@@ -170,7 +170,7 @@ function controlConversationTurn(
             JSON.stringify(result.completeDraft.fields[name].value) !==
             JSON.stringify(input.completeDraft.fields[name].value),
     )
-    // 已通过原文溯源并实际修改的草稿，不能再向用户声称该操作不受支持。
+    // 已通过补丁校验并实际修改的草稿，不能再向用户声称该操作不受支持。
     if (result.action === 'out_of_scope' && changedText)
         return { ...result, action: 'draft_ready', questions }
     if (result.action !== 'draft_ready' && result.action !== 'ask_questions') return result

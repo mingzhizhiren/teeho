@@ -436,6 +436,26 @@ class ApiContractTests(unittest.TestCase):
             with patch.object(self.api.transport, 'upload', return_value=SimpleNamespace(status=400, body=json.dumps({'code':code}).encode())):
                 self.api.upload_file('https://upload.example/video', Path('unused'), 'video/mp4', 'video.mp4')
 
+    def test_video_upload_transport_failure_keeps_video_error_context(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "video.mp4"
+            path.write_bytes(b"synthetic-video")
+            for failure in (TimeoutError("synthetic timeout"), ConnectionResetError()):
+                with self.subTest(error=type(failure).__name__), patch.object(
+                    self.api.transport.opener, "open", side_effect=failure
+                ):
+                    with self.assertRaises(TeehoError) as raised:
+                        self.api.upload_file(
+                            "https://upload.example/video", path, "video/mp4", path.name
+                        )
+                    self.assertEqual(raised.exception.code, "video_upload_failed")
+                    view = create_error_presentation(raised.exception)
+                    self.assertEqual(view["nextAction"], "retry")
+                    self.assertIn("Video upload timed out", render_presentation(view))
+                    with self.assertRaises(TeehoError) as api_failure:
+                        self.api.get_task(UID, expected_user_id=UID)
+                    self.assertEqual(api_failure.exception.code, "request_failed")
+
     def test_invalid_ids_do_not_request(self):
         for operation in (
             self.api.get_video,
