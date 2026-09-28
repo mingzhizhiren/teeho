@@ -25,7 +25,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request('http://localhost/skill/auth/anonymous', {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.1.0',
+                        'x-teeho-skill-version': '2.2.1',
                         'content-type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -59,7 +59,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request('http://localhost/skill/auth/' + path, {
                     method: body ? 'POST' : 'GET',
                     headers: {
-                        'x-teeho-skill-version': '2.1.0',
+                        'x-teeho-skill-version': '2.2.1',
                         'content-type': 'application/json',
                         origin: 'http://localhost',
                         cookie: 'teeho_access_token=' + cookie,
@@ -100,7 +100,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request('http://localhost/skill/auth/anonymous', {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.1.0',
+                        'x-teeho-skill-version': '2.2.1',
                         'content-type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -142,7 +142,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request('http://localhost/skill/auth/anonymous', {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.1.0',
+                        'x-teeho-skill-version': '2.2.1',
                         'content-type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -184,7 +184,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request(`http://localhost/skill/auth/${path}`, {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.1.0',
+                        'x-teeho-skill-version': '2.2.1',
                         'content-type': 'application/json',
                         origin: 'http://localhost',
                         ...(browser ? { cookie: 'teeho_access_token=browser' } : {}),

@@ -71,6 +71,7 @@ API_VIDEO_UPLOAD_SESSIONS = "/analysis/video/upload-sessions"
 # 鉴权：Skill Bearer；{video_id} 为上传资格返回的视频 UUID。
 # 调用阶段：上传恢复检查、等待服务端视频处理完成。
 API_VIDEO_DETAIL_TEMPLATE = "/analysis/video/{video_id}"
+API_VIDEO_RESUME_TEMPLATE = "/analysis/video/{video_id}/resume-upload"
 
 # POST：通知服务端检查已上传的视频对象，请求体为 {}。
 # 鉴权：Skill Bearer；{video_id} 与本次保存的上传资格一致。

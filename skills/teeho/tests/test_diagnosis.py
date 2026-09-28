@@ -157,6 +157,12 @@ class FakeApi:
     def get_video(self, video_id: str, expected_user_id: Optional[str] = None) -> dict:
         return {"video": self.video}
 
+    def resume_video_upload_session(self, video_id: str, expected_user_id: Optional[str] = None) -> dict:
+        return {"session": {"video": {"id": video_id, "upload": {
+            "endpoint": "https://storage.example.test/storage/v1/upload/resumable",
+            "bucketName": "analysis-video", "objectName": "fixture/video", "signature": "renewed",
+        }}}}
+
     def confirm_video_upload(self, video_id: str, expected_user_id: Optional[str] = None) -> dict:
         self.video = {**self.video, "state": "ready"}
         return {"video": self.video}

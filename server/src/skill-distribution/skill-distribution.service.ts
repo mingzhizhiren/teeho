@@ -65,9 +65,8 @@ export function createSkillDistributionService(
         })
     }
     return () => {
-        pending ??= build().catch((error: unknown) => {
+        pending ??= build().finally(() => {
             pending = undefined
-            throw error
         })
         return pending
     }

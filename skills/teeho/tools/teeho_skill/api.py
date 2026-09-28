@@ -90,6 +90,9 @@ def _media_record(record: dict) -> None:
 
 
 def _rejection(path: str, status: int, envelope: dict) -> str:
+    data = envelope.get("data")
+    if path.startswith("/analysis/video/") and status == 410 and isinstance(data, dict) and data.get("reason") == "upload_expired":
+        return "video_upload_expired"
     if path == constants.API_AUTH_TOKEN and status == 409:
         return "authorization_pending"
     if status == 401:
@@ -310,6 +313,14 @@ class TeehoApi:
         _media_record(_object(data, "video"))
         return data
 
+    def resume_video_upload_session(self, video_id: str, *, expected_user_id: Optional[str] = None) -> dict:
+        data = self._authorized(
+            constants.API_VIDEO_RESUME_TEMPLATE.format(video_id=_identifier(video_id)),
+            {}, expected_user_id,
+        )
+        _object(data, "session")
+        return data
+
     def get_admission(self, submission_id: str, *, expected_user_id: Optional[str] = None) -> dict:
         data = self._authorized(
             constants.API_TASK_ADMISSION_TEMPLATE.format(submission_id=_identifier(submission_id)),
@@ -348,5 +359,20 @@ class TeehoApi:
                 )
             )
         response = self.transport.upload(target, path, declared_media_type, file_name)
-        if not 200 <= response.status < 300 and response.status not in {400, 409}:
-            raise TeehoError("素材上传失败，请恢复重试", response.status)
+        if 200 <= response.status < 300:
+            return
+        try:
+            error = json.loads(response.body.decode("utf-8"))
+        except (ValueError, UnicodeError):
+            error = {}
+        code = (error.get("code") or error.get("error")) if isinstance(error, dict) else None
+        code = code if isinstance(code, str) else None
+        # 仅已确认的重复对象允许交给服务端核验；400 也可能是文件过大或签名失败。
+        if response.status in {400, 409} and code in {"Duplicate", "ResourceAlreadyExists"}:
+            return
+        if response.status == 413 or code in {"EntityTooLarge", "Payload too large"}:
+            reason = "storage_upload_too_large"
+        else:
+            reason = "video_upload_failed" if declared_media_type.startswith("video/") else "storage_upload_failed"
+        self.transport.log("storage_upload_rejected", {"httpStatus": response.status, "errorCode": reason}, "warn")
+        raise TeehoError(reason)

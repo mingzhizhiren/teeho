@@ -27,6 +27,7 @@ from teeho_skill.cli import parse_arguments, read_input
 from teeho_skill.constants import MAX_INPUT_BYTES
 from teeho_skill.device import machine_identifier
 from teeho_skill.errors import TeehoError
+from teeho_skill.locking import lock_directory
 from teeho_skill.storage import read_json, write_json
 
 TOOLS = Path(__file__).resolve().parents[1] / "tools"
@@ -201,6 +202,44 @@ class ApiFixture:
 
 
 class CliTests(unittest.TestCase):
+    def test_task_and_wait_are_read_only_even_while_upload_holds_operation_lock(self) -> None:
+        self.identity()
+        pending = self.data_root / 'accounts' / OWNER / 'pending.json'
+        state = {'userId': OWNER, 'submissionId': '00000000-0000-4000-8000-000000000099', 'taskId': None, 'submitting': False}
+        write_json(pending, state)
+        with lock_directory(pending.parent / 'operation.lock'):
+            for command in ['task', 'wait']:
+                code, lines, _ = self.run_cli(command, {})
+                self.assertEqual(code, 0, lines)
+                self.assertEqual(lines[-1]['state'], 'not_submitted')
+                self.assertEqual(lines[-1]['nextAction'], 'wait_for_user')
+        self.assertEqual(read_json(pending), state)
+        self.assertEqual(self.fixture.submissions, [])
+
+    def test_task_query_finds_server_task_without_taking_operation_lock(self) -> None:
+        self.identity()
+        task_id = '00000000-0000-4000-8000-000000000099'
+        self.fixture.tasks[task_id] = {'id': task_id, 'status': 'queued'}
+        pending = self.data_root / 'accounts' / OWNER / 'pending.json'
+        state = {'userId': OWNER, 'submissionId': task_id, 'taskId': None, 'submitting': True}
+        write_json(pending, state)
+        with lock_directory(pending.parent / 'operation.lock'):
+            code, lines, _ = self.run_cli('task', {})
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(lines[-1]['state'], 'processing')
+        self.assertEqual(lines[-1]['taskId'], task_id)
+        self.assertEqual(read_json(pending), state)
+        self.assertEqual(self.fixture.submissions, [])
+    def test_busy_means_running_operation_not_local_storage_failure(self) -> None:
+        self.identity()
+        with lock_directory(self.data_root / 'accounts' / OWNER / 'operation.lock'):
+            code, lines, _ = self.run_cli('diagnose', self.note)
+        self.assertEqual(code, 1)
+        self.assertEqual(lines[-1]['state'], 'busy')
+        self.assertIn('already in progress', lines[-1]['displayText'])
+        self.assertIn('⏳', lines[-1]['displayText'])
+        self.assertNotIn('Local data could not be read or saved', lines[-1]['displayText'])
+        self.assertEqual(self.fixture.submissions, [])
     def test_explicit_task_recovers_report_despite_corrupt_pending(self) -> None:
         self.run_cli("diagnose", self.note)
         task_id = self.fixture.submissions[0]["submissionId"]

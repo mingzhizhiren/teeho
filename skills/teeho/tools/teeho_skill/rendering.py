@@ -372,6 +372,8 @@ def _identity_lines(view: View, translate: Translate) -> list[str]:
 def _notice_lines(view: View, translate: Translate) -> list[str]:
     data, state = view["data"], view["state"]
     headings = {
+        "busy": "operationInProgress",
+        "not_submitted": "diagnosisNotSubmittedTitle",
         "failed": "taskFailed",
         "processing": "processing",
         "unavailable": "connection",
@@ -386,8 +388,8 @@ def _notice_lines(view: View, translate: Translate) -> list[str]:
         if state in ("ready", "cleared", "signed_out")
         else (
             "⏳"
-            if state in ("processing", "preparing", "authorization_pending")
-            else "❌"
+            if state in ("processing", "preparing", "authorization_pending", "busy")
+            else "ℹ️" if state == "not_submitted" else "❌"
         )
     )
     return [

@@ -384,7 +384,7 @@ export default {
         },
         videoNotePlaceholder: '粘贴视频笔记的标题、正文和话题，上传完整视频，封面可选。',
         video: {
-            limits: '只能上传一条，最大 {size} MB。',
+            limits: '建议5分钟内，最大 {size} MB。',
             choose: '选择视频',
             preview: '查看原视频 {name}',
             required: '请先上传一条视频再开始分析',

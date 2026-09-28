@@ -19,6 +19,99 @@ class RecoveryResilienceTests(unittest.TestCase):
     setUp = fixtures.DiagnosisTests.setUp
     image = fixtures.DiagnosisTests.image
 
+    def test_query_failed_video_does_not_claim_a_diagnosis_exists(self) -> None:
+        from teeho_skill.storage import write_json
+        from teeho_skill.presentation import create_presentation
+        video_id = str(uuid4())
+        self.api.video = {'id': video_id, 'state': 'cancelled'}
+        scope = self.tool._scope()
+        write_json(scope.root / 'pending.json', {'userId': OWNER, 'submissionId': str(uuid4()), 'videoSession': {'video': {'id': video_id}}})
+        result = self.tool.tracked_task()
+        self.assertEqual(result['unsubmittedStage'], 'failed')
+        self.assertEqual(create_presentation('task', result)['state'], 'not_submitted')
+        self.assertEqual(self.api.submissions, [])
+
+    def test_unknown_submission_recovers_even_if_cached_text_is_damaged(self) -> None:
+        self.api.lose_submission = True
+        self.api.task_status = 'succeeded'
+        with self.assertRaises(TeehoError): self.tool.diagnose(self.note)
+        pending = self.root / 'accounts' / OWNER / 'pending.json'
+        old = json.loads(pending.read_text(encoding='utf-8'))
+        pending.write_text(json.dumps({**old, 'fields': {**old['fields'], 'topics': ['???']}}), encoding='utf-8')
+        result = self.tool.resume()
+        self.assertEqual(result['task']['id'], old['submissionId'])
+        self.assertEqual(len(self.api.submissions), 1)
+
+    def test_resuming_damaged_unsent_text_reports_old_draft_error(self) -> None:
+        with patch.object(self.tool, '_submit', side_effect=TeehoError('request_failed')):
+            with self.assertRaises(TeehoError): self.tool.diagnose(self.note)
+        pending = self.root / 'accounts' / OWNER / 'pending.json'
+        old = json.loads(pending.read_text(encoding='utf-8'))
+        pending.write_text(json.dumps({**old, 'fields': {**old['fields'], 'topics': ['???']}}), encoding='utf-8')
+        with self.assertRaisesRegex(TeehoError, 'pending_draft_invalid'):
+            self.tool.resume()
+        self.assertEqual(self.api.submissions, [])
+
+    def test_new_diagnosis_is_not_blocked_by_unsent_draft_encoding(self) -> None:
+        with patch.object(self.tool, '_submit', side_effect=TeehoError('request_failed')):
+            with self.assertRaises(TeehoError): self.tool.diagnose(self.note)
+        pending = self.root / 'accounts' / OWNER / 'pending.json'
+        old = json.loads(pending.read_text(encoding='utf-8'))
+        pending.write_text(json.dumps({**old, 'fields': {**old['fields'], 'topics': ['???']}}), encoding='utf-8')
+        result = self.tool.diagnose(self.note)
+        self.assertIn('task', result)
+        self.assertEqual(len(self.api.submissions), 1)
+
+    def test_bad_draft_with_unknown_submission_still_requires_recovery(self) -> None:
+        with patch.object(self.tool, '_submit', side_effect=TeehoError('request_failed')):
+            with self.assertRaises(TeehoError): self.tool.diagnose(self.note)
+        pending = self.root / 'accounts' / OWNER / 'pending.json'
+        old = json.loads(pending.read_text(encoding='utf-8'))
+        pending.write_text(json.dumps({**old, 'submitting': True, 'fields': {**old['fields'], 'topics': ['???']}}), encoding='utf-8')
+        with self.assertRaisesRegex(TeehoError, '有未确认的任务'):
+            self.tool.diagnose(self.note)
+        self.assertEqual(self.api.submissions, [])
+
+    def test_video_failures_preserve_reason_and_do_not_resubmit(self) -> None:
+        for code, expected_state in [('ffmpeg_timeout', 'failed'), ('unsupported_video_codec', 'invalid_input'), ('video_too_long', 'invalid_input'), ('unknown_internal_detail', 'failed')]:
+            with self.subTest(code=code):
+                video_id = str(uuid4())
+                self.api.video = {'id': video_id, 'state': 'technical_failed', 'errorCode': code}
+                with self.assertRaises(TeehoError) as raised:
+                    self.tool._media(self.tool._scope())._wait_video(video_id)
+                view = create_error_presentation(raised.exception)
+                self.assertEqual(view['state'], expected_state)
+                self.assertNotIn('invalidMedia', str(view))
+                self.assertNotIn('unknown_internal_detail', str(view))
+        self.assertEqual(self.api.submissions, [])
+
+    def test_expired_video_qualification_reuploads_without_new_submission_identity(self) -> None:
+        video = self.root / 'video.mp4'
+        video.write_bytes(b'synthetic-video')
+        self.api.lose_upload = True
+        with self.assertRaises(TeehoError):
+            self.tool.diagnose({**self.note, 'videos': [str(video)]})
+        pending = self.root / 'accounts' / OWNER / 'pending.json'
+        original = json.loads(pending.read_text(encoding='utf-8'))
+        old_video_id = self.api.video['id']
+        with patch.object(self.api, 'resume_video_upload_session', side_effect=TeehoError('video_upload_expired', 410)):
+            result = self.tool.resume()
+        self.assertNotEqual(self.api.video['id'], old_video_id)
+        self.assertEqual(result['task']['id'], original['submissionId'])
+        self.assertEqual(len(self.api.submissions), 1)
+
+    def test_network_failure_keeps_old_video_record_without_reupload(self) -> None:
+        video = self.root / 'video.mp4'
+        video.write_bytes(b'synthetic-video')
+        with patch.object(MediaTools, '_wait_video', return_value=False):
+            self.tool.diagnose({**self.note, 'videos': [str(video)]})
+        pending = self.root / 'accounts' / OWNER / 'pending.json'
+        before = pending.read_bytes()
+        with patch.object(self.api, 'get_video', side_effect=TeehoError('request_failed')):
+            with self.assertRaises(TeehoError): self.tool.resume()
+        self.assertEqual(pending.read_bytes(), before)
+        self.assertEqual(self.api.submissions, [])
+
     def test_ready_video_session_resumes_without_original_video(self) -> None:
         video = self.root / "video.mp4"
         video.write_bytes(b"synthetic-video")

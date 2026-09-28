@@ -17,6 +17,7 @@ from .locking import lock_directory
 from .media import MediaTools, image_descriptor, inspect_directory
 from .note import build_task_payload, is_number, normalize_note, require_id
 from .storage import ensure_private_directory, read_json, write_json
+from .video_errors import check_video_failure
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,7 @@ class DiagnosisTools:
         ensure_private_directory(root)
         return AccountScope(root, user_id, user.get("isAnonymous") is True)
 
-    def _pending(self, scope: AccountScope) -> Optional[dict]:
+    def _pending(self, scope: AccountScope, validate_draft: bool = True) -> Optional[dict]:
         try:
             state = read_json(scope.root / "pending.json")
         except PermissionError:
@@ -82,19 +83,24 @@ class DiagnosisTools:
             require_id(state["taskId"], "本地任务记录无法读取")
             return state
         require_id(state.get("submissionId"), "本地任务记录无法读取")
+        if not validate_draft:
+            return state
         fields = state.get("fields")
         if not isinstance(fields, dict) or not isinstance(state.get("summary"), dict):
             raise TeehoError("本地任务记录无法读取")
         if not isinstance(state.get("images"), list) or not isinstance(state.get("assets"), list):
             raise TeehoError("本地任务记录无法读取")
-        normalize_note(
-            {
-                **fields,
-                "images": state["images"],
-                "cover": state.get("cover"),
-                "videos": [state["video"]] if state.get("video") else [],
-            }
-        )
+        try:
+            normalize_note(
+                {
+                    **fields,
+                    "images": state["images"],
+                    "cover": state.get("cover"),
+                    "videos": [state["video"]] if state.get("video") else [],
+                }
+            )
+        except TeehoError as error:
+            raise TeehoError("pending_draft_invalid") from error
         for asset in state["assets"]:
             if not isinstance(asset, dict):
                 raise TeehoError("本地任务记录无法读取")
@@ -155,6 +161,39 @@ class DiagnosisTools:
         """查询同一任务；结果保存失败不会触发重建。"""
         return self._query_task(task_id, self._scope())
 
+    def tracked_task(self, wait: bool = False) -> dict:
+        """只读查询本机跟踪记录；不取上传锁、不上传素材、不创建任务。"""
+        scope = self._scope()
+        pending = self._pending(scope, validate_draft=False)
+        if not pending:
+            raise TeehoError("没有待恢复的题火任务")
+        task_id = pending.get("taskId")
+        if not task_id:
+            admitted = self.api.get_admission(pending["submissionId"], expected_user_id=scope.user_id).get("task")
+            if admitted is not None:
+                if not isinstance(admitted, dict) or admitted.get("id") != pending["submissionId"]:
+                    raise TeehoError("invalid_response")
+                task_id = admitted["id"]
+        if task_id:
+            return self.wait(task_id) if wait else self._query_task(task_id, scope)
+        session = pending.get("videoSession")
+        video = session.get("video") if isinstance(session, dict) else None
+        video_id = pending.get("videoId") or (video.get("id") if isinstance(video, dict) else None)
+        if video_id:
+            remote = self.api.get_video(require_id(video_id), expected_user_id=scope.user_id).get("video")
+            if not isinstance(remote, dict) or remote.get("id") != video_id or not isinstance(remote.get("state"), str):
+                raise TeehoError("invalid_response")
+            try:
+                check_video_failure(remote)
+            except TeehoError as error:
+                return {"unsubmittedStage": "failed", "mediaFailureCode": error.code}
+            if remote["state"] in {"uploaded", "queued", "processing"}:
+                return {"unsubmittedStage": "preparing"}
+            if remote["state"] == "ready":
+                return {"unsubmittedStage": "ready"}
+            return {"unsubmittedStage": "upload_incomplete"}
+        return {"unsubmittedStage": "awaiting_submission"}
+
     def wait(self, task_id: str) -> dict:
         """有界轮询，超时后交还 Agent，后续继续查询。"""
         scope, deadline = self._scope(), self.now() + MEDIA_WAIT_SECONDS
@@ -204,7 +243,8 @@ class DiagnosisTools:
             return self._resume(scope)
 
     def _check_previous(self, scope: AccountScope) -> None:
-        previous = self._pending(scope)
+        # 新诊断只核对旧任务是否已提交；不拿旧草稿正文重新校验本次输入。
+        previous = self._pending(scope, validate_draft=False)
         if not previous:
             return
         if previous.get("submitting") and not previous.get("taskId"):
@@ -253,7 +293,7 @@ class DiagnosisTools:
             return self._resume(scope)
 
     def _resume(self, scope: AccountScope) -> dict:
-        state = self._pending(scope)
+        state = self._pending(scope, validate_draft=False)
         self.log(
             "task_resume_checked",
             {
@@ -270,6 +310,9 @@ class DiagnosisTools:
             recovered = self._recover_admission(scope, state)
             if recovered is not None:
                 return recovered
+        state = self._pending(scope)
+        if state is None:
+            raise TeehoError("没有待恢复的题火任务")
         self.emit(
             {
                 "event": "task_summary",

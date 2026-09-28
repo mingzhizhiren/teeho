@@ -5,6 +5,8 @@ import sys
 import tempfile
 import threading
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 from email.parser import BytesParser
 from email.policy import default
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -261,6 +263,12 @@ class ApiContractTests(unittest.TestCase):
                 {"video": {"id": UID, "state": "ready"}},
             ),
             (
+                "API_VIDEO_RESUME_TEMPLATE",
+                lambda: self.api.resume_video_upload_session(UID, expected_user_id=UID),
+                f"/analysis/video/{UID}/resume-upload", "POST", {},
+                {"session": {"video": {"id": UID, "upload": {}}}},
+            ),
+            (
                 "API_VIDEO_COMPLETE_TEMPLATE",
                 lambda: self.api.confirm_video_upload(UID, expected_user_id=UID),
                 f"/analysis/video/{UID}/complete",
@@ -300,7 +308,7 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(call(), data)
                 actual, route, headers, body = Handler.requests[-1]
                 self.assertEqual((actual, route), (method, "/api" + path))
-                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.1.1")
+                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.2.1")
                 (
                     self.assertEqual(json.loads(body), expected_body)
                     if expected_body is not None
@@ -319,7 +327,7 @@ class ApiContractTests(unittest.TestCase):
                 covered.add(name)
         self.assertEqual(covered, {n for n in vars(constants) if n.startswith("API_")})
         self.assertIn("STORAGE_SIGNED_UPLOAD_TEMPLATE", vars(constants))
-        self.assertEqual(self.auth_calls, [UID] * 11)
+        self.assertEqual(self.auth_calls, [UID] * 12)
         for request in Handler.requests[:3]:
             self.assertNotIn("Authorization", request[2])
 
@@ -412,6 +420,21 @@ class ApiContractTests(unittest.TestCase):
             )
             self.assertEqual(Handler.requests[-1][1], "/direct?token=x")
             self.assertNotIn("Authorization", Handler.requests[-1][2])
+
+    def test_upload_rejects_400_except_confirmed_duplicate(self):
+        for status, code, expected in [(400, 'EntityTooLarge', 'storage_upload_too_large'),
+                                       (400, 'AccessDenied', 'video_upload_failed'),
+                                       (409, 'OtherConflict', 'video_upload_failed'),
+                                       (400, {}, 'video_upload_failed')]:
+            with self.subTest(code=code), patch.object(self.api.transport, 'upload', return_value=SimpleNamespace(status=status, body=json.dumps({'code':code}).encode())):
+                with self.assertRaisesRegex(TeehoError, expected):
+                    self.api.upload_file('https://upload.example/video', Path('unused'), 'video/mp4', 'video.mp4')
+        with patch.object(self.api.transport, 'upload', return_value=SimpleNamespace(status=400, body=b'{"code":"AccessDenied"}')):
+            with self.assertRaisesRegex(TeehoError, 'storage_upload_failed'):
+                self.api.upload_file('https://upload.example/image', Path('unused'), 'image/png', 'image.png')
+        for code in ['Duplicate', 'ResourceAlreadyExists']:
+            with patch.object(self.api.transport, 'upload', return_value=SimpleNamespace(status=400, body=json.dumps({'code':code}).encode())):
+                self.api.upload_file('https://upload.example/video', Path('unused'), 'video/mp4', 'video.mp4')
 
     def test_invalid_ids_do_not_request(self):
         for operation in (

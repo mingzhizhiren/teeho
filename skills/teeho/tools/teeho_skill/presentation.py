@@ -436,6 +436,17 @@ def create_presentation(
     try:
         if not isinstance(result, dict):
             return _invalid()
+        if result.get("unsubmittedStage") == "failed":
+            code = result.get("mediaFailureCode")
+            message = ERRORS.get(code, (None, "videoProcessingUnknown", None))[1] if isinstance(code, str) else "videoProcessingUnknown"
+            return _notice("not_submitted", message, "wait_for_user")
+        if result.get("unsubmittedStage") in {"awaiting_submission", "upload_incomplete", "preparing", "ready"}:
+            return _notice("not_submitted", {
+                "awaiting_submission": "diagnosisNotSubmitted",
+                "upload_incomplete": "videoUploadIncomplete",
+                "preparing": "videoPreparingBeforeSubmission",
+                "ready": "videoReadyBeforeSubmission",
+            }[result["unsubmittedStage"]], "wait_for_user")
         if isinstance(result.get("task"), (dict, list)) or result.get("task"):
             view = _task_presentation(command, result, log)
             if view["state"] == "invalid_response" and log:
@@ -483,6 +494,26 @@ def create_presentation(
 
 
 ERRORS = {
+    "storage_upload_too_large": ("invalid_input", "storageUploadTooLarge", "wait_for_user"),
+    "storage_upload_failed": ("failed", "storageUploadFailed", "retry"),
+    "video_upload_failed": ("failed", "videoUploadFailed", "retry"),
+    "pending_draft_invalid": ("local_error", "pendingDraftInvalid", "wait_for_user"),
+    "video_processing_failed": ("failed", "videoProcessingUnknown", "wait_for_user"),
+    "ffmpeg_timeout": ("failed", "videoProcessingTimeout", "wait_for_user"),
+    "video_worker_lost": ("failed", "videoProcessingInterrupted", "wait_for_user"),
+    "video_reupload_required": ("failed", "videoReuploadRequired", "wait_for_user"),
+    "video_upload_expired": ("failed", "videoReuploadRequired", "wait_for_user"),
+    "video_too_long": ("invalid_input", "videoDurationRejected", "correct_input"),
+    "video_too_large": ("invalid_input", "videoSizeRejected", "correct_input"),
+    "video_edge_too_large": ("invalid_input", "videoResolutionRejected", "correct_input"),
+    "video_pixel_limit": ("invalid_input", "videoResolutionRejected", "correct_input"),
+    "unsupported_video_codec": ("invalid_input", "videoCodecRejected", "correct_input"),
+    "unsupported_video_container": ("invalid_input", "videoContainerRejected", "correct_input"),
+    "video_container_mismatch": ("invalid_input", "videoContainerRejected", "correct_input"),
+    "video_corrupt": ("invalid_input", "videoDecodeRejected", "correct_input"),
+    "video_stream_missing": ("invalid_input", "videoDecodeRejected", "correct_input"),
+    "video_duration_invalid": ("invalid_input", "videoDecodeRejected", "correct_input"),
+    "video_decode_failed": ("invalid_input", "videoDecodeRejected", "correct_input"),
     "invalid_skill_installation": ("invalid_configuration", "configurationError", "upgrade_skill"),
     "invalid_help_topic": ("invalid_input", "helpTopicInvalid", "help"),
     "missing_cover": ("invalid_input", "missingCover", "correct_input"),
@@ -493,7 +524,7 @@ ERRORS = {
     ),
     "login_required": ("login_required", "loginRequired", "authenticate"),
     "authorization_pending": ("authorization_pending", "pendingAuth", "login-status"),
-    "identity_busy": ("busy", "localData", "retry"),
+    "identity_busy": ("busy", "operationBusy", "retry"),
     "identity_already_present": ("authenticated", "status", "status"),
     "anonymous_no_logout": ("invalid_request", "anonymousLogout", None),
     "identity_server_mismatch": ("invalid_configuration", "configurationError", None),

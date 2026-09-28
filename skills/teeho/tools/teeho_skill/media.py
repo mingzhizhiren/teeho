@@ -20,11 +20,14 @@ from .constants import (
 )
 from .errors import TeehoError
 from .note import is_number, require_id
+from .video_errors import check_video_failure
 
 
 def _file_info(path: Path, maximum: int, code: str) -> int:
     try:
         info = path.lstat()
+    except PermissionError:
+        raise
     except OSError as error:
         raise TeehoError(code) from error
     if not stat.S_ISREG(info.st_mode) or path.is_symlink() or info.st_size > maximum:
@@ -157,7 +160,8 @@ class MediaTools:
             return state, "素材仍在处理中，请稍后恢复任务"
         return state, None
 
-    def _prepare_video(self, state: dict) -> tuple[dict, bool]:
+    def _prepare_video(self, state: dict, allow_renew: bool = True) -> tuple[dict, bool]:
+        restoring = bool(state.get("videoSession"))
         if not state.get("videoSession"):
             file = self.video_descriptor(state["video"])
             result = self.api.create_video_upload_session(file, expected_user_id=self.user_id)
@@ -169,8 +173,27 @@ class MediaTools:
             raise TeehoError("视频上传资格无效")
         video_id = require_id(video.get("id"), "视频上传资格无效")
         current = self._video_status(video_id)
-        if current in ("awaiting_upload", "uploading"):
+        if current["state"] == "expired" and allow_renew:
+            state = {key: value for key, value in state.items() if key != "videoSession"}
+            return self._prepare_video(state, False)
+        check_video_failure(current)
+        if current["state"] in ("awaiting_upload", "uploading"):
             file = self.video_descriptor(state["video"])
+            if restoring:
+                try:
+                    resumed = self.api.resume_video_upload_session(video_id, expected_user_id=self.user_id)
+                except TeehoError as error:
+                    if error.code != "video_upload_expired" or not allow_renew:
+                        raise
+                    state = {key: value for key, value in state.items() if key != "videoSession"}
+                    return self._prepare_video(state, False)
+                session = resumed.get("session")
+                refreshed = session.get("video") if isinstance(session, dict) else None
+                if not isinstance(refreshed, dict) or refreshed.get("id") != video_id or not isinstance(refreshed.get("upload"), dict):
+                    raise TeehoError("invalid_response")
+                video = refreshed
+                state = {**state, "videoSession": session}
+                self.save(state)
             self.api.upload_file(
                 video["upload"],
                 Path(state["video"]),
@@ -185,22 +208,21 @@ class MediaTools:
         self.save(state)
         return state, False
 
-    def _video_status(self, video_id: str) -> str:
+    def _video_status(self, video_id: str) -> dict:
         result = self.api.get_video(video_id, expected_user_id=self.user_id).get("video")
         if not isinstance(result, dict) or result.get("id") != video_id:
             raise TeehoError("视频状态不可用")
         if not isinstance(result.get("state"), str):
             raise TeehoError("视频状态不可用")
-        return result["state"]
+        return result
 
     def _wait_video(self, video_id: str) -> bool:
         deadline = self.now() + MEDIA_WAIT_SECONDS
         while True:
-            state = self._video_status(video_id)
-            if state == "ready":
+            video = self._video_status(video_id)
+            if video["state"] == "ready":
                 return True
-            if re.search("failed|cancelled|expired|delet", state):
-                raise TeehoError("视频处理失败")
+            check_video_failure(video)
             if self.now() >= deadline:
                 return False
             self.sleep(POLL_SECONDS)

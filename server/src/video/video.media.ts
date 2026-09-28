@@ -157,9 +157,6 @@ export function validateVideoProbe(probe: ProbedVideo, input?: VideoProbeDeclara
             '仅支持 H.264 或 H.265 视频编码',
         )
     }
-    if (probe.durationMs > VIDEO_RULES.maximumDurationMs) {
-        throw new VideoEvidenceValidationError('video_too_long', '视频不能超过 5 分钟')
-    }
     if (probe.fileByteSize > VIDEO_RULES.maximumUploadBytes) {
         throw new VideoEvidenceValidationError('video_too_large', '视频不能超过 400 MB')
     }
@@ -709,10 +706,15 @@ async function extractTemporalCandidates(
     workingDirectory: string,
     durationMs: number,
     execution: VideoMediaExecution,
+    truncated = false,
 ) {
     const requests = buildTemporalCandidateRequests(durationMs)
     const candidates: VideoFrameCandidate[] = []
     for (const [position, request] of requests.entries()) {
+        const selectedRequest =
+            truncated && request.selectionReason === 'last_frame'
+                ? { ...request, timestampMs: Math.max(0, request.timestampMs - TIME_MS.SECOND) }
+                : request
         const sourcePath = path.join(
             workingDirectory,
             `temporal-${position.toString().padStart(candidateFilePositionWidth, '0')}.png`,
@@ -720,13 +722,13 @@ async function extractTemporalCandidates(
         await extractFrameAt(
             inputPath,
             sourcePath,
-            request.timestampMs,
-            request.selectionReason === 'last_frame',
+            selectedRequest.timestampMs,
+            request.selectionReason === 'last_frame' && !truncated,
             execution,
         )
         assertExecutionActive(execution)
         candidates.push({
-            ...request,
+            ...selectedRequest,
             sourcePath,
             perceptualHash: await perceptualHash(sourcePath),
         })
@@ -737,6 +739,7 @@ async function extractTemporalCandidates(
 async function extractSceneCandidates(
     inputPath: string,
     workingDirectory: string,
+    durationMs: number,
     execution: VideoMediaExecution,
 ) {
     const outputPattern = path.join(workingDirectory, 'scene-%03d.png')
@@ -749,6 +752,8 @@ async function extractSceneCandidates(
             'info',
             '-nostdin',
             '-y',
+            '-t',
+            String(durationMs / TIME_MS.SECOND),
             '-i',
             inputPath,
             '-vf',
@@ -766,7 +771,10 @@ async function extractSceneCandidates(
     }
     const timestamps = [...result.stderr.matchAll(/pts_time:([0-9]+(?:\.[0-9]+)?)/gu)]
         .map((match) => Math.round(Number(match[1]) * TIME_MS.SECOND))
-        .filter((timestampMs) => Number.isSafeInteger(timestampMs) && timestampMs >= 0)
+        .filter(
+            (timestampMs) =>
+                Number.isSafeInteger(timestampMs) && timestampMs >= 0 && timestampMs < durationMs,
+        )
         .slice(0, VIDEO_RULES.maximumSceneCandidates)
     const candidates: VideoFrameCandidate[] = []
     for (const [position, timestampMs] of timestamps.entries()) {
@@ -859,11 +867,18 @@ export async function processVideoFile(
               }
             : undefined,
     )
+    const analyzedDurationMs = Math.min(media.durationMs, VIDEO_RULES.maximumDurationMs)
     const temporal = await measureStage('temporalExtraction', () =>
-        extractTemporalCandidates(inputPath, options.workingDirectory, media.durationMs, execution),
+        extractTemporalCandidates(
+            inputPath,
+            options.workingDirectory,
+            analyzedDurationMs,
+            execution,
+            media.durationMs > analyzedDurationMs,
+        ),
     )
     const scenes = await measureStage('sceneExtraction', () =>
-        extractSceneCandidates(inputPath, options.workingDirectory, execution),
+        extractSceneCandidates(inputPath, options.workingDirectory, analyzedDurationMs, execution),
     )
     const selectionStartedAt = Date.now()
     const selected = selectVideoFrameCandidates([...temporal, ...scenes])
@@ -877,7 +892,7 @@ export async function processVideoFile(
     return {
         originalSha256,
         ffmpegVersion: buildVersion,
-        media,
+        media: { ...media, durationMs: analyzedDurationMs },
         diagnostics: {
             temporalCandidateCount: temporal.length,
             sceneCandidateCount: scenes.length,

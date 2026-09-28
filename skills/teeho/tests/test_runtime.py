@@ -465,7 +465,7 @@ class RuntimeTests(unittest.TestCase):
     def test_streaming_multipart_unicode_filename_and_conflict_confirmation(
         self,
     ) -> None:
-        server, api = self.api_server(lambda *_: (409, {}, b"conflict"))
+        server, api = self.api_server(lambda *_: (409, {}, b'{"code":"ResourceAlreadyExists"}'))
         path = self.root / "封面.png"
         content = b"synthetic image" * 16000
         path.write_bytes(content)

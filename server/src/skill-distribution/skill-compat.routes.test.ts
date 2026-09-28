@@ -41,7 +41,7 @@ describe('released Skill API compatibility', () => {
             new Request('http://localhost/api/points/summary', {
                 headers: {
                     authorization: 'Bearer teeho_skill_test',
-                    'x-teeho-skill-version': '2.1.0',
+                    'x-teeho-skill-version': '2.2.1',
                 },
             }),
         )
@@ -53,7 +53,7 @@ describe('released Skill API compatibility', () => {
         })
     })
 
-    it.each([undefined, '', '1.14.1', '2.0.99', 'not-a-version', '2.1.0-preview'])(
+    it.each([undefined, '', '1.14.1', '2.0.99', '2.1.0', '2.1.1', '2.2.0', 'not-a-version', '2.1.0-preview'])(
         'blocks obsolete or invalid Skill version %s before creating a task',
         async (version) => {
             vi.mocked(authenticateSkillToken).mockResolvedValue({
@@ -79,8 +79,8 @@ describe('released Skill API compatibility', () => {
                 message: expect.stringContaining('升级'),
                 data: {
                     reason: 'skill_upgrade_required',
-                    minimumVersion: '2.1.0',
-                    latestVersion: '2.1.1',
+                    minimumVersion: '2.2.1',
+                    latestVersion: '2.2.1',
                     downloadPath: '/skill/download',
                 },
             })
@@ -88,7 +88,7 @@ describe('released Skill API compatibility', () => {
         },
     )
 
-    it.each(['2.1.0', '2.1.10', '2.10.0', '3.0.0'])(
+    it.each(['2.2.1', '2.2.2', '2.10.0', '3.0.0'])(
         'allows compatible numeric version %s',
         async (version) => {
             vi.mocked(authenticateSkillToken).mockResolvedValue({

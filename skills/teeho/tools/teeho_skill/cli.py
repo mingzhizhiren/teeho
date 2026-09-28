@@ -275,10 +275,9 @@ class CommandRunner:
         return {"history": visible_history(self.auth.root, owner)}
 
     def _task(self, command: str, value: dict, diagnosis: DiagnosisTools) -> dict:
-        resumed = None if value.get("taskId") else diagnosis.resume()
-        task_id = value.get("taskId") or (resumed or {}).get("task", {}).get("id")
+        task_id = value.get("taskId")
         if not task_id:
-            return resumed
+            return diagnosis.tracked_task(wait=command == "wait")
         return diagnosis.wait(task_id) if command == "wait" else diagnosis.task(task_id)
 
     def _status(self) -> dict:

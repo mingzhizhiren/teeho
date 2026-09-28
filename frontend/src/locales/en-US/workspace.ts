@@ -425,7 +425,7 @@ export default {
         videoNotePlaceholder:
             'Paste the video note’s title, body and topics, and upload a full video; the cover is optional.',
         video: {
-            limits: 'One video only, up to {size} MB.',
+            limits: 'Recommended within 5min, up to {size} MB.',
             choose: 'Choose video',
             preview: 'View original video {name}',
             required: 'Upload a video before starting the analysis',
