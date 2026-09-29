@@ -337,9 +337,28 @@ export function sanitizeVideoDiagnosticExcerpt(stderr: string) {
     return stderr
         .replace(/\b(?:authorization|apikey|signature|token)(?:=|:\s*)\S+/giu, '[redacted-secret]')
         .replace(/https?:\/\/\S+/giu, '[redacted-url]')
+        .replace(/(["'])(?:[A-Za-z]:[\\/]|\/)[^\r\n]*?\1/gu, '[redacted-path]')
+        .replace(/(?:[A-Za-z]:[\\/]|\/)[^\s"'<>]+/gu, '[redacted-path]')
         .replace(/[A-Za-z0-9+/]{128,}={0,2}/gu, '[redacted-base64]')
         .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu, '')
         .slice(-VIDEO_RULES.maximumLogExcerptCharacters)
+}
+
+/** 仅提取进程诊断白名单；保留校验异常携带的底层 FFprobe 错误。 */
+export function readVideoProcessDiagnostics(error: unknown): {
+    mediaProcessCode?: string
+    exitCode?: number | null
+    stderrExcerpt?: string
+} {
+    const processError = error instanceof VideoEvidenceValidationError ? error.cause : error
+    if (!(processError instanceof VideoMediaProcessError)) return {}
+    return {
+        mediaProcessCode: processError.code,
+        exitCode: processError.exitCode,
+        stderrExcerpt: processError.stderrExcerpt
+            ? sanitizeVideoDiagnosticExcerpt(processError.stderrExcerpt)
+            : undefined,
+    }
 }
 
 function executionError(execution: VideoMediaExecution) {
@@ -525,7 +544,11 @@ async function probeVideo(
             error.code === 'ffprobe_failed' &&
             error.exitCode !== null
         ) {
-            throw new VideoEvidenceValidationError('video_corrupt', '视频文件损坏或不包含有效媒体')
+            throw new VideoEvidenceValidationError(
+                'video_corrupt',
+                '视频文件损坏或不包含有效媒体',
+                error,
+            )
         }
         throw error
     }

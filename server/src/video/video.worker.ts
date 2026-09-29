@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { hostname, tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -9,6 +9,7 @@ import {
     ffmpegVideoMediaProcessor,
     VideoEvidenceValidationError,
     VideoMediaProcessError,
+    readVideoProcessDiagnostics,
     type ProcessedVideoEvidence,
     type VideoMediaProcessor,
 } from './video.media'
@@ -20,7 +21,11 @@ import {
 } from './video.repository'
 import { postgresVideoWorkerPersistence } from './video.worker.repository'
 import { inspectVideoRuntime, type VideoRuntimeDescriptor } from './video.runtime'
-import { supabaseVideoObjectStorage, type VideoObjectStorage } from './video.storage'
+import {
+    supabaseVideoObjectStorage,
+    VideoDownloadIntegrityError,
+    type VideoObjectStorage,
+} from './video.storage'
 
 const evidenceFramePositionWidth = 3
 
@@ -602,13 +607,17 @@ export class VideoPreprocessingWorker {
             const extension = asset.declaredMediaType === 'video/mp4' ? 'mp4' : 'mov'
             const originalPath = path.join(workingDirectory, `original.${extension}`)
             this.debugStage(asset, 'video_preprocessing_stage_started', 'download')
-            await this.measureStage(stageDurationsMs, 'download', () =>
-                this.storage.downloadToFile(
+            await this.measureStage(stageDurationsMs, 'download', async () => {
+                await this.storage.downloadToFile(
                     asset.originalObjectPath,
                     originalPath,
                     controller.signal,
-                ),
-            )
+                )
+                const actualByteSize = (await stat(originalPath)).size
+                if (actualByteSize !== asset.declaredByteSize) {
+                    throw new VideoDownloadIntegrityError(asset.declaredByteSize, actualByteSize)
+                }
+            })
             this.debugStage(asset, 'video_preprocessing_stage_completed', 'download', {
                 durationMs: stageDurationsMs.download,
             })
@@ -751,11 +760,13 @@ export class VideoPreprocessingWorker {
                 failureKind: failure.kind,
                 failureOutcome: outcome,
                 errorName: error instanceof Error ? error.name : 'UnknownError',
-                exitCode: error instanceof VideoMediaProcessError ? error.exitCode : undefined,
-                stderrExcerpt:
-                    error instanceof VideoMediaProcessError
-                        ? (error.stderrExcerpt ?? undefined)
-                        : undefined,
+                ...readVideoProcessDiagnostics(error),
+                ...(error instanceof VideoDownloadIntegrityError
+                    ? {
+                          expectedByteSize: error.expectedByteSize,
+                          actualByteSize: error.actualByteSize,
+                      }
+                    : {}),
                 stageDurationsMs,
                 durationMs: this.clock.now().getTime() - startedAt,
             }

@@ -16,7 +16,8 @@ from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_ope
 from .errors import TeehoError
 
 REQUEST_TIMEOUT_SECONDS = 30
-UPLOAD_TIMEOUT_SECONDS = 300
+# 与后端视频上传窗口及自建 Storage 的 600 秒签名有效期保持一致。
+UPLOAD_TIMEOUT_SECONDS = 600
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 STREAM_CHUNK_BYTES = 64 * 1024
 MEDIA_TYPE_PATTERN = re.compile(r"[a-zA-Z0-9.+-]+/[a-zA-Z0-9.+-]+")

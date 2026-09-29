@@ -50,7 +50,7 @@ export const BYTE_SIZE = {
     MEBIBYTE: 1_048_576,
 } as const
 const maximumVideoUploadMebibytes = 400
-const videoSignedUploadLifetimeMinutes = 5
+const videoSignedUploadLifetimeMinutes = 10
 const videoEvidenceRetentionHours = 24
 const videoEvidenceCleanupLeaseMinutes = 2
 const videoEvidenceCleanupRetryMinutes = 15

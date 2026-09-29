@@ -11,6 +11,17 @@ import type { VideoEvidenceTransferStorage } from './video.evidence-transfer'
 const signedDownloadLifetimeSeconds = 60
 const millisecondsPerSecond = 1_000
 
+/** 下载体积不符属于传输故障，不能当作确定性视频损坏。 */
+export class VideoDownloadIntegrityError extends Error {
+    constructor(
+        readonly expectedByteSize: number,
+        readonly actualByteSize: number,
+    ) {
+        super('视频下载字节数与已确认大小不一致')
+        this.name = 'VideoDownloadIntegrityError'
+    }
+}
+
 /** 对象存储中的视频对象信息。 */
 export interface VideoObjectInfo {
     size: number | null
@@ -96,15 +107,18 @@ export const supabaseVideoObjectStorage: VideoObjectStorage = {
             throw error ?? new Error('Storage 未返回视频下载资格')
         }
         const timeoutSignal = AbortSignal.timeout(VIDEO_RULES.storageDownloadTimeoutMs)
+        const downloadSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
         const response = await fetch(data.signedUrl, {
-            signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+            signal: downloadSignal,
         })
-        if (!response.ok || !response.body) {
+        if (response.status !== HTTP_STATUS.OK || !response.body) {
+            await response.body?.cancel()
             throw new Error(`下载私有视频失败：HTTP ${response.status}`)
         }
         await pipeline(
             Readable.fromWeb(response.body as never),
             createWriteStream(destinationPath, { flags: 'wx' }),
+            { signal: downloadSignal },
         )
     },
 
