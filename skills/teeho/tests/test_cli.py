@@ -143,7 +143,8 @@ class ApiFixture:
         if path.startswith("/api/analysis/tasks/admissions/"):
             return 200, {"task": self.tasks.get(path.rsplit("/", 1)[-1])}
         if path.startswith("/api/analysis/tasks/"):
-            return 200, {"task": self.tasks[path.rsplit("/", 1)[-1]]}
+            task = self.tasks.get(path.rsplit("/", 1)[-1])
+            return (200, {"task": task}) if task else (404, {"message": "not found"})
         return 404, {"message": "not found"}
 
     def handler(self) -> type[BaseHTTPRequestHandler]:
@@ -202,6 +203,43 @@ class ApiFixture:
 
 
 class CliTests(unittest.TestCase):
+    def test_body_powershell_newlines_are_converted_before_http_submission(self) -> None:
+        body = "第一段`n`n第二段`r`n第三段\n正常换行\\n保留反斜杠"
+        code, lines, _ = self.run_cli("diagnose", {**self.note, "body": body})
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(self.fixture.submissions[0]["fields"]["body"],
+                         "第一段\n\n第二段\n第三段\n正常换行\\n保留反斜杠")
+
+    def test_real_http_missing_old_task_allows_new_diagnose_but_not_resume(self) -> None:
+        code, lines, _ = self.run_cli("diagnose", self.note)
+        self.assertEqual(code, 0, lines)
+        first = self.fixture.submissions[0]["submissionId"]
+        self.fixture.tasks = {}
+        pending = self.data_root / "accounts" / OWNER / "pending.json"
+        original = pending.read_bytes()
+        code, lines, _ = self.run_cli("resume", {})
+        self.assertEqual(code, 1, lines)
+        self.assertEqual(lines[-1]["state"], "not_found")
+        self.assertEqual(pending.read_bytes(), original)
+        self.assertEqual(len(self.fixture.submissions), 1)
+        before = len(self.fixture.calls)
+        code, lines, _ = self.run_cli("diagnose", {**self.note, "title": "New note"})
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(len(self.fixture.submissions), 2)
+        self.assertNotEqual(self.fixture.submissions[-1]["submissionId"], first)
+        self.assertNotIn(f"/api/analysis/tasks/{first}", self.fixture.calls[before:])
+
+    def test_repeated_explicit_diagnose_uploads_again_without_querying_old_task(self) -> None:
+        for _ in range(2):
+            code, lines, _ = self.run_cli("diagnose", self.note)
+            self.assertEqual(code, 0, lines)
+        self.assertEqual(len(self.fixture.submissions), 2)
+        first, second = self.fixture.submissions
+        self.assertNotEqual(first["submissionId"], second["submissionId"])
+        self.assertEqual(first["fields"], second["fields"])
+        self.assertEqual(self.fixture.calls.count("/api/analysis/media/upload-sessions"), 2)
+        self.assertNotIn(f"/api/analysis/tasks/{first['submissionId']}", self.fixture.calls)
+
     def test_task_and_wait_are_read_only_even_while_upload_holds_operation_lock(self) -> None:
         self.identity()
         pending = self.data_root / 'accounts' / OWNER / 'pending.json'

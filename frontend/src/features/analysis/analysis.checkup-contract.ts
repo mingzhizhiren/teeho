@@ -181,6 +181,7 @@ export const analysisResultSchema = z
                         noteId: z.string(),
                         title: z.string(),
                         bodyExcerpt: z.string(),
+                        topics: z.array(z.string()).optional(),
                         likes: z.number().finite().nonnegative(),
                         collects: z.number().finite().nonnegative(),
                         comments: z.number().finite().nonnegative().nullable(),

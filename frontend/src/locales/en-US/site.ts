@@ -106,7 +106,7 @@ export default {
                     report: {
                         title: 'Review differences and reference notes',
                         content:
-                            'The report shows six key note metrics: title length, title emoji ratio, body length, average paragraph length, list or step count, and topic count. Reference notes include original links when available.',
+                            'The report shows six key note metrics: title length, title emoji ratio, body length, characters per paragraph, list or step count, and topic count. Reference notes include original links when available.',
                     },
                 },
             },

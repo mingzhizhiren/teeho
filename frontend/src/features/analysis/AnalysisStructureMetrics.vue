@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import {
     structureMetricNames,
+    structureDifferenceState,
     type StructureMetrics,
     type StructureReferences,
 } from './analysis.structure-metrics'
@@ -11,7 +12,7 @@ interface Props {
     references: StructureReferences
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 const { t, n } = useI18n()
 const statusColors = {
     aligned: 'text-emerald-700 dark:text-emerald-300',
@@ -21,13 +22,28 @@ const statusColors = {
     critical: 'text-red-800 dark:text-red-400',
 } as const
 
-function formatValue(metric: keyof StructureMetrics, value: number | null): string {
+function formatValue(value: number | null): string {
     return value === null
         ? t('workspace.checkup.structureMetrics.unavailable')
         : n(value, {
-              style: metric === 'titleEmojiRatio' ? 'percent' : 'decimal',
+              style: 'decimal',
               maximumFractionDigits: 2,
           })
+}
+
+function hasNoTopics(metric: keyof StructureMetrics): boolean {
+    return (
+        metric === 'topicLength' &&
+        props.metrics.topicLength === null &&
+        props.metrics.topicCount === 0
+    )
+}
+
+function differenceText(metric: keyof StructureMetrics): string {
+    const state = structureDifferenceState(metric, props.metrics[metric], props.references[metric])
+    return state
+        ? t(`workspace.checkup.structureMetrics.positions.${state}`)
+        : t('workspace.checkup.structureMetrics.missingValue')
 }
 </script>
 
@@ -74,32 +90,32 @@ function formatValue(metric: keyof StructureMetrics, value: number | null): stri
                                     : 'text-muted'
                             "
                             :data-metric="metric"
-                        >{{ formatValue(metric, metrics[metric]) }}</span>
+                        >{{
+                            hasNoTopics(metric)
+                                ? t('workspace.checkup.structureMetrics.noTopics')
+                                : formatValue(metrics[metric])
+                        }}</span
+                        >
                         <span
-                            v-if="metrics[metric] === null || references[metric]"
+                            v-if="
+                                !hasNoTopics(metric) &&
+                                    (metrics[metric] === null || references[metric])
+                            "
                             class="text-sm font-medium"
                             :class="
                                 metrics[metric] !== null && references[metric]
                                     ? statusColors[references[metric].severity]
                                     : 'text-muted'
                             "
-                        >{{
-                            metrics[metric] === null
-                                ? t('workspace.checkup.structureMetrics.missingValue')
-                                : references[metric]
-                                    ? t(
-                                        `workspace.checkup.structureMetrics.levels.${references[metric].severity}`,
-                                    )
-                                    : t('workspace.checkup.structureMetrics.insufficient')
-                        }}</span
+                        >{{ differenceText(metric) }}</span
                         >
                     </dd>
                     <dd class="w-full text-sm leading-6 text-muted" :data-reference="metric">
                         {{
                             references[metric]
                                 ? t('workspace.checkup.structureMetrics.range', {
-                                    low: formatValue(metric, references[metric].low),
-                                    high: formatValue(metric, references[metric].high),
+                                    low: formatValue(references[metric].low),
+                                    high: formatValue(references[metric].high),
                                 })
                                 : t('workspace.checkup.structureMetrics.insufficient')
                         }}

@@ -203,16 +203,24 @@ export function mapCheckupReferences(
             note.title.length > checkupOutputConstraints.referenceTitleMaxLength
                 ? note.title.slice(0, checkupOutputConstraints.referenceTitleMaxLength - 1) + '…'
                 : note.title,
-        bodyExcerpt:
-            note.body.length > checkupOutputConstraints.excerptMaxLength
-                ? note.body.slice(0, checkupOutputConstraints.excerptMaxLength - 1) + '…'
-                : note.body,
+        bodyExcerpt: referenceBodyExcerpt(note),
+        topics: [...note.topics],
         likes: latest.likes!,
         collects: latest.collects!,
         comments: latest.comments,
         url: safeNoteUrl(note.noteUrl),
         reason,
     }))
+}
+
+/** 话题由独立字段交付；先移除正文中对应的平台 token，再生成摘要。 */
+function referenceBodyExcerpt(note: EvidenceNote): string {
+    const body = note.topics
+        .reduce((text, topic) => text.split(`#${topic}[话题]#`).join(''), note.body)
+        .trim()
+    return body.length > checkupOutputConstraints.excerptMaxLength
+        ? body.slice(0, checkupOutputConstraints.excerptMaxLength - 1) + '…'
+        : body
 }
 
 /** 原文地址保留访问参数，只允许来源平台的 HTTPS 地址。 */

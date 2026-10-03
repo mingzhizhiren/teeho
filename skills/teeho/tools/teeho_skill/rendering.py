@@ -187,6 +187,7 @@ def _comparison_lines(note: View, translate: Translate) -> list[str]:
         *([translate("referenceModelScore") + f": {note['modelScore']:.2f} / 10"] if note.get("modelScore") is not None else []),
         note["excerpt"][:COMPARISON_EXCERPT_LENGTH]
         + ("..." if len(note["excerpt"]) > COMPARISON_EXCERPT_LENGTH else ""),
+        *([" ".join("#" + topic for topic in note["topics"])] if note.get("topics") else []),
         note["url"] or translate("missingNoteUrl"),
         " · ".join(counts),
         translate("selectionReason") + ": " + translate(note.get("selectionReason", "rapid_growth")),

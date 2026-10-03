@@ -54,25 +54,86 @@ class PresentationTests(unittest.TestCase):
 
     def test_six_frozen_note_metrics_include_color_icons(self) -> None:
         data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
-        metrics = {'titleLength': 10, 'titleEmojiRatio': 0, 'bodyLength': 192,
-                   'paragraphLength': 95, 'listItemCount': 0, 'topicCount': 7}
+        metrics = {'titleLength': 10, 'bodyLength': 192, 'paragraphLength': 95,
+                   'paragraphCount': 2, 'topicCount': 25, 'topicLength': 4.125}
         result = data['task']['result']
         result['structureMetrics'] = metrics
         result['structureReferences'] = {
-            name: {'low': 0, 'high': 0.0125 if name == 'titleEmojiRatio' else 20.25,
+            name: {'low': 5, 'high': 20.25,
                    'sampleCount': 4, 'severity': 'moderate'} for name in metrics
         }
         view = create_presentation('task', data)
         self.assertEqual([row['name'] for row in view['data']['structureMetrics']], list(metrics))
         text = render_presentation(view)
         self.assertIn('Key note metrics', text)
-        self.assertIn('Title emoji ratio: 0% · Average', text)
-        self.assertIn('0% ~ 1.25%', text)
-        self.assertIn('Average paragraph length: 95', text)
-        self.assertIn('List / step item count: 0', text)
-        self.assertIn('Topic count: 7', text)
+        self.assertIn('Title length: 10 · Within range', text)
+        self.assertIn('Body length: 192 · Longer', text)
+        self.assertIn('Characters per paragraph: 95 · Longer', text)
+        self.assertIn('Paragraph count: 2 · Fewer', text)
+        self.assertIn('Topic count: 25 · More', text)
+        self.assertIn('Average topic length: 4.13 · Shorter', text)
+        self.assertIn('Typical comparable range: 5 ~ 20.25', text)
+        self.assertNotIn('Title emoji ratio', text)
+        self.assertNotIn('List / step item count', text)
         self.assertEqual(text.count('🟠 '), 6)
         self.assertNotIn('\x1b[', text)
+        chinese = render_presentation(view, {
+            'titleLength': '标题长度', 'bodyLength': '正文长度',
+            'paragraphLength': '平均段落长度', 'paragraphCount': '正文段落数',
+            'topicCount': '话题数量', 'topicLength': '平均话题长度',
+            'metricInRange': '范围内', 'metricShorter': '偏短', 'metricLonger': '偏长',
+            'metricFewer': '偏少', 'metricMore': '偏多',
+        })
+        for expected in ('标题长度: 10 · 范围内', '正文长度: 192 · 偏长',
+                         '正文段落数: 2 · 偏少', '话题数量: 25 · 偏多',
+                         '平均话题长度: 4.13 · 偏短'):
+            self.assertIn(expected, chinese)
+
+    def test_topic_length_without_topics_is_not_a_zero_or_range_comparison(self) -> None:
+        data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
+        result = data['task']['result']
+        result['structureMetrics'] = {'topicCount': 0, 'topicLength': None}
+        result['structureReferences'] = {
+            'topicLength': {'low': 2, 'high': 6, 'sampleCount': 4, 'severity': 'critical'},
+        }
+        view = create_presentation('task', data)
+        text = render_presentation(view)
+        self.assertIn('Topic count: 0', text)
+        self.assertIn('⚪ Average topic length: No topics\n', text)
+        self.assertNotIn('Average topic length: 0', text)
+        chinese = render_presentation(view, {
+            'topicCount': '话题数量', 'topicLength': '平均话题长度',
+            'metricNoTopics': '无话题',
+        })
+        self.assertIn('话题数量: 0', chinese)
+        self.assertIn('⚪ 平均话题长度: 无话题\n', chinese)
+
+    def test_historical_metrics_remain_readable_without_inventing_new_values(self) -> None:
+        data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
+        frozen = {'titleLength': 10, 'titleEmojiRatio': 0, 'bodyLength': 192,
+                  'paragraphLength': 95, 'listItemCount': 0, 'topicCount': 7}
+        data['task']['result']['structureMetrics'] = frozen
+        data['task']['result']['structureReferences'] = {}
+        history = create_presentation('history', data)
+        cached = copy.deepcopy(history)
+        cached['data']['structureMetrics'] = [
+            {'name': name, 'value': value, 'reference': None} for name, value in frozen.items()
+        ]
+        for view in (history, cached):
+            with self.subTest(source='history' if view is history else 'cached'):
+                before = copy.deepcopy(view)
+                text = render_presentation(view)
+                self.assertIn('Title length: 10', text)
+                self.assertIn('Body length: 192', text)
+                self.assertIn('Characters per paragraph: 95', text)
+                self.assertIn('Topic count: 7', text)
+                self.assertIn('Paragraph count: Unavailable · Current metric unavailable', text)
+                self.assertIn('Average topic length: Unavailable · Current metric unavailable', text)
+                self.assertNotIn('No topics', text)
+                self.assertNotIn('Title emoji ratio', text)
+                self.assertNotIn('List / step item count', text)
+                self.assertEqual(view, before)
+        self.assertEqual(data['task']['result']['structureMetrics'], frozen)
 
     def test_report_requires_explicit_primary_score_but_not_exact_schema_version(self) -> None:
         fixture = next(case for case in FIXTURES if case["name"] == "report")
@@ -262,6 +323,17 @@ class PresentationTests(unittest.TestCase):
         self.assertIn(
             "xsec_token=public-access", view["data"]["comparisons"][0]["url"] or ""
         )
+
+    def test_reference_topics_use_separate_report_field(self) -> None:
+        report = next(case for case in FIXTURES if case["name"] == "report")
+        data = copy.deepcopy(report["result"])
+        note = data["task"]["result"]["comparisonNotes"][0]
+        note["bodyExcerpt"] = "活动说明"
+        note["topics"] = ["游戏", "版本更新"]
+        view = create_presentation("task", data)
+        self.assertEqual(view["data"]["comparisons"][0]["topics"], ["游戏", "版本更新"])
+        text = render_presentation(view)
+        self.assertIn("#游戏 #版本更新", text)
 
     def test_cover_error_has_actionable_input_message(self) -> None:
         with self.assertRaises(TeehoError) as caught:

@@ -128,6 +128,7 @@ export function buildResultCopyText(
                     ? [`${labels.referenceModelScore}: ${note.modelScore.toFixed(decimals)} / 10`]
                     : []),
                 note.bodyExcerpt,
+                ...(note.topics?.length ? [note.topics.map((topic) => `#${topic}`).join(' ')] : []),
                 note.url ?? labels.missingUrl,
                 ...(presentation.reason ? [presentation.reason] : []),
                 ...(['likes', 'collects', 'comments'] as const).map(

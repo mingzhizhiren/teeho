@@ -62,6 +62,9 @@ const referenceNotes = computed(() =>
                 <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-muted">
                     {{ note.bodyExcerpt }}
                 </p>
+                <p v-if="note.topics?.length" class="mt-2 break-words text-sm text-muted">
+                    {{ note.topics.map((topic) => `#${topic}`).join(' ') }}
+                </p>
                 <div class="mt-3 flex flex-wrap items-center gap-4">
                     <dl class="flex flex-wrap gap-4 text-xs text-muted">
                         <div

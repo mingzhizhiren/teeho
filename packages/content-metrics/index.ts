@@ -1,4 +1,5 @@
 export { extractStructureFeatures, STRUCTURE_KEYS, type StructureFeatures } from './structure'
+export { normalizeTopicNames } from './topics'
 export {
     PERFORMANCE,
     performanceWindowStart,

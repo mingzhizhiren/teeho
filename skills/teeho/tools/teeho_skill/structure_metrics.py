@@ -5,8 +5,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Callable
 
 METRIC_NAMES = (
-    "titleLength", "titleEmojiRatio", "bodyLength", "paragraphLength",
-    "listItemCount", "topicCount",
+    "titleLength", "bodyLength", "paragraphLength", "paragraphCount",
+    "topicCount", "topicLength",
 )
 LEVELS = ("aligned", "minor", "moderate", "major", "critical")
 LEVEL_ICONS = {
@@ -27,13 +27,12 @@ def project_structure_metrics(result: dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
     for name in METRIC_NAMES:
         value, reference = metrics.get(name), references.get(name)
-        if value is not None and (not _number(value) or (name == "titleEmojiRatio" and value > 1)):
+        if value is not None and not _number(value):
             raise ValueError("invalid_structure_metrics")
         if reference is not None and (
             not isinstance(reference, dict)
             or not _number(reference.get("low")) or not _number(reference.get("high"))
             or reference["low"] > reference["high"]
-            or (name == "titleEmojiRatio" and reference["high"] > 1)
             or type(reference.get("sampleCount")) is not int or reference["sampleCount"] < 3
             or reference.get("severity") not in LEVELS
         ):
@@ -42,21 +41,43 @@ def project_structure_metrics(result: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _difference_status(row: dict[str, Any]) -> str:
+    value, reference = row["value"], row["reference"]
+    if value is None:
+        return "metricMissing"
+    if reference is None:
+        return "metricInsufficient"
+    if reference["low"] <= value <= reference["high"]:
+        return "metricInRange"
+    is_count = row["name"] in ("paragraphCount", "topicCount")
+    if value < reference["low"]:
+        return "metricFewer" if is_count else "metricShorter"
+    return "metricMore" if is_count else "metricLonger"
+
+
 def structure_metric_lines(
     rows: list[dict[str, Any]], translate: Callable[[str], str],
     number: Callable[[float], str],
 ) -> list[str]:
     lines = []
-    for row in rows:
+    indexed = {row["name"]: row for row in rows}
+    frozen_rows = [
+        indexed.get(name, {"name": name, "value": None, "reference": None})
+        for name in METRIC_NAMES
+    ]
+    topic_count = indexed.get("topicCount", {}).get("value")
+    for row in frozen_rows:
         name, value, reference = row["name"], row["value"], row["reference"]
         def formatted(item: float) -> str:
-            ratio = name == "titleEmojiRatio"
-            rounded = (Decimal(str(item)) * (100 if ratio else 1)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            return number(float(rounded)) + ("%" if ratio else "")
-        level = ("metricMissing" if value is None else
-                 "metric_" + reference["severity"] if reference else "metricInsufficient")
+            rounded = Decimal(str(item)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            return number(float(rounded))
+        level = _difference_status(row)
         icon = LEVEL_ICONS[reference["severity"]] if value is not None and reference else "⚪"
-        lines.append(icon + " " + translate(name) + ": " + (formatted(value) if value is not None else translate("unavailable")) + " · " + translate(level))
+        has_no_topics = name == "topicLength" and value is None and topic_count == 0
+        value_text = (translate("metricNoTopics") if has_no_topics else
+                      formatted(value) if value is not None else translate("unavailable"))
+        lines.append(icon + " " + translate(name) + ": " + value_text +
+                     ("" if has_no_topics else " · " + translate(level)))
         lines.append(translate("peerRange") + ": " + (
             formatted(reference["low"]) + " ~ " + formatted(reference["high"])
             if reference else translate("metricInsufficient")

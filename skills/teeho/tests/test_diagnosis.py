@@ -202,6 +202,18 @@ class DiagnosisTests(unittest.TestCase):
         self.tool.diagnose(note)
         self.assertEqual(self.api.submissions[0]["fields"]["body"], "")
 
+    def test_repeated_video_diagnosis_uses_new_upload_and_submission(self) -> None:
+        video = self.root / "video.mp4"
+        video.write_bytes(b"synthetic-video")
+        note = {**self.note, "videos": [str(video)]}
+        first = self.tool.diagnose(note)["task"]["id"]
+        first_video = self.api.video["id"]
+        with patch.object(self.api, "get_task", side_effect=AssertionError("old task queried")):
+            second = self.tool.diagnose(note)["task"]["id"]
+        self.assertNotEqual(first, second)
+        self.assertNotEqual(first_video, self.api.video["id"])
+        self.assertEqual(len(self.api.submissions), 2)
+
     def test_inspect_reports_one_level_note_directories(self) -> None:
         child = self.root / "1"
         child.mkdir()
@@ -357,7 +369,7 @@ class DiagnosisTests(unittest.TestCase):
         self.assertEqual(len(HistoryTools(self.root, OWNER).list()), 1)
         self.assertEqual(HistoryTools(self.root, OTHER).list(), [])
 
-    def test_previous_complete_report_keeps_path_after_original_deleted(self) -> None:
+    def test_saved_report_keeps_path_when_new_diagnosis_does_not_fetch_it(self) -> None:
         image = self.image()
         first = self.tool.diagnose({**NOTE, "images": [image]})["task"]["id"]
         self.api.tasks = {
@@ -367,6 +379,7 @@ class DiagnosisTests(unittest.TestCase):
                 "result": {"qualitativeConclusion": {"summary": "原报告"}},
             }
         }
+        self.tool.task(first)
         Path(image).unlink()
         self.tool.diagnose(self.note)
         report = HistoryTools(self.root, OWNER).read(first)
@@ -379,7 +392,7 @@ class DiagnosisTests(unittest.TestCase):
         first = self.tool.diagnose(self.note)["task"]["id"]
         with patch.object(self.api, "get_task", side_effect=TeehoError("not_found", 404)):
             with self.assertRaises(TeehoError):
-                self.tool.diagnose(self.note)
+                self.tool.resume()
         self.assertEqual(len(self.api.submissions), 1)
         pending = read_json(self.root / "accounts" / OWNER / "pending.json")
         self.assertEqual(pending["taskId"], first)
@@ -395,6 +408,7 @@ class DiagnosisTests(unittest.TestCase):
                 },
             },
         }
+        self.tool.task(first)
         second = self.tool.diagnose(self.note)["task"]["id"]
         self.assertNotEqual(first, second)
         self.assertEqual(len(self.api.submissions), 2)

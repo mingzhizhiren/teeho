@@ -112,6 +112,20 @@ class ApiContractTests(unittest.TestCase):
 
         self.api.authorize = auth
 
+    def test_only_task_detail_404_is_classified_as_missing_task(self) -> None:
+        cases = [
+            (f"/analysis/tasks/{UID}", lambda: self.api.get_task(UID), "not_found"),
+            (f"/analysis/tasks/admissions/{UID}", lambda: self.api.get_admission(UID), "request_failed"),
+            ("/points/summary", self.api.get_points, "request_failed"),
+        ]
+        for path, operation, expected in cases:
+            with self.subTest(path=path):
+                Handler.responses[path] = (404, {"message": "not found"})
+                with self.assertRaises(TeehoError) as raised:
+                    operation()
+                self.assertEqual(raised.exception.code, expected)
+                self.assertEqual(raised.exception.status, 404)
+
     def test_all_declared_interfaces(self) -> None:
         task = {"id": UID, "status": "queued"}
         cases = [
@@ -308,7 +322,7 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(call(), data)
                 actual, route, headers, body = Handler.requests[-1]
                 self.assertEqual((actual, route), (method, "/api" + path))
-                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.2.1")
+                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.3.1")
                 (
                     self.assertEqual(json.loads(body), expected_body)
                     if expected_body is not None

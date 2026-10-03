@@ -24,6 +24,7 @@ export interface InsightRuntimePrediction {
     baseScore: number | null
     score: number | null
     coverage: number
+    featureEncoding?: 'semantic'
     limited: boolean
     modelId: string | null
     reference:
@@ -41,6 +42,7 @@ export type InsightPredictor = (
     asOf: string,
     trackCode?: number,
     secondaryTracks?: readonly number[],
+    signal?: AbortSignal,
 ) => Promise<InsightRuntimePrediction>
 
 let predictor: InsightPredictor | undefined

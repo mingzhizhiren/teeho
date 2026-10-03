@@ -117,6 +117,7 @@ export const checkupReferenceSchema = z
         noteId: z.string(),
         title: z.string(),
         bodyExcerpt: z.string().max(checkupOutputConstraints.excerptMaxLength),
+        topics: z.array(z.string()).optional(),
         likes: z.number().nonnegative(),
         collects: z.number().nonnegative(),
         comments: z.number().nonnegative().nullable(),

@@ -229,6 +229,8 @@ def _comparison(note: View, prose: Callable[[object], str]) -> View:
         "id": safe_text(note.get("noteId")),
         "title": safe_text(note.get("title")),
         "excerpt": safe_text(note.get("bodyExcerpt")),
+        "topics": [safe_text(topic) for topic in note.get("topics", []) if isinstance(topic, str)]
+        if isinstance(note.get("topics"), list) else [],
         "likes": _number(note.get("likes")),
         "collects": _number(note.get("collects")),
         "comments": _number(note.get("comments")),

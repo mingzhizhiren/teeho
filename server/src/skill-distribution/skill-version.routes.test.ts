@@ -60,8 +60,8 @@ describe('Skill upgrade protocol before authorization', () => {
             code: 0,
             message: 'ok',
             data: {
-                minimumVersion: '2.2.1',
-                latestVersion: '2.2.1',
+                minimumVersion: '2.3.1',
+                latestVersion: '2.3.1',
                 downloadPath: '/skill/download',
             },
         })

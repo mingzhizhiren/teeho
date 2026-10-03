@@ -88,11 +88,15 @@ def _topics(value: object) -> list[str]:
 def normalize_note(value: dict[str, object]) -> dict[str, object]:
     """校验并选取允许的素材，不读取磁盘或联网。"""
     validate_note_encoding(value)
+    body = value.get("body")
+    if isinstance(body, str):
+        # 在技能端直接还原误传的 PowerShell 换行，不改变其他字段或反斜杠转义。
+        body = body.replace("`r`n", "\n").replace("`n", "\n")
     fields = {
         "title": require_text(value.get("title"), MAX_TITLE_UNITS, "标题"),
-        "body": "" if value.get("body") is None or (
-            isinstance(value.get("body"), str) and not value["body"].strip()
-        ) else require_text(value.get("body"), MAX_BODY_UNITS, "正文"),
+        "body": "" if body is None or (
+            isinstance(body, str) and not body.strip()
+        ) else require_text(body, MAX_BODY_UNITS, "正文"),
         "topics": _topics(value.get("topics")),
     }
     for key in ("track", "customTrackName"):

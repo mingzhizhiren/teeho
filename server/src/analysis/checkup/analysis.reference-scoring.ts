@@ -6,13 +6,16 @@ import { roundCheckupScore, type CheckupReference } from './analysis.checkup.con
 
 const REFERENCE_SCORE_TIMEOUT_MS = 3_000
 const REFERENCE_MODEL_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' })
-const predictionSchema = z.object({
-    status: z.literal('available'),
-    limited: z.literal(false),
-    coverage: z.number().finite().positive().max(1),
-    baseScore: z.number().finite().min(0).max(checkupOutputConstraints.insightMaximumScore),
-    modelId: z.string().nullable(),
-})
+const predictionSchema = z
+    .object({
+        status: z.literal('available'),
+        limited: z.literal(false),
+        coverage: z.number().finite().nonnegative().max(1),
+        featureEncoding: z.literal('semantic').optional(),
+        baseScore: z.number().finite().min(0).max(checkupOutputConstraints.insightMaximumScore),
+        modelId: z.string().nullable(),
+    })
+    .refine((prediction) => prediction.featureEncoding === 'semantic' || prediction.coverage > 0)
 
 interface ReferenceScoringInput {
     readonly references: readonly CheckupReference[]
@@ -27,6 +30,7 @@ function predictReference(
     note: AnalysisEvidenceSet['notes'][number],
     input: ReferenceScoringInput,
     trackCode: number,
+    signal: AbortSignal,
 ) {
     return input.predict!(
         {
@@ -40,6 +44,7 @@ function predictReference(
         input.evidence.selectedAt,
         trackCode,
         [],
+        signal,
     )
 }
 
@@ -64,7 +69,7 @@ async function scoreReference(
     try {
         signal.throwIfAborted()
         const predictions = await Promise.race([
-            Promise.all(trackCodes.map((track) => predictReference(note, input, track))),
+            Promise.all(trackCodes.map((track) => predictReference(note, input, track, signal))),
             new Promise<never>((_, reject) => {
                 abort = () => reject(signal.reason)
                 signal.addEventListener('abort', abort, { once: true })

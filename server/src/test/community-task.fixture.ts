@@ -41,18 +41,18 @@ export function communityReportFixture(): CheckupReport {
         insight: null,
         structureMetrics: {
             titleLength: 4,
-            titleEmojiRatio: 0,
+            topicLength: 0,
             bodyLength: 20,
             paragraphLength: 20,
-            listItemCount: 0,
+            paragraphCount: 0,
             topicCount: 1,
         },
         structureReferences: {
             titleLength: null,
-            titleEmojiRatio: null,
+            topicLength: null,
             bodyLength: null,
             paragraphLength: null,
-            listItemCount: null,
+            paragraphCount: null,
             topicCount: null,
         },
         radar: {

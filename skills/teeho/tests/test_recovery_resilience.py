@@ -19,6 +19,42 @@ class RecoveryResilienceTests(unittest.TestCase):
     setUp = fixtures.DiagnosisTests.setUp
     image = fixtures.DiagnosisTests.image
 
+    def test_missing_old_task_does_not_block_explicit_new_diagnosis(self) -> None:
+        for anonymous in (False, True):
+            with self.subTest(anonymous=anonymous):
+                self.auth.read_identity = lambda: {"user": {"id": OWNER, "isAnonymous": anonymous}}
+                self.tool.diagnose(self.note)
+                previous_id = self.api.submissions[-1]["submissionId"]
+                with patch.object(self.api, "get_task", side_effect=TeehoError("not_found", 404)):
+                    result = self.tool.diagnose({**self.note, "title": "新的笔记"})
+                self.assertNotEqual(result["task"]["id"], previous_id)
+                self.assertEqual(self.api.submissions[-1]["fields"]["title"], "新的笔记")
+                # 下一轮独立检查身份类型；已完成任务允许正常开始另一轮。
+                self.api.tasks[result["task"]["id"]]["status"] = "succeeded"
+
+    def test_new_diagnosis_does_not_depend_on_old_task_endpoint(self) -> None:
+        self.tool.diagnose(self.note)
+        submission_count = 1
+        for error in (TeehoError("request_failed", 500), TeehoError("login_required", 401),
+                      TeehoError("not_found", 403), TeehoError("not_found"),
+                      TeehoError("request_failed", 404)):
+            with self.subTest(code=error.code, status=error.status):
+                with patch.object(self.api, "get_task", side_effect=error) as old_query:
+                    self.tool.diagnose({**self.note, "title": "新的笔记"})
+                    old_query.assert_not_called()
+                submission_count += 1
+                self.assertEqual(len(self.api.submissions), submission_count)
+
+    def test_resume_missing_task_preserves_identity_without_resubmission(self) -> None:
+        self.tool.diagnose(self.note)
+        pending = self.root / "accounts" / OWNER / "pending.json"
+        original = pending.read_bytes()
+        with patch.object(self.api, "get_task", side_effect=TeehoError("not_found", 404)):
+            with self.assertRaisesRegex(TeehoError, "not_found"):
+                self.tool.resume()
+        self.assertEqual(len(self.api.submissions), 1)
+        self.assertEqual(pending.read_bytes(), original)
+
     def test_query_failed_video_does_not_claim_a_diagnosis_exists(self) -> None:
         from teeho_skill.storage import write_json
         from teeho_skill.presentation import create_presentation

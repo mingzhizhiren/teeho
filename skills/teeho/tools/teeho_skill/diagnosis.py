@@ -223,11 +223,11 @@ class DiagnosisTools:
             self.sleep(POLL_SECONDS)
 
     def diagnose(self, value: dict[str, object]) -> dict:
-        """选取素材并创建一个稳定提交标识，保留原任务的恢复入口。"""
+        """每次显式诊断重新上传并创建新提交；仅保护结果未知的本次提交。"""
         note = normalize_note(value)
         scope = self._scope()
         with lock_directory(scope.root / "operation.lock"):
-            self._check_previous(scope)
+            self._check_unconfirmed_submission(scope)
             self._check_points(scope, len(note["images"]), bool(note["video"]))
             self._media(scope).check(note["images"], note["video"])
             state = {
@@ -242,17 +242,13 @@ class DiagnosisTools:
             write_json(scope.root / "pending.json", state)
             return self._resume(scope)
 
-    def _check_previous(self, scope: AccountScope) -> None:
-        # 新诊断只核对旧任务是否已提交；不拿旧草稿正文重新校验本次输入。
+    def _check_unconfirmed_submission(self, scope: AccountScope) -> None:
+        # 只读取本地提交状态，不查询旧任务或复用旧报告、旧素材。
         previous = self._pending(scope, validate_draft=False)
         if not previous:
             return
         if previous.get("submitting") and not previous.get("taskId"):
             raise TeehoError("有未确认的任务，请先恢复任务")
-        if previous.get("taskId"):
-            status = self._query_task(previous["taskId"], scope)["task"].get("status")
-            if status not in FINISHED_STATUSES:
-                raise TeehoError("有任务分析中，请先查询任务")
 
     def _check_points(self, scope: AccountScope, image_count: int, is_video: bool) -> None:
         summary = self.api.get_points(expected_user_id=scope.user_id).get("summary")

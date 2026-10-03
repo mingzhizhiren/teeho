@@ -190,6 +190,7 @@ export async function evaluateAnalysisCheckup(
               publication,
               materials.primaryTrack,
               materials.secondaryTracks ?? [],
+              input.signal,
           )
         : null
     const references = await scoreCheckupReferences({

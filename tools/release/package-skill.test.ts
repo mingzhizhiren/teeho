@@ -218,7 +218,7 @@ test('技能包解包后能运行帮助命令，且不包含凭据或测试', as
         expect(version).toBe(sourceMarkdown.match(/version:\s*["']([^"']+)["']/)?.[1])
         const release = JSON.parse(await files.get('teeho/release.json')!.text())
         expect(release.version).toBe(version)
-        expect(release.minimumVersion).toBe('2.2.1')
+        expect(release.minimumVersion).toBe('2.3.1')
         expect([...files.keys()].filter((path) => path.endsWith('.md')).sort()).toEqual([
             'teeho/README.md',
             'teeho/SKILL.md',

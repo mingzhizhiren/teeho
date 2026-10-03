@@ -1,26 +1,25 @@
+import { normalizeTopicNames } from './topics'
+
 /** 报告使用的六项文本结构计数；不包含训练、模型或评分权重。 */
 export interface StructureFeatures {
     readonly titleLength: number
-    readonly titleEmojiRatio: number
     readonly bodyLength: number
     readonly paragraphLength: number
-    readonly listItemCount: number
+    readonly paragraphCount: number
     readonly topicCount: number
+    readonly topicLength: number | null
 }
 
 export const STRUCTURE_KEYS = [
     'titleLength',
-    'titleEmojiRatio',
     'bodyLength',
     'paragraphLength',
-    'listItemCount',
+    'paragraphCount',
     'topicCount',
+    'topicLength',
 ] as const
 
 const segmenter = new Intl.Segmenter('zh-CN', { granularity: 'grapheme' })
-const emojiPattern = /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u
-const listPattern =
-    /^\s*(?:[-*+•●▪]\s+|\d+[.)、．]\s*|[（(]\d+[）)]\s*|[一二三四五六七八九十]+[、.)．]\s*|第[一二三四五六七八九十\d]+步|(?:步骤|step)\s*\d+)/iu
 
 function characters(value: string): string[] {
     return Array.from(segmenter.segment(value.normalize('NFKC').trim()), (item) => item.segment)
@@ -37,18 +36,19 @@ export function extractStructureFeatures(
         .split(/\r?\n/)
         .map((part) => part.trim())
         .filter(Boolean)
+    const topicNames = normalizeTopicNames(topics)
     return {
         titleLength: titleCharacters.length,
-        titleEmojiRatio: titleCharacters.length
-            ? titleCharacters.filter((character) => emojiPattern.test(character)).length /
-              titleCharacters.length
-            : 0,
         bodyLength: characters(body).length,
         paragraphLength: paragraphs.length
             ? paragraphs.reduce((sum, paragraph) => sum + characters(paragraph).length, 0) /
               paragraphs.length
             : 0,
-        listItemCount: paragraphs.filter((paragraph) => listPattern.test(paragraph)).length,
+        paragraphCount: paragraphs.length,
         topicCount: topics.filter((topic) => topic.trim().length > 0).length,
+        topicLength: topicNames.length
+            ? topicNames.reduce((sum, topic) => sum + characters(topic).length, 0) /
+              topicNames.length
+            : null,
     }
 }

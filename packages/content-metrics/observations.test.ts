@@ -37,11 +37,11 @@ test('窗口使用上海自然日且观察同刻顺序稳定', () => {
     ).toBe(-1)
 })
 
-test('公开结构计数保留字素、段落与步骤语义', () => {
+test('公开结构计数保留字素、段落与话题长度语义', () => {
     expect(extractStructureFeatures('A🔥', '第一步 洗脸\n\n2. 防晒', ['通勤', ''])).toMatchObject({
         titleLength: 2,
-        titleEmojiRatio: 0.5,
-        listItemCount: 2,
+        paragraphCount: 2,
         topicCount: 1,
+        topicLength: 2,
     })
 })

@@ -30,6 +30,7 @@ import { copyResult, useResultDetails, type ResultCopyTarget } from './resultDet
 import { radarMetricNames } from './analysis.checkup-contract'
 import type { ResultCopyLabels } from './resultDetails'
 import AnalysisCustomMetrics from './AnalysisCustomMetrics.vue'
+import { structureDifferenceState } from './analysis.structure-metrics'
 
 const props = defineProps<{
     task: AnalysisTask
@@ -231,7 +232,7 @@ async function handleCopy(target: ResultCopyTarget) {
                     number === null
                         ? t('workspace.checkup.structureMetrics.unavailable')
                         : n(number, {
-                              style: name === 'titleEmojiRatio' ? 'percent' : 'decimal',
+                              style: 'decimal',
                               maximumFractionDigits:
                                   analysisUiConstraints.scoreDisplayDecimalPlaces,
                           })
@@ -241,7 +242,20 @@ async function handleCopy(target: ResultCopyTarget) {
                           high: format(reference.high),
                       })
                     : t('workspace.checkup.structureMetrics.insufficient')
-                return `${t(`workspace.checkup.structureMetrics.fields.${name}`)}: ${format(value)}\n${range}`
+                const noTopics =
+                    name === 'topicLength' &&
+                    value === null &&
+                    result.value?.structureMetrics.topicCount === 0
+                const savedValue = noTopics
+                    ? t('workspace.checkup.structureMetrics.noTopics')
+                    : format(value)
+                const position = structureDifferenceState(name, value, reference)
+                const state = position
+                    ? ` ${t(`workspace.checkup.structureMetrics.positions.${position}`)}`
+                    : value === null && !noTopics
+                      ? ` ${t('workspace.checkup.structureMetrics.missingValue')}`
+                      : ''
+                return `${t(`workspace.checkup.structureMetrics.fields.${name}`)}: ${savedValue}${state}\n${range}`
             },
         }
         await copyResult(result.value, labels, undefined, riskMatches.value)

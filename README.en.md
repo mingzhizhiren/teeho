@@ -129,7 +129,7 @@ Reference range: 0% ~ 5.36%
 Body length: 179 · Poor
 Reference range: 65.5 ~ 113
 
-Average paragraph length: 88.5 · Excellent
+Characters per paragraph: 88.5 · Excellent
 Reference range: 65.5 ~ 113
 
 List/step items: 0 · Excellent

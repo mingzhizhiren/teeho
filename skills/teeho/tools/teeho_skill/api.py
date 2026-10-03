@@ -91,6 +91,9 @@ def _media_record(record: dict) -> None:
 
 def _rejection(path: str, status: int, envelope: dict) -> str:
     data = envelope.get("data")
+    if status == 404 and path.startswith("/analysis/tasks/") and UUID_PATTERN.fullmatch(path.removeprefix("/analysis/tasks/")):
+        # 任务详情的明确缺失必须传给诊断层；展示层按 HTTP 状态分类不能代替业务错误码。
+        return "not_found"
     if path.startswith("/analysis/video/") and status == 410 and isinstance(data, dict) and data.get("reason") == "upload_expired":
         return "video_upload_expired"
     if path == constants.API_AUTH_TOKEN and status == 409:

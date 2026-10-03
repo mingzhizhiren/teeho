@@ -99,11 +99,11 @@ test('复制新报告使用冻结结构指标且不重复旧差异范围', () =>
         ...checkupResult,
         structureMetrics: {
             titleLength: 9,
-            titleEmojiRatio: 0,
             bodyLength: 145,
             paragraphLength: 72.5,
-            listItemCount: null,
+            paragraphCount: 2,
             topicCount: 2,
+            topicLength: 4,
         },
     })
     const text = buildResultCopyText(result, {
@@ -111,8 +111,10 @@ test('复制新报告使用冻结结构指标且不重复旧差异范围', () =>
         structureMetric: (name, value) => `${name}: ${value ?? '—'}`,
     })
     expect(text).toContain('titleLength: 9')
-    expect(text).toContain('titleEmojiRatio: 0')
-    expect(text).toContain('listItemCount: —')
+    expect(text).toContain('paragraphCount: 2')
+    expect(text).toContain('topicLength: 4')
+    expect(text).not.toContain('titleEmojiRatio')
+    expect(text).not.toContain('listItemCount')
     expect(text).not.toContain('legacy comparison range')
 })
 

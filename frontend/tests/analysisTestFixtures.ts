@@ -79,19 +79,19 @@ export function createAnalysisResultFixture(
         primaryTrack: 1,
         structureMetrics: {
             titleLength: 9,
-            titleEmojiRatio: 0,
             bodyLength: 145,
             paragraphLength: 72.5,
-            listItemCount: 2,
+            paragraphCount: 2,
             topicCount: 3,
+            topicLength: 4,
         },
         structureReferences: {
             titleLength: { low: 10, high: 18, sampleCount: 20, severity: 'minor' },
-            titleEmojiRatio: { low: 0, high: 0.2, sampleCount: 20, severity: 'aligned' },
             bodyLength: { low: 100, high: 720, sampleCount: 20, severity: 'aligned' },
             paragraphLength: { low: 50, high: 100, sampleCount: 20, severity: 'aligned' },
-            listItemCount: null,
+            paragraphCount: { low: 2, high: 4, sampleCount: 20, severity: 'aligned' },
             topicCount: { low: 2, high: 5, sampleCount: 20, severity: 'aligned' },
+            topicLength: { low: 2, high: 6, sampleCount: 20, severity: 'aligned' },
         },
         insight: {
             status: 'available',
