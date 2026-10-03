@@ -10,6 +10,12 @@
 
 **支持agent skill一句話開啟診斷**
 
+***
+
+`不要吝嗇你的star！`
+
+<img alt="image" src="https://github.com/user-attachments/assets/9b8701f7-2709-46fc-9681-3c9e5eadc1dc" />
+
 </div>
 
 輸入你的筆記內容（標題、正文、話題、封面、圖片、視頻），後端會根據 `小紅書大盤數據` 匹配優秀筆記，從而對你的筆記進行診斷并得出 `分析結果` 包括量化指標和改進說明

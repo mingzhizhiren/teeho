@@ -10,6 +10,12 @@
 
 **Start a diagnosis with one sentence through an Agent Skill**
 
+***
+
+`Don't be stingy with your star!`
+
+<img alt="image" src="https://github.com/user-attachments/assets/9b8701f7-2709-46fc-9681-3c9e5eadc1dc" />
+
 </div>
 
 Provide your note's title, body, topics, cover, images, and video. Using `Xiaohongshu platform-wide data`, the backend matches it with high-performing notes and returns `analysis results` containing quantitative metrics and recommendations.

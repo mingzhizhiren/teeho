@@ -10,6 +10,12 @@
 
 **支持agent skill一句话开启诊断**
 
+***
+
+`不要吝啬你的star！`
+
+<img alt="image" src="https://github.com/user-attachments/assets/9b8701f7-2709-46fc-9681-3c9e5eadc1dc" />
+
 </div>
 
 输入你的笔记内容（标题、正文、话题、封面、图片、视频），后端会根据 `小红书大盘数据` 匹配优秀笔记，从而对你的笔记进行诊断并得出 `分析结果` 包括量化指标和改进说明
