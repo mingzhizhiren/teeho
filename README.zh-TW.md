@@ -12,7 +12,7 @@
 
 ***
 
-`不要吝嗇你的star！`
+`不要吝嗇你的star，它是推進專案的動力！`
 
 <img alt="image" src="https://github.com/user-attachments/assets/9b8701f7-2709-46fc-9681-3c9e5eadc1dc" />
 

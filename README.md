@@ -12,7 +12,7 @@
 
 ***
 
-`不要吝啬你的star！`
+`不要吝啬你的star，它是推进项目的源动力！`
 
 <img alt="image" src="https://github.com/user-attachments/assets/9b8701f7-2709-46fc-9681-3c9e5eadc1dc" />
 

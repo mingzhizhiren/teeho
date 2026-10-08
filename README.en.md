@@ -12,7 +12,7 @@
 
 ***
 
-`Don't be stingy with your star!`
+`Don't be stingy with your star — they are the driving force behind the project!`
 
 <img alt="image" src="https://github.com/user-attachments/assets/9b8701f7-2709-46fc-9681-3c9e5eadc1dc" />
 
