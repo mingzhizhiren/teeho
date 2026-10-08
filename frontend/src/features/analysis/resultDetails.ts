@@ -40,6 +40,7 @@ export interface ResultCopyLabels {
     collects: string
     comments: string
     rapidGrowth: string
+    paragraphLocation?: (number: number, text: string) => string
     structureMetric: (
         name: keyof StructureMetrics,
         value: number | null,
@@ -113,13 +114,27 @@ export function buildResultCopyText(
             : result.riskReviewStatus === 'unavailable'
               ? []
               : [labels.contentAnalysis.noRisks]),
-        ...structureMetricNames.map((name) =>
-            labels.structureMetric(
-                name,
-                result.structureMetrics[name],
-                result.structureReferences[name],
+        ...structureMetricNames
+            .filter((name) => result.structureMetrics[name] !== undefined)
+            .map((name) =>
+                [
+                    labels.structureMetric(
+                        name,
+                        result.structureMetrics[name] ?? null,
+                        result.structureReferences[name],
+                    ),
+                    ...(name === 'maxTopicLength'
+                        ? (result.structureLocations?.topics ?? []).map((item) => item.text)
+                        : []),
+                    ...(name === 'maxParagraphLength'
+                        ? (result.structureLocations?.paragraphs ?? []).map(
+                              (item) =>
+                                  labels.paragraphLocation?.(item.number, item.text) ??
+                                  `${item.number}: ${item.text}`,
+                          )
+                        : []),
+                ].join('\n'),
             ),
-        ),
         ...result.comparisonNotes.map((note) => {
             const presentation = presentReference(note, labels)
             return [

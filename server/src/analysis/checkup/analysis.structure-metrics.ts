@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import {
-    extractStructureFeatures,
+    extractExtendedStructureFeatures,
+    EXTENDED_STRUCTURE_KEYS,
     STRUCTURE_KEYS,
     type StructureFeatures,
+    type ExtendedStructureFeatures,
 } from '@teeho/content-metrics'
 import type { AnalysisEvidenceSet } from '../evidence/analysis.evidence'
 import type { StandardAnalysisTask } from '../analysis.schema'
@@ -11,6 +13,19 @@ import { excellentCheckupSamples } from './analysis.checkup.selection'
 
 const countSchema = z.number().int().nonnegative().nullable()
 const MINIMUM_REFERENCE_SAMPLES = 3
+const MAX_LOCATION_ITEMS = 1000
+const MAX_LOCATION_TEXT = 1000
+const locationSchema = z
+    .object({ index: z.number().int().nonnegative(), text: z.string().max(MAX_LOCATION_TEXT) })
+    .strict()
+export const structureLocationsSchema = z
+    .object({
+        topics: z.array(locationSchema).max(MAX_LOCATION_ITEMS),
+        paragraphs: z
+            .array(locationSchema.extend({ number: z.number().int().positive() }))
+            .max(MAX_LOCATION_ITEMS),
+    })
+    .strict()
 const currentStructureMetricsSchema = z
     .object({
         titleLength: countSchema,
@@ -19,6 +34,8 @@ const currentStructureMetricsSchema = z
         paragraphCount: countSchema,
         topicLength: z.number().finite().nonnegative().nullable(),
         topicCount: countSchema,
+        maxTopicLength: countSchema.optional(),
+        maxParagraphLength: countSchema.optional(),
     })
     .strict()
 
@@ -41,6 +58,8 @@ const currentStructureReferencesSchema = z
         paragraphCount: referenceSchema,
         topicLength: referenceSchema,
         topicCount: referenceSchema,
+        maxTopicLength: referenceSchema.optional(),
+        maxParagraphLength: referenceSchema.optional(),
     })
     .strict()
 /** 旧报告只保留已保存的四项，新增指标为空，不重新计算历史。 */
@@ -58,6 +77,8 @@ const legacyMetricsSchema = currentStructureMetricsSchema
         topicCount: saved.topicCount,
         paragraphCount: null,
         topicLength: null,
+        maxTopicLength: undefined,
+        maxParagraphLength: undefined,
     }))
 
 const legacyReferencesSchema = currentStructureReferencesSchema
@@ -74,6 +95,8 @@ const legacyReferencesSchema = currentStructureReferencesSchema
         topicCount: saved.topicCount,
         paragraphCount: null,
         topicLength: null,
+        maxTopicLength: undefined,
+        maxParagraphLength: undefined,
     }))
 
 export const structureMetricsSchema = z.union([currentStructureMetricsSchema, legacyMetricsSchema])
@@ -119,15 +142,15 @@ function compare(
 
 /** 同一优秀样本群体的结构Q25～Q75；颜色表示差异，不是内容质量分。 */
 export function compareStructureMetrics(
-    current: StructureFeatures,
-    peers: readonly StructureFeatures[],
+    current: StructureFeatures & Partial<ExtendedStructureFeatures>,
+    peers: readonly (StructureFeatures & Partial<ExtendedStructureFeatures>)[],
 ): StructureReferences {
-    const keys = STRUCTURE_KEYS
+    const keys = current.maxParagraphLength === undefined ? STRUCTURE_KEYS : EXTENDED_STRUCTURE_KEYS
     return structureReferencesSchema.parse(
         Object.fromEntries(
             keys.map((key) => {
-                const values = peers.flatMap((peer) => (peer[key] === null ? [] : [peer[key]!]))
-                if (current[key] === null || values.length < LIMITS.minimumSamples)
+                const values = peers.flatMap((peer) => (peer[key] == null ? [] : [peer[key]!]))
+                if (current[key] == null || values.length < LIMITS.minimumSamples)
                     return [key, null]
                 const low = quantile(values, LIMITS.lowQuantile),
                     high = quantile(values, LIMITS.highQuantile)
@@ -145,19 +168,19 @@ export function compareStructureMetrics(
     )
 }
 
-/** 从与案例同口径的优秀样本提取全部六项参照，不使用正文截断片段。 */
+/** 从实测优秀样本提取八项参照，不使用正文截断片段。 */
 export function calculateStructureReferences(
     evidence: AnalysisEvidenceSet,
     task: StandardAnalysisTask,
 ): StructureReferences {
-    const metrics = extractStructureFeatures(
+    const metrics = extractExtendedStructureFeatures(
         task.fields.title.value,
         task.fields.body.value,
         task.fields.topics.value,
     )
     const { selected } = contextSamples(evidence, task)
     const peers = excellentCheckupSamples(selected).map(({ note }) =>
-        extractStructureFeatures(note.title, note.body, note.topics),
+        extractExtendedStructureFeatures(note.title, note.body, note.topics),
     )
     return compareStructureMetrics(metrics, peers)
 }

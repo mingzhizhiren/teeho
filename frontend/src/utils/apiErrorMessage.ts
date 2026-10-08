@@ -6,6 +6,7 @@ const apiErrorTranslationKeys: Readonly<Record<string, string>> = {
 }
 
 const apiErrorReasonTranslationKeys: Readonly<Record<string, string>> = {
+    model_service_unavailable: 'common.modelServiceMaintenance',
     video_evidence_download_unavailable: 'workspace.apiErrors.videoEvidenceDownloadUnavailable',
     analysis_queue_capacity: 'workspace.apiErrors.queueCapacity',
     analysis_refund_in_progress: 'workspace.apiErrors.refundInProgress',

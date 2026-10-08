@@ -126,6 +126,18 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(raised.exception.code, expected)
                 self.assertEqual(raised.exception.status, 404)
 
+    def test_login_fragment_must_match_complete_code(self) -> None:
+        code = "0ABCDEF123"
+        for fragment in ("", "#code=" + code, "#code=0ABCDEF12", "#code=1234567890", "#code=" + code + "&code=" + code):
+            with self.subTest(fragment=fragment):
+                value = {"verificationUrl": "https://login.example/skill/authorize" + fragment, "userCode": code, "interval": 2}
+                Handler.responses['/skill/auth/start'] = value
+                if fragment in ("", "#code=" + code):
+                    self.assertEqual(self.api.start_login(DEVICE), value)
+                else:
+                    with self.assertRaisesRegex(TeehoError, 'invalid_response'):
+                        self.api.start_login(DEVICE)
+
     def test_all_declared_interfaces(self) -> None:
         task = {"id": UID, "status": "queued"}
         cases = [
@@ -137,7 +149,7 @@ class ApiContractTests(unittest.TestCase):
                 {"deviceToken": DEVICE, "deviceName": "Teeho Skill"},
                 {
                     "verificationUrl": "https://login.example",
-                    "userCode": "ABC123",
+                    "userCode": "ABC1234567",
                     "interval": 2,
                 },
             ),
@@ -315,6 +327,10 @@ class ApiContractTests(unittest.TestCase):
                 {"task": task},
             ),
         ]
+        cases.append((
+            "API_RELEASE_NOTES", self.api.get_release_notes, "/release-notes/en",
+            "GET", None, {"releases": []},
+        ))
         covered = set()
         for name, call, path, method, expected_body, data in cases:
             with self.subTest(name=name):
@@ -322,7 +338,7 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(call(), data)
                 actual, route, headers, body = Handler.requests[-1]
                 self.assertEqual((actual, route), (method, "/api" + path))
-                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.3.1")
+                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.4.2")
                 (
                     self.assertEqual(json.loads(body), expected_body)
                     if expected_body is not None
@@ -333,6 +349,7 @@ class ApiContractTests(unittest.TestCase):
                     "application/json" if expected_body is not None else None,
                 )
                 if name not in {
+                    "API_RELEASE_NOTES",
                     "API_AUTH_START",
                     "API_AUTH_ANONYMOUS",
                     "API_AUTH_TOKEN",

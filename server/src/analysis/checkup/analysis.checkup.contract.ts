@@ -3,7 +3,11 @@ import { customMetricLimits, customMetricSchema } from '../../customization/repo
 import { checkupOutputConstraints } from './analysis.checkup.constants'
 import { checkupTopicConstraints, checkupTopicSupportSchema } from './analysis.checkup.topics'
 import { differenceSchema } from './analysis.differences'
-import { structureMetricsSchema, structureReferencesSchema } from './analysis.structure-metrics'
+import {
+    structureMetricsSchema,
+    structureReferencesSchema,
+    structureLocationsSchema,
+} from './analysis.structure-metrics'
 import { radarScoresSchema } from './analysis.radar'
 import {
     contentAnalysisSchema,
@@ -149,6 +153,9 @@ export const checkupReportSchema = z
         customMetrics: z.array(customMetricSchema).max(customMetricLimits.count).optional(),
         structureMetrics: structureMetricsSchema,
         structureReferences: structureReferencesSchema,
+        structureMetricsVersion: z.literal('structure.v2').optional(),
+        structureReferencePolicy: z.string().min(1).optional(),
+        structureLocations: structureLocationsSchema.optional(),
         primaryScore: z
             .object({
                 source: z.enum(['insight', 'radar_average']),
@@ -230,6 +237,19 @@ export const checkupReportSchema = z
     })
     .strict()
     .superRefine((report, context) => {
+        if (
+            report.structureMetricsVersion === 'structure.v2' &&
+            (report.structureMetrics.maxTopicLength === undefined ||
+                report.structureMetrics.maxParagraphLength == null ||
+                report.structureReferences.maxTopicLength === undefined ||
+                report.structureReferences.maxParagraphLength === undefined ||
+                !report.structureLocations)
+        )
+            context.addIssue({
+                code: 'custom',
+                path: ['structureMetrics'],
+                message: 'Incomplete structure v2 report',
+            })
         if (
             report.contentAnalysis?.scorePolicy === 'consistency-weighted.v2' &&
             report.referenceRequirement !== 'optional' &&

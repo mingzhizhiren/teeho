@@ -137,3 +137,5 @@ IMAGE_TYPES = {
     ".webp": "image/webp",
 }
 VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime"}
+API_RELEASE_NOTES = "/release-notes/en"
+RELEASE_NOTES_TIMEOUT_SECONDS = 3

@@ -41,6 +41,7 @@ export interface ResultExtension {
 
 /** 运行时组合入口；共享模块不依赖部署扩展。 */
 export interface FrontendRuntime {
+    readonly accountFooter?: Component
     readonly workspaceHeader: Component | null
     readonly accountOverview: Component | null
     readonly accountExtra: Component | null

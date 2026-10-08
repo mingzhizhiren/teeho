@@ -344,6 +344,7 @@ export const analysisFailureSchema = z
     .object({
         code: z.enum([
             'agent_timeout',
+            'model_service_unavailable',
             'agent_invalid_output',
             'insight_unavailable',
             'radar_unavailable',

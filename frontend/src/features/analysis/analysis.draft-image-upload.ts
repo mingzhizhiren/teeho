@@ -44,7 +44,7 @@ export function createDraftImageUpload(
             if (disposed) return
             owner.update([...owner.read(), ...images])
             try {
-                merge(await uploadDraftImages(images, transport, progress))
+                await uploadDraftImages(images, transport, progress, (image) => merge([image]))
             } catch (error) {
                 if (!isAnalysisMediaUploadRateLimitError(error)) throw error
                 if (

@@ -16,9 +16,11 @@ import {
     checkupTextComparison,
 } from './analysis.checkup.constants'
 import type { CheckupReference } from './analysis.checkup.contract'
+import { readModelCohort } from './analysis.model-cohort'
 
 type EvidenceNote = AnalysisEvidenceSet['notes'][number]
 export interface SelectedCheckupNote {
+    readonly modelScore?: number
     readonly note: EvidenceNote
     readonly similarity: number
     readonly latest: EvidenceNote['observations'][number]
@@ -110,6 +112,23 @@ export function selectCheckupNotes(
     minimumSimilarity?: number,
     useWindow = true,
 ): SelectedCheckupNote[] {
+    const cohort = readModelCohort(evidence)
+    if (cohort)
+        return evidence.notes.flatMap((note) => {
+            if (!cohort.excellentIds.includes(note.noteId)) return []
+            const latest = [...note.observations].sort(compareCheckupObservations)[0]
+            return latest
+                ? [
+                      {
+                          note,
+                          latest,
+                          similarity: note.selectionScore,
+                          modelScore: cohort.scored.find((item) => item.noteId === note.noteId)!
+                              .score,
+                      },
+                  ]
+                : []
+        })
     const asOf = Date.parse(evidence.selectedAt)
     const inputText = [
         task.fields.title.value,
@@ -159,6 +178,7 @@ export function excellentCheckupSamples(
     minimumPoolSize = 1,
 ): SelectedCheckupNote[] {
     if (!samples.length) return []
+    if (samples.every((sample) => sample.modelScore !== undefined)) return [...samples]
     const asOf = new Date(
         Math.max(...samples.map((sample) => Date.parse(sample.latest.observedAt))),
     ).toISOString()
@@ -213,10 +233,19 @@ export function mapCheckupReferences(
     }))
 }
 
-/** 话题由独立字段交付；先移除正文中对应的平台 token，再生成摘要。 */
+/** 话题由独立字段交付；先移除对应的普通话题或平台 token，再生成摘要。 */
 function referenceBodyExcerpt(note: EvidenceNote): string {
     const body = note.topics
-        .reduce((text, topic) => text.split(`#${topic}[话题]#`).join(''), note.body)
+        .reduce((text, topic) => {
+            if (!topic) return text
+            const escaped = topic.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+            // 保留较长标签及未独立交付的话题；不能吞掉紧邻的下一话题起始符。
+            const token = new RegExp(
+                `[#＃]${escaped}(?:\\[话题\\][#＃]|(?![\\p{L}\\p{N}\\p{M}\\p{S}\\p{Cf}_-])(?:[#＃](?=\\s|$))?)`,
+                'gu',
+            )
+            return text.replace(token, '')
+        }, note.body)
         .trim()
     return body.length > checkupOutputConstraints.excerptMaxLength
         ? body.slice(0, checkupOutputConstraints.excerptMaxLength - 1) + '…'

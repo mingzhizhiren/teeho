@@ -74,6 +74,8 @@ export const analysisEvidenceNoteSchema = z
         authorId: z.string().max(analysisEvidenceConstraints.noteIdMaxLength),
         noteType: z.enum(['normal', 'video']).optional(),
         fans: z.number().int().nonnegative().nullable().optional(),
+        follows: z.number().int().nonnegative().nullable().optional(),
+        interactions: z.number().int().nonnegative().nullable().optional(),
         authorObservedAt: z.string().datetime({ offset: true }).nullable().optional(),
         contentObservedAt: z.string().datetime({ offset: true }).nullable().optional(),
         firstImportedAt: z.string().datetime({ offset: true }).nullable().optional(),

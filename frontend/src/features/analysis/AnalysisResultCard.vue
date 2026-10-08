@@ -227,6 +227,8 @@ async function handleCopy(target: ResultCopyTarget) {
             collects: t('workspace.checkup.collects'),
             comments: t('workspace.checkup.comments'),
             rapidGrowth: t('workspace.checkup.rapidGrowth'),
+            paragraphLocation: (number, text) =>
+                t('workspace.checkup.structureMetrics.paragraphLocation', { number, text }),
             structureMetric: (name, value, reference) => {
                 const format = (number: number | null) =>
                     number === null
@@ -243,9 +245,9 @@ async function handleCopy(target: ResultCopyTarget) {
                       })
                     : t('workspace.checkup.structureMetrics.insufficient')
                 const noTopics =
-                    name === 'topicLength' &&
                     value === null &&
-                    result.value?.structureMetrics.topicCount === 0
+                    (name === 'maxTopicLength' ||
+                        (name === 'topicLength' && result.value?.structureMetrics.topicCount === 0))
                 const savedValue = noTopics
                     ? t('workspace.checkup.structureMetrics.noTopics')
                     : format(value)

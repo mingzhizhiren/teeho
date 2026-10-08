@@ -25,7 +25,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request('http://localhost/skill/auth/anonymous', {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.3.1',
+                        'x-teeho-skill-version': '2.4.2',
                         'content-type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -59,7 +59,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request('http://localhost/skill/auth/' + path, {
                     method: body ? 'POST' : 'GET',
                     headers: {
-                        'x-teeho-skill-version': '2.3.1',
+                        'x-teeho-skill-version': '2.4.2',
                         'content-type': 'application/json',
                         origin: 'http://localhost',
                         cookie: 'teeho_access_token=' + cookie,
@@ -100,7 +100,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request('http://localhost/skill/auth/anonymous', {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.3.1',
+                        'x-teeho-skill-version': '2.4.2',
                         'content-type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -142,7 +142,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request('http://localhost/skill/auth/anonymous', {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.3.1',
+                        'x-teeho-skill-version': '2.4.2',
                         'content-type': 'application/json',
                     },
                     body: JSON.stringify({
@@ -184,7 +184,7 @@ describe('Skill 正式设备授权 HTTP', () => {
                 new Request(`http://localhost/skill/auth/${path}`, {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.3.1',
+                        'x-teeho-skill-version': '2.4.2',
                         'content-type': 'application/json',
                         origin: 'http://localhost',
                         ...(browser ? { cookie: 'teeho_access_token=browser' } : {}),
@@ -195,7 +195,14 @@ describe('Skill 正式设备授权 HTTP', () => {
         const deviceToken = 'a'.repeat(64)
         const started = await post('start', { deviceToken, deviceName: 'test device' })
         const challenge = (await started.json()).data
-        expect(challenge.verificationUrl).toBe('http://localhost/skill/authorize')
+        const authorizationUrl = new URL(challenge.verificationUrl)
+        expect(authorizationUrl.origin + authorizationUrl.pathname).toBe(
+            'http://localhost/skill/authorize',
+        )
+        expect(authorizationUrl.search).toBe('')
+        expect(authorizationUrl.hash).toBe(`#code=${challenge.userCode}`)
+        expect(challenge.userCode).toMatch(/^[A-F0-9]{10}$/)
+        expect((await post('token', { deviceToken })).status).toBe(409)
         expect(
             (await post('approve', { userCode: challenge.userCode, remember: false }, true)).status,
         ).toBe(200)

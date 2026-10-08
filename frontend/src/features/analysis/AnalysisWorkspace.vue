@@ -158,6 +158,10 @@ const businessDialogOpen = computed(
 useOnboardingBlocker(showWorkspaceLoading, 'workspace_recovery')
 useOnboardingBlocker(businessDialogOpen, 'business_dialog')
 useOnboardingBlocker(historyOpen, 'business_drawer')
+useOnboardingBlocker(
+    () => lifecycleBusy.value || !!taskComposer.value?.operationsLocked || tasks.value.some((value) => isActiveAnalysisTaskStatus(value.status)),
+    'business_operation',
+)
 let reportedWorkspaceReadyAccountId: string | null = null
 
 async function reportWorkspaceReady(): Promise<void> {

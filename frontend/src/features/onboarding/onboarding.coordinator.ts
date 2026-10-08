@@ -76,6 +76,18 @@ export function createOnboardingCoordinator(
     let runId = 0
     let blockerId = 0
     let isDestroyed = false
+    const availabilityListeners = new Set<(available: boolean) => void>()
+    let availabilityScheduled = false
+
+    function publishAvailability(): void {
+        if (availabilityScheduled) return
+        availabilityScheduled = true
+        queueMicrotask(() => {
+            availabilityScheduled = false
+            const available = !isDestroyed && !!currentAccountId && !activeRun && !queue.length && !blockerIds.size && pageCanRun()
+            for (const listener of availabilityListeners) listener(available)
+        })
+    }
 
     function pageCanRun(): boolean {
         try {
@@ -168,6 +180,7 @@ export function createOnboardingCoordinator(
     }
 
     function drain(): void {
+        publishAvailability()
         if (isDestroyed) return
         synchronizeAccount()
         if (
@@ -227,6 +240,7 @@ export function createOnboardingCoordinator(
     }
 
     function acquireBlocker(kind: OnboardingBlockerKind): OnboardingBlockerLease {
+        publishAvailability()
         const id = `onboarding-blocker-${kind}-${++blockerId}`
         blockerIds = withValue(blockerIds, id)
         interruptActive(true)
@@ -265,6 +279,7 @@ export function createOnboardingCoordinator(
         }
 
         const currentRunId = ++runId
+        publishAvailability()
         activeRun = {
             id: currentRunId,
             kind: 'manual',
@@ -284,6 +299,7 @@ export function createOnboardingCoordinator(
     }
 
     function refreshEnvironment(): void {
+        publishAvailability()
         if (isDestroyed) return
         synchronizeAccount()
         if (activeRun && !pageCanRun()) {
@@ -294,6 +310,16 @@ export function createOnboardingCoordinator(
     }
 
     return {
+        tryAcquireIdleBlocker(kind) {
+            synchronizeAccount()
+            if (isDestroyed || !currentAccountId || activeRun || queue.length || blockerIds.size || !pageCanRun()) return null
+            return acquireBlocker(kind)
+        },
+        subscribeAvailability(listener) {
+            availabilityListeners.add(listener)
+            publishAvailability()
+            return () => { availabilityListeners.delete(listener) }
+        },
         notify,
         acquireBlocker,
         replay,
@@ -301,6 +327,7 @@ export function createOnboardingCoordinator(
         destroy() {
             if (isDestroyed) return
             isDestroyed = true
+            publishAvailability()
             queue = []
             seenEventKeys = new Set()
             settledAutomaticChapters = new Set()

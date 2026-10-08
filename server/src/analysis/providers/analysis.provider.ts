@@ -469,6 +469,14 @@ export class AgentProviderError extends Error {
     readonly debugDetails: AgentProviderDebugDetails | null
 }
 
+/** 连接中断或超时属于模型依赖不可用，不能用默认结果掩盖。 */
+export function isAgentServiceUnavailable(error: unknown): boolean {
+    return (
+        error instanceof AgentProviderError &&
+        (error.category === 'temporary_unavailable' || error.category === 'timeout')
+    )
+}
+
 /** Provider 调用超时。 */
 export class AgentTimeoutError extends AgentProviderError {
     /**

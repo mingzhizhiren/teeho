@@ -20,6 +20,22 @@ def report():
 
 
 class ReportCompatibilityTests(unittest.TestCase):
+    def test_longest_metrics_render_all_saved_positions_without_recalculating(self):
+        data = report()
+        result = data['task']['result']
+        result['structureMetrics'] = {'maxTopicLength': 4, 'maxParagraphLength': 5}
+        result['structureReferences'] = {'maxTopicLength': None, 'maxParagraphLength': None}
+        result['structureLocations'] = {
+            'topics': [{'index': 1, 'text': '#通勤早餐#'}, {'index': 2, 'text': '通勤早餐'}],
+            'paragraphs': [{'index': 1, 'number': 2, 'text': '早餐真好吃'}],
+        }
+        text = render_presentation(create_presentation('task', data))
+        self.assertIn('Longest topic length: 4', text)
+        self.assertIn('#通勤早餐#', text)
+        self.assertIn('Paragraph 2: 早餐真好吃', text)
+        old = render_presentation(create_presentation('task', report()))
+        self.assertNotIn('Longest topic length', old)
+
     def test_bad_optional_item_keeps_siblings_and_logs_only_field_context(self):
         data = report()
         result = data["task"]["result"]

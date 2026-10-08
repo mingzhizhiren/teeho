@@ -1,3 +1,5 @@
+import zhSite from '@/locales/zh-CN/site'
+import enSite from '@/locales/en-US/site'
 import { ApiRequestError } from '@/utils/apiRequestError'
 import type {
     AgentConversationAction,
@@ -11,6 +13,9 @@ type AgentPresentationLocale = 'zh-CN' | 'en-US'
 export function presentAgentConversationFailure(error: unknown, locale: string): string {
     const data = error instanceof ApiRequestError ? error.data : null
     const reason = data && typeof data === 'object' && 'reason' in data ? data.reason : null
+    if (reason === 'model_service_unavailable') {
+        return (locale === 'en-US' ? enSite : zhSite).common.modelServiceMaintenance
+    }
     if (reason === 'agent_output_invalid') {
         return locale === 'en-US'
             ? 'The AI draft update did not pass validation and was not applied. Your original draft and input are preserved. You can edit directly in Expert mode.'

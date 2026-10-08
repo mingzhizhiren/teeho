@@ -172,6 +172,8 @@ onBeforeUnmount(restorePage)
                         {{ notice }}
                     </p>
 
+                    <slot />
+
                     <div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         <button
                             ref="cancelButton"

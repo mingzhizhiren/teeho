@@ -1,12 +1,14 @@
-"""与网页一致展示报告冻结的六项笔记指标，不从旧差异或原文重算。"""
+"""展示报告冻结的结构指标，兼容旧六项与新八项，不从原文重算。"""
 
 import math
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Callable
+from .messages import safe_text
 
 METRIC_NAMES = (
     "titleLength", "bodyLength", "paragraphLength", "paragraphCount",
     "topicCount", "topicLength",
+    "maxTopicLength", "maxParagraphLength",
 )
 LEVELS = ("aligned", "minor", "moderate", "major", "critical")
 LEVEL_ICONS = {
@@ -26,6 +28,8 @@ def project_structure_metrics(result: dict[str, Any]) -> list[dict[str, Any]]:
         raise ValueError("invalid_structure_metrics")
     rows = []
     for name in METRIC_NAMES:
+        if name.startswith('max') and name not in metrics:
+            continue
         value, reference = metrics.get(name), references.get(name)
         if value is not None and not _number(value):
             raise ValueError("invalid_structure_metrics")
@@ -37,7 +41,15 @@ def project_structure_metrics(result: dict[str, Any]) -> list[dict[str, Any]]:
             or reference.get("severity") not in LEVELS
         ):
             raise ValueError("invalid_structure_reference")
-        rows.append({"name": name, "value": value, "reference": reference})
+        location_key = 'topics' if name == 'maxTopicLength' else 'paragraphs'
+        locations = result.get('structureLocations') or {}
+        positions = locations.get(location_key, []) if isinstance(locations, dict) and name.startswith('max') else []
+        valid_positions = [item for item in positions if isinstance(item, dict)
+                           and isinstance(item.get('text'), str)
+                           and type(item.get('index')) is int and item['index'] >= 0
+                           and (location_key == 'topics' or (type(item.get('number')) is int and item['number'] > 0))] if isinstance(positions, list) else []
+        rows.append({"name": name, "value": value, "reference": reference,
+                     **({"positions": valid_positions} if valid_positions else {})})
     return rows
 
 
@@ -64,6 +76,7 @@ def structure_metric_lines(
     frozen_rows = [
         indexed.get(name, {"name": name, "value": None, "reference": None})
         for name in METRIC_NAMES
+        if not name.startswith('max') or name in indexed
     ]
     topic_count = indexed.get("topicCount", {}).get("value")
     for row in frozen_rows:
@@ -73,7 +86,7 @@ def structure_metric_lines(
             return number(float(rounded))
         level = _difference_status(row)
         icon = LEVEL_ICONS[reference["severity"]] if value is not None and reference else "⚪"
-        has_no_topics = name == "topicLength" and value is None and topic_count == 0
+        has_no_topics = value is None and (name == "maxTopicLength" or (name == "topicLength" and topic_count == 0))
         value_text = (translate("metricNoTopics") if has_no_topics else
                       formatted(value) if value is not None else translate("unavailable"))
         lines.append(icon + " " + translate(name) + ": " + value_text +
@@ -82,5 +95,9 @@ def structure_metric_lines(
             formatted(reference["low"]) + " ~ " + formatted(reference["high"])
             if reference else translate("metricInsufficient")
         ))
+        for position in row.get('positions', []):
+            prefix = (translate('metricParagraph') + ' ' + str(position['number']) + ': '
+                      if name == 'maxParagraphLength' else '')
+            lines.append(prefix + safe_text(position['text']))
         lines.append("")
     return lines

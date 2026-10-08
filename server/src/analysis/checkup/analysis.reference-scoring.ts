@@ -1,8 +1,10 @@
 import { z } from 'zod'
+import { ModelServiceUnavailableError } from '../../utils/model-service-error'
 import type { InsightPredictor } from '../../runtime/insight'
 import type { AnalysisEvidenceSet } from '../evidence/analysis.evidence'
 import { checkupOutputConstraints } from './analysis.checkup.constants'
 import { roundCheckupScore, type CheckupReference } from './analysis.checkup.contract'
+import { MODEL_COHORT_LIMITS } from './analysis.model-cohort'
 
 const REFERENCE_SCORE_TIMEOUT_MS = 3_000
 const REFERENCE_MODEL_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' })
@@ -18,6 +20,7 @@ const predictionSchema = z
     .refine((prediction) => prediction.featureEncoding === 'semantic' || prediction.coverage > 0)
 
 interface ReferenceScoringInput {
+    readonly preservePrecision?: boolean
     readonly references: readonly CheckupReference[]
     readonly evidence: AnalysisEvidenceSet
     readonly predict?: InsightPredictor
@@ -83,17 +86,18 @@ async function scoreReference(
             input.onUnavailable('unavailable', Date.now() - started)
             return { ...reference, modelScore: null }
         }
+        const score =
+            parsed.data.reduce((sum, prediction) => sum + prediction.baseScore, 0) /
+            parsed.data.length
         return {
             ...reference,
             // 参考库没有主次排序，全部真实分类等权参与，避免按代码顺序偏向某赛道。
-            modelScore: roundCheckupScore(
-                parsed.data.reduce((sum, prediction) => sum + prediction.baseScore, 0) /
-                    parsed.data.length,
-            ),
+            modelScore: input.preservePrecision ? score : roundCheckupScore(score),
             modelId: input.expectedModelId,
         }
-    } catch {
+    } catch (error) {
         input.signal.throwIfAborted()
+        if (error instanceof ModelServiceUnavailableError) throw error
         input.onUnavailable(signal.aborted ? 'timeout' : 'prediction_failed', Date.now() - started)
         return { ...reference, modelScore: null }
     } finally {
@@ -106,9 +110,19 @@ export async function scoreCheckupReferences(
     input: ReferenceScoringInput,
 ): Promise<CheckupReference[]> {
     input.signal.throwIfAborted()
-    const references = await Promise.all(
-        input.references.map((reference) => scoreReference(reference, input)),
-    )
+    const concurrency = MODEL_COHORT_LIMITS.concurrency
+    let references: CheckupReference[] = []
+    for (let offset = 0; offset < input.references.length; offset += concurrency) {
+        input.signal.throwIfAborted()
+        references = [
+            ...references,
+            ...(await Promise.all(
+                input.references
+                    .slice(offset, offset + concurrency)
+                    .map((reference) => scoreReference(reference, input)),
+            )),
+        ]
+    }
     input.signal.throwIfAborted()
     return references
 }

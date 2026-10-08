@@ -24,6 +24,7 @@ from .note import normalize_note, require_id
 from .presentation import create_error_presentation, create_presentation
 from .points_display import points_snapshot
 from .rendering import PUBLIC_PRESENTATION_OWNER, PresentationStore, render_presentation
+from .release_notes import attach_release, has_seen, latest_release, mark_seen
 
 FEATURES = (
     "login",
@@ -58,6 +59,9 @@ INPUT_COMMANDS = frozenset(
 )
 IDENTITY_COMMANDS = frozenset({"login", "anonymous", "login-status", "logout", "clear-identity"})
 PUBLIC_PRESENTATION_COMMANDS = frozenset({"installation", "help"})
+RELEASE_NOTE_COMMANDS = frozenset(
+    {"login", "anonymous", "login-status", "status", "config", "diagnose", "resume", "task", "wait"}
+)
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -175,6 +179,10 @@ class CommandRunner:
                 },
                 "nextAction": view["nextAction"],
                 "translationAvailable": False,
+                **(
+                    {"releaseNotesVersion": view["data"]["releaseNotes"]["version"]}
+                    if view["data"].get("releaseNotes") else {}
+                ),
                 **({"taskId": task_id} if task_id else {}),
                 **({"toolsData": tools_data} if tools_data is not None else {}),
             }
@@ -185,6 +193,24 @@ class CommandRunner:
         self.final_state = envelope["state"]
         sys.stdout.write(json.dumps(envelope, ensure_ascii=False, allow_nan=False) + "\n")
         sys.stdout.flush()
+        version = envelope.get("releaseNotesVersion")
+        if version and envelope.get("delivery", {}).get("mode") == "verbatim" and self.store:
+            try:
+                mark_seen(self.store.root, version, envelope.get("presentationId"))
+            except (OSError, TeehoError, ValueError):
+                self.debug.log("release_notes_marker_failed", {"stage": "cache"}, "warn")
+
+    def _with_release_notes(self, view: dict) -> dict:
+        """只在成功的最终结果附带公告，中途进度和失败不会消耗公告。"""
+        if not self.store or view["state"] not in ("ready", "completed", "authenticated"):
+            return view
+        try:
+            release = latest_release(self.api.get_release_notes())
+            if release and not has_seen(self.store.root, release["version"]):
+                return attach_release(view, release)
+        except (OSError, TeehoError, ValueError):
+            self.debug.log("release_notes_unavailable", {"stage": "announcement"}, "warn")
+        return view
 
     def _configure(self) -> None:
         config = read_installation()
@@ -275,10 +301,7 @@ class CommandRunner:
         return {"history": visible_history(self.auth.root, owner)}
 
     def _task(self, command: str, value: dict, diagnosis: DiagnosisTools) -> dict:
-        task_id = value.get("taskId")
-        if not task_id:
-            return diagnosis.tracked_task(wait=command == "wait")
-        return diagnosis.wait(task_id) if command == "wait" else diagnosis.task(task_id)
+        return diagnosis.tracked_task(wait=command == "wait", task_id=value.get("taskId") or None)
 
     def _status(self) -> dict:
         owner = require_id(_owner(self.identity), "login_required")
@@ -387,6 +410,8 @@ class CommandRunner:
                 view = self._remaining_points(
                     command, create_presentation(command, result, log=self.debug.log)
                 )
+                if command in RELEASE_NOTE_COMMANDS:
+                    view = self._with_release_notes(view)
                 self.output(view, None if view["state"] == "invalid_response" else data)
                 exit_code = int(view["state"] in ("invalid_response", "failed"))
         except BrokenPipeError:

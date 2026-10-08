@@ -22,7 +22,12 @@ import {
     submitAnalysisTask,
 } from '../analysis.service'
 
-import { recordTaskAdmissionBlock } from './analysis.http-events'
+import {
+    recordTaskAdmissionBlock,
+    recordTaskAccepted,
+    recordReportReturned,
+    type AnalysisClientKind,
+} from './analysis.http-events'
 import { domainErrorResponse } from './analysis.http-errors'
 import { parseAnalysisRequest } from './analysis.http-input'
 
@@ -95,6 +100,7 @@ export async function handleSubmitAnalysisTask(
     userId: string,
     body: unknown,
     signal?: AbortSignal,
+    source: AnalysisClientKind = 'unknown',
 ) {
     const parsed = parseAnalysisRequest(body)
     if (!parsed.success) {
@@ -117,6 +123,8 @@ export async function handleSubmitAnalysisTask(
             submissionId: parsed.data.submissionId,
             signal,
         })
+        if (outcome.task) await recordTaskAccepted(userId, outcome.task.id, source)
+        await recordReportReturned(userId, outcome.task, source)
         return {
             status: outcome.task ? HTTP_STATUS.CREATED : HTTP_STATUS.OK,
             response: ok(
@@ -136,13 +144,21 @@ export async function handleSubmitAnalysisTask(
 }
 
 /** 读取当前用户最近的任务 */
-export async function handleGetLatestAnalysisTask(userId: string) {
+export async function handleGetLatestAnalysisTask(
+    userId: string,
+    source: AnalysisClientKind = 'unknown',
+) {
     const task = await getLatestAnalysisTask(userId)
+    await recordReportReturned(userId, task, source)
     return { status: 200, response: ok({ task }) }
 }
 
 /** 提交响应未知时按幂等身份恢复已成立任务；不存在时明确返回空。 */
-export async function handleGetAnalysisTaskAdmission(userId: string, submissionId: unknown) {
+export async function handleGetAnalysisTaskAdmission(
+    userId: string,
+    submissionId: unknown,
+    source: AnalysisClientKind = 'unknown',
+) {
     const parsedSubmissionId = taskIdSchema.safeParse(submissionId)
     if (!parsedSubmissionId.success) {
         return {
@@ -151,6 +167,7 @@ export async function handleGetAnalysisTaskAdmission(userId: string, submissionI
         }
     }
     const task = await getAnalysisTaskAdmission(userId, parsedSubmissionId.data)
+    await recordReportReturned(userId, task, source)
     return { status: 200, response: ok({ task }) }
 }
 
@@ -161,7 +178,11 @@ export async function handleGetAnalysisTasks(userId: string) {
 }
 
 /** 校验任务标识并读取当前用户自己的任务 */
-export async function handleGetAnalysisTask(userId: string, taskId: unknown) {
+export async function handleGetAnalysisTask(
+    userId: string,
+    taskId: unknown,
+    source: AnalysisClientKind = 'unknown',
+) {
     const parsedTaskId = taskIdSchema.safeParse(taskId)
     if (!parsedTaskId.success) {
         return {
@@ -178,6 +199,7 @@ export async function handleGetAnalysisTask(userId: string, taskId: unknown) {
         }
     }
 
+    await recordReportReturned(userId, task, source)
     return { status: 200, response: ok({ task }) }
 }
 
@@ -219,6 +241,7 @@ export async function handleReanalyzeAnalysisTask(
     userId: string,
     sourceTaskId: unknown,
     body: unknown,
+    source: AnalysisClientKind = 'unknown',
 ): Promise<{ status: number; response: ApiResult<unknown> }> {
     const parsedTaskId = taskIdSchema.safeParse(sourceTaskId)
     const parsedBody = reanalysisBodySchema.safeParse(body)
@@ -234,6 +257,8 @@ export async function handleReanalyzeAnalysisTask(
             parsedTaskId.data,
             parsedBody.data.submissionId,
         )
+        if (task) await recordTaskAccepted(userId, task.id, source)
+        await recordReportReturned(userId, task, source)
         return { status: HTTP_STATUS.OK, response: ok({ task }, '已受理再次体检') }
     } catch (error) {
         return domainErrorResponse(error)

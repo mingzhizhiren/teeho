@@ -68,6 +68,7 @@ export async function uploadDraftImages(
     images: SharedTaskImage[],
     transport: AnalysisMediaTransport,
     onProgress: AnalysisImageUploadProgress = () => undefined,
+    onSettled: (image: SharedTaskImage) => void = () => undefined,
 ) {
     if (images.length === 0) {
         return []
@@ -84,10 +85,18 @@ export async function uploadDraftImages(
         )
     } catch (error) {
         if (isAnalysisMediaUploadRateLimitError(error)) throw error
-        return images.map(uploadFailure)
+        return images.map((image) => {
+            const failed = uploadFailure(image)
+            onSettled(failed)
+            return failed
+        })
     }
     if (session.assets.length !== images.length) {
-        return images.map(uploadFailure)
+        return images.map((image) => {
+            const failed = uploadFailure(image)
+            onSettled(failed)
+            return failed
+        })
     }
     return Promise.all(
         images.map(async (image, index): Promise<SharedTaskImage> => {
@@ -98,15 +107,19 @@ export async function uploadDraftImages(
                     onProgress(image.localId, percentage),
                 )
                 await transport.confirm(qualification.id)
-                return {
+                const processing: SharedTaskImage = {
                     ...qualified,
                     status: 'processing',
                     uploadProgress: analysisUiConstraints.percentageComplete,
                     errorCode: null,
                     failureStage: null,
                 }
+                onSettled(processing)
+                return processing
             } catch {
-                return uploadFailure(qualified)
+                const failed = uploadFailure(qualified)
+                onSettled(failed)
+                return failed
             }
         }),
     )

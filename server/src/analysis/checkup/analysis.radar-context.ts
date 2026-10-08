@@ -2,6 +2,7 @@ import { PERFORMANCE, performanceWindowStart } from '@teeho/content-metrics'
 import type { StandardAnalysisTask } from '../analysis.schema'
 import type { AnalysisEvidenceSet } from '../evidence/analysis.evidence'
 import { selectCheckupNotes, type SelectedCheckupNote } from './analysis.checkup.selection'
+import { readModelCohort } from './analysis.model-cohort'
 /** 独立窗口内同时保留相关集合和同类总体；不以模型主分驱动六维。 */
 export function contextSamples(
     evidence: AnalysisEvidenceSet,
@@ -11,6 +12,10 @@ export function contextSamples(
     population: SelectedCheckupNote[]
     windowDays: number
 } {
+    if (readModelCohort(evidence)) {
+        const selected = selectCheckupNotes(evidence, task)
+        return { selected, population: selected, windowDays: PERFORMANCE.maximumDays }
+    }
     const all = selectCheckupNotes(evidence, task, Number.MAX_SAFE_INTEGER, 0, false)
     const related = new Set(
         selectCheckupNotes(evidence, task, Number.MAX_SAFE_INTEGER, undefined, false).map(

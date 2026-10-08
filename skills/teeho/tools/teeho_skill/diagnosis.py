@@ -161,10 +161,23 @@ class DiagnosisTools:
         """查询同一任务；结果保存失败不会触发重建。"""
         return self._query_task(task_id, self._scope())
 
-    def tracked_task(self, wait: bool = False) -> dict:
-        """只读查询本机跟踪记录；不取上传锁、不上传素材、不创建任务。"""
+    def tracked_task(self, wait: bool = False, task_id: Optional[str] = None) -> dict:
+        """统一显式 ID 与本机跟踪查询；未获准入的提交不当作已创建任务。"""
         scope = self._scope()
-        pending = self._pending(scope, validate_draft=False)
+        if task_id is not None:
+            require_id(task_id)
+        try:
+            pending = self._pending(scope, validate_draft=False)
+        except TeehoError:
+            if task_id is None:
+                raise
+            # 显式查询已有任务不依赖本地草稿完整性，仍以服务端结果为准。
+            self.log("task_pending_unavailable", {"taskId": task_id, "errorCode": "invalid_local_data"}, "warn")
+            pending = None
+        if task_id is not None and (
+            not pending or task_id not in (pending.get("taskId"), pending.get("submissionId"))
+        ):
+            return self.wait(task_id) if wait else self._query_task(task_id, scope)
         if not pending:
             raise TeehoError("没有待恢复的题火任务")
         task_id = pending.get("taskId")

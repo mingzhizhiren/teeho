@@ -266,6 +266,7 @@ def _task_presentation(command: str, result: View, log: Optional[Callable] = Non
         view = _notice(
             "failed",
             {
+                "model_service_unavailable": "modelServiceMaintenance",
                 "insight_unavailable": "insightFailure",
                 "radar_unavailable": "radarFailure",
                 "no_reference_notes": "referenceFailure",
@@ -570,6 +571,8 @@ def create_error_presentation(error: BaseException) -> View:
     code, status = getattr(error, "code", None), getattr(error, "status", None)
     if isinstance(error, PermissionError) or code in ("EPERM", "EACCES"):
         return _notice("permission_required", "permission", "request_permission")
+    if code == "model_service_unavailable":
+        return _notice("service_unavailable", "modelServiceMaintenance", "retry")
     if status == 400:
         return _notice("invalid_request", "invalidRequest", "correct_input")
     if status == 403:

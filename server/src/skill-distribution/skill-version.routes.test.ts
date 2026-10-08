@@ -18,6 +18,19 @@ function controller() {
 }
 
 describe('Skill upgrade protocol before authorization', () => {
+    it('rejects the previous client before returning a fragment authorization link', async () => {
+        const actions = controller()
+        const app = createSkillAuthRoutes(actions)
+        const response = await app.handle(
+            new Request('http://localhost/skill/auth/start', {
+                method: 'POST',
+                headers: { 'x-teeho-skill-version': '2.4.1' },
+            }),
+        )
+        expect(response.status).toBe(400)
+        expect(await response.json()).toMatchObject({ code: 4260 })
+        expect(actions.start).not.toHaveBeenCalled()
+    })
     it.each(['start', 'token', 'anonymous'] as const)(
         'rejects legacy %s without creating or refreshing identity',
         async (action) => {
@@ -60,8 +73,8 @@ describe('Skill upgrade protocol before authorization', () => {
             code: 0,
             message: 'ok',
             data: {
-                minimumVersion: '2.3.1',
-                latestVersion: '2.3.1',
+                minimumVersion: '2.4.2',
+                latestVersion: '2.4.2',
                 downloadPath: '/skill/download',
             },
         })

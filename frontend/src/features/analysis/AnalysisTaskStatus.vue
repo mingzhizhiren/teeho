@@ -126,6 +126,7 @@ const statusDescription = computed(() => {
     }
     if (props.task.status === 'technical_failed') {
         if (
+            props.task.failure?.code === 'model_service_unavailable' ||
             props.task.failure?.code === 'insight_unavailable' ||
             props.task.failure?.code === 'radar_unavailable' ||
             props.task.failure?.code === 'no_reference_notes'

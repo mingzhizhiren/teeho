@@ -1,5 +1,10 @@
-import { PERFORMANCE, extractStructureFeatures } from '@teeho/content-metrics'
+import {
+    PERFORMANCE,
+    extractExtendedStructureFeatures,
+    extractLongestStructure,
+} from '@teeho/content-metrics'
 import { createHash } from 'node:crypto'
+import { readCaseRankingVersion } from '../../runtime/case-ranking'
 import type { PluginRuntime } from '../../customization/contract'
 import { PluginError } from '../../customization/errors'
 import { predictInsight } from '../../runtime/insight'
@@ -16,6 +21,7 @@ import { resolveAnalysisCover } from '../media/analysis.cover'
 import {
     AgentContractError,
     AgentCancelledError,
+    isAgentServiceUnavailable,
     AgentProviderError,
     type AgentImageAsset,
     type AgentProvider,
@@ -31,7 +37,9 @@ import { checkupOutputConstraints, checkupVersions } from './analysis.checkup.co
 import { checkupReportSchema, roundCheckupScore } from './analysis.checkup.contract'
 import { loadCheckupEvidence } from './analysis.checkup.evidence'
 import type { AnalysisQuantificationEvidenceStore } from './analysis.checkup.evidence-store'
-import { selectCheckupNotes } from './analysis.checkup.selection'
+import { mapCheckupReferences, selectCheckupNotes } from './analysis.checkup.selection'
+import { prepareModelCohort } from './analysis.model-cohort.prepare'
+import { MODEL_COHORT_LIMITS, readModelCohort, modelCohortEvidence } from './analysis.model-cohort'
 import { selectHybridReferences } from './analysis.hybrid-references'
 import { scoreCheckupReferences } from './analysis.reference-scoring'
 import {
@@ -136,7 +144,57 @@ export async function evaluateAnalysisCheckup(
         materialDescriptions: localMaterials,
         task: { ...input.task, standardTask: provisionalTask },
     }
-    const evidence = await loadCheckupEvidence(context, stored)
+    const publication =
+        provisionalTask.publishedAt ??
+        new Date(Date.parse(input.task.processingStartedAt) + SHANGHAI_OFFSET_MS)
+            .toISOString()
+            .slice(0, DATE_WIDTH)
+    const insight = input.insightEnabled
+        ? await (input.predict ?? predictInsight)(
+              {
+                  title: provisionalTask.fields.title.value,
+                  body: provisionalTask.fields.body.value,
+                  topics: provisionalTask.fields.topics.value,
+                  cover: localMaterials.cover,
+                  contentType: provisionalTask.contentKind,
+                  publishedAt: publication,
+              },
+              publication,
+              localMaterials.primaryTrack,
+              localMaterials.secondaryTracks ?? [],
+              input.signal,
+          )
+        : null
+    const requiresModelCohort =
+        input.insightEnabled && input.plugins.referenceRequirement !== 'optional'
+    if (requiresModelCohort && !insight?.modelId)
+        throw new AgentContractError('Model identity unavailable', {
+            ruleId: 'reference.model.required',
+        })
+    const evidence = await loadCheckupEvidence(
+        context,
+        stored,
+        requiresModelCohort
+            ? async (fresh) =>
+                  prepareModelCohort({
+                      evidence: fresh,
+                      task: provisionalTask,
+                      predict: input.predict ?? predictInsight,
+                      modelId: insight!.modelId!,
+                      signal: input.signal,
+                      onUnavailable: (category, durationMs) =>
+                          input.log.warn(
+                              {
+                                  event: 'analysis_candidate_score_unavailable',
+                                  category,
+                                  durationMs,
+                                  taskId: input.task.id,
+                              },
+                              '候选模型评分不可用',
+                          ),
+                  })
+            : undefined,
+    )
     if (evidence.maintenanceStats) {
         const audit = {
             event: 'analysis_maintenance_stats',
@@ -155,63 +213,84 @@ export async function evaluateAnalysisCheckup(
         input.media.videoEvidence,
     )
     const samples = selectCheckupNotes(evidence, task)
+    const cohort = readModelCohort(evidence)
+    if (
+        cohort &&
+        insight &&
+        (insight.status !== 'available' || insight.baseScore === null || insight.limited)
+    )
+        throw new AgentContractError('Model cannot reliably score this note', {
+            ruleId: 'insight.coverage.required',
+        })
+    if (cohort && cohort.modelId !== insight?.modelId)
+        throw new AgentContractError('Frozen model identity changed', {
+            ruleId: 'reference.model.changed',
+        })
+    if (cohort && cohort.display.length < MODEL_COHORT_LIMITS.minimum)
+        throw new AnalysisReferenceUnavailableError({
+            candidateCount: cohort.candidates.length,
+            selectedCount: cohort.excellentIds.length,
+            similarityPolicy: 'ranking',
+            trackCode: evidence.selectionCriteria.trackCode,
+            sourceVersion: evidence.sourceVersion,
+            cutoff: evidence.selectedAt,
+        })
     const { references: selectedReferences, scoringEvidence } = selectHybridReferences(
         evidence,
         samples,
         task,
     )
+    const references = cohort
+        ? cohort.display.map((item) => ({
+              ...mapCheckupReferences(
+                  [samples.find((sample) => sample.note.noteId === item.noteId)!],
+                  item.source === 'sql' ? 'similar_content' : 'semantic_similarity',
+              )[0]!,
+              modelScore: roundCheckupScore(
+                  cohort.scored.find((score) => score.noteId === item.noteId)!.score,
+              ),
+              modelId: cohort.modelId,
+          }))
+        : await scoreCheckupReferences({
+              references: selectedReferences,
+              evidence: scoringEvidence,
+              predict: input.insightEnabled ? (input.predict ?? predictInsight) : undefined,
+              expectedModelId: insight?.modelId ?? null,
+              signal: input.signal,
+              onUnavailable: (category, durationMs) =>
+                  input.log.warn(
+                      {
+                          event: 'analysis_reference_score_unavailable',
+                          category,
+                          durationMs,
+                          modelId: insight?.modelId ?? null,
+                          taskId: input.task.id,
+                          requestId: input.requestId,
+                      },
+                      '参考评分不可用',
+                  ),
+          })
     input.log.debug(
         {
             event: 'analysis_reference_selection',
             taskId: input.task.id,
-            sqlCount: selectedReferences.filter((note) => note.reason === 'similar_content').length,
-            semanticCount: selectedReferences.filter(
-                (note) => note.reason === 'semantic_similarity',
-            ).length,
-            count: selectedReferences.length,
+            sqlCount: references.filter((note) => note.reason === 'similar_content').length,
+            semanticCount: references.filter((note) => note.reason === 'semantic_similarity')
+                .length,
+            count: references.length,
+            ...(cohort
+                ? {
+                      candidateCount: cohort.candidates.length,
+                      scoredCount: cohort.scored.length,
+                      excellentCount: cohort.excellentIds.length,
+                      median: cohort.median,
+                      modelId: cohort.modelId,
+                      policy: cohort.policy,
+                  }
+                : {}),
         },
-        '两路参考合并完成',
+        '参考选择已冻结',
     )
-    const publication =
-        task.publishedAt ??
-        new Date(Date.parse(input.task.processingStartedAt) + SHANGHAI_OFFSET_MS)
-            .toISOString()
-            .slice(0, DATE_WIDTH)
-    const insight = input.insightEnabled
-        ? await (input.predict ?? predictInsight)(
-              {
-                  title: task.fields.title.value,
-                  body: task.fields.body.value,
-                  topics: task.fields.topics.value,
-                  cover: materials.cover,
-                  contentType: task.contentKind,
-                  publishedAt: publication,
-              },
-              publication,
-              materials.primaryTrack,
-              materials.secondaryTracks ?? [],
-              input.signal,
-          )
-        : null
-    const references = await scoreCheckupReferences({
-        references: selectedReferences,
-        evidence: scoringEvidence,
-        predict: input.insightEnabled ? (input.predict ?? predictInsight) : undefined,
-        expectedModelId: insight?.modelId ?? null,
-        signal: input.signal,
-        onUnavailable: (category, durationMs) =>
-            input.log.warn(
-                {
-                    event: 'analysis_reference_score_unavailable',
-                    category,
-                    durationMs,
-                    modelId: insight?.modelId ?? null,
-                    taskId: input.task.id,
-                    requestId: input.requestId,
-                },
-                '参考评分不可用',
-            ),
-    })
     const topicEvidence = await loadTopics({
         ...context,
         task: { ...input.task, standardTask: task },
@@ -278,6 +357,7 @@ export async function evaluateAnalysisCheckup(
             if (
                 input.signal.aborted ||
                 error instanceof AgentCancelledError ||
+                isAgentServiceUnavailable(error) ||
                 !(error instanceof AgentProviderError)
             )
                 throw error
@@ -310,10 +390,15 @@ export async function evaluateAnalysisCheckup(
                 ruleId: 'insight.coverage.required',
             })
     }
-    const pluginOutput = await input.plugins.evaluate(evidence, task, input.signal, {
-        topicEvidence,
-        matchedTopicIds: tracked.value.matchedTopicIds,
-    })
+    const pluginOutput = await input.plugins.evaluate(
+        modelCohortEvidence(evidence),
+        task,
+        input.signal,
+        {
+            topicEvidence,
+            matchedTopicIds: tracked.value.matchedTopicIds,
+        },
+    )
     const topicSupport = {
         scores: pluginOutput.radar,
         topics: pluginOutput.topicSupport.matchedTopics,
@@ -385,7 +470,13 @@ export async function evaluateAnalysisCheckup(
             originalScore,
         },
         customMetrics: pluginOutput.customMetrics,
-        structureMetrics: extractStructureFeatures(
+        structureMetricsVersion: 'structure.v2' as const,
+        structureReferencePolicy: cohort?.policy ?? readCaseRankingVersion(),
+        structureLocations: extractLongestStructure(
+            task.fields.body.value,
+            task.fields.topics.value,
+        ).locations,
+        structureMetrics: extractExtendedStructureFeatures(
             task.fields.title.value,
             task.fields.body.value,
             task.fields.topics.value,

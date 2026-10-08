@@ -1812,4 +1812,26 @@ onBeforeUnmount(() => {
         height: 7rem;
     }
 }
+@media (prefers-reduced-motion: reduce) {
+    .ritual-c-track {
+        display: flex;
+        align-items: center;
+        justify-content: space-evenly;
+    }
+
+    .ritual-c-track::after,
+    .ritual-c-track span {
+        animation: none;
+    }
+
+    /* 动画停止时不能沿用轨道外的起点，保留可见且不运动的素材方块。 */
+    .ritual-c-track span {
+        position: static;
+        width: 12%;
+        max-width: 2.2rem;
+        height: auto;
+        aspect-ratio: 22 / 13;
+        transform: rotate(45deg);
+    }
+}
 </style>

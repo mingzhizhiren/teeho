@@ -7,10 +7,7 @@ import { BYTE_SIZE } from '@/config/constants'
 import { createPollingLoop } from '@/utils/pollingLoop'
 import { selectImageAttachments } from './analysis.attachment-intake'
 import { analysisUiConstraints } from './analysis.constants'
-import {
-    createUploadingDraftImage,
-    refreshDraftImageStatuses,
-} from './analysis.media-upload'
+import { createUploadingDraftImage, refreshDraftImageStatuses } from './analysis.media-upload'
 import { isAnalysisMediaUploadRateLimitError } from './analysis.media-upload-rate'
 import { browserAnalysisMediaTransport } from './analysis.media-upload.adapter'
 import AnalysisMediaPreviewDialog from './AnalysisMediaPreviewDialog.vue'
@@ -154,7 +151,7 @@ defineExpose({ acceptFiles })
 const polling = createPollingLoop(analysisUiConstraints.mediaStatusPollingIntervalMs, async () => {
     try {
         const refreshed = await refreshDraftImageStatuses(
-            latestImages,
+            latestImages.filter((image) => image.status === 'processing'),
             browserAnalysisMediaTransport,
         )
         emitMergedImages(refreshed)
@@ -297,10 +294,7 @@ onUnmounted(() => {
                 >
                     {{ t(firstOnly ? 'workspace.upload.chooseCover' : 'workspace.upload.choose') }}
                 </button>
-                <p
-                    v-if="firstOnly"
-                    class="px-1 text-center text-xs leading-relaxed text-muted"
-                >
+                <p v-if="firstOnly" class="px-1 text-center text-xs leading-relaxed text-muted">
                     {{ t('workspace.upload.defaultVideoCover') }}
                 </p>
             </li>
@@ -336,6 +330,20 @@ onUnmounted(() => {
                         :aria-label="t('workspace.upload.preparing')"
                     >
                         <div
+                            v-if="image.status === 'processing' || image.uploadProgress >= 100"
+                            class="flex flex-col items-center gap-1 text-white"
+                            data-testid="image-processing-status"
+                        >
+                            <span
+                                class="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white motion-reduce:animate-none"
+                                aria-hidden="true"
+                            ></span>
+                            <span class="text-[10px] font-semibold">{{
+                                t('workspace.upload.processing')
+                            }}</span>
+                        </div>
+                        <div
+                            v-else
                             class="relative flex h-11 w-11 items-center justify-center"
                             role="progressbar"
                             :aria-label="
@@ -398,7 +406,8 @@ onUnmounted(() => {
                         </button>
                     </div>
                     <span
-                        v-else
+                        v-else-if="image.status === 'ready'"
+                        data-testid="image-ready-status"
                         class="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] text-white shadow-sm"
                         aria-hidden="true"
                     >

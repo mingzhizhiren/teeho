@@ -54,9 +54,9 @@
 本实例用于安装或升级题火 Skill。
 
 <!-- skill-version:start -->
-当前发布版本：**2.3.1**。
+当前发布版本：**2.4.2**。
 网站／本地下载：[题火技能包](/api/skill/download)。
-GitHub 下载：[题火技能包](https://github.com/mingzhizhiren/teeho/releases/download/v2.3.1/teeho-agent-skill.zip)。
+GitHub 下载：[题火技能包](https://github.com/mingzhizhiren/teeho/releases/download/v2.4.2/teeho-agent-skill.zip)。
 按下方渠道规则选择下载地址，安装或升级以本文版本和实际包内容为准。
 <!-- skill-version:end -->
 

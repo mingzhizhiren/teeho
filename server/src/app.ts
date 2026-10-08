@@ -11,7 +11,7 @@ interface StoppableApplication {
         stop(): unknown
     }
     worker: { stop(): Promise<void> }
-    mediaWorker: { stop(): void }
+    mediaWorker: { stop(): Promise<void> | void }
     workspaceEventListener: { stop(): Promise<void> }
     dispose(): void
 }
@@ -24,8 +24,7 @@ export async function stopApplication(
     if (application.app.server) {
         application.app.stop()
     }
-    await application.worker.stop()
-    application.mediaWorker.stop()
+    await Promise.all([application.worker.stop(), application.mediaWorker.stop()])
     await application.workspaceEventListener.stop()
     application.dispose()
     await closeDatabase()

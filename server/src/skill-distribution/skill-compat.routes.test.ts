@@ -41,7 +41,7 @@ describe('released Skill API compatibility', () => {
             new Request('http://localhost/api/points/summary', {
                 headers: {
                     authorization: 'Bearer teeho_skill_test',
-                    'x-teeho-skill-version': '2.3.1',
+                    'x-teeho-skill-version': '2.4.2',
                 },
             }),
         )
@@ -53,42 +53,54 @@ describe('released Skill API compatibility', () => {
         })
     })
 
-    it.each([undefined, '', '1.14.1', '2.0.99', '2.1.0', '2.1.1', '2.2.0', '2.2.1', '2.2.2', '2.3.0', 'not-a-version', '2.1.0-preview'])(
-        'blocks obsolete or invalid Skill version %s before creating a task',
-        async (version) => {
-            vi.mocked(authenticateSkillToken).mockResolvedValue({
-                user: identity,
-                authSessionKey: 'skill:test',
-            })
-            const createTask = vi.fn(() => ({ created: true }))
-            const protectedApp = new Elysia()
-                .use(authenticatedApiPlugin)
-                .post('/api/analysis/tasks', createTask)
-            const response = await protectedApp.handle(
-                new Request('http://localhost/api/analysis/tasks', {
-                    method: 'POST',
-                    headers: {
-                        authorization: 'Bearer teeho_skill_test',
-                        ...(version === undefined ? {} : { 'x-teeho-skill-version': version }),
-                    },
-                }),
-            )
-            expect(response.status).toBe(400)
-            expect(await response.json()).toMatchObject({
-                code: 4260,
-                message: expect.stringContaining('升级'),
-                data: {
-                    reason: 'skill_upgrade_required',
-                    minimumVersion: '2.3.1',
-                    latestVersion: '2.3.1',
-                    downloadPath: '/skill/download',
+    it.each([
+        undefined,
+        '',
+        '1.14.1',
+        '2.0.99',
+        '2.1.0',
+        '2.1.1',
+        '2.2.0',
+        '2.2.1',
+        '2.2.2',
+        '2.3.0',
+        '2.3.1',
+        '2.4.1',
+        'not-a-version',
+        '2.1.0-preview',
+    ])('blocks obsolete or invalid Skill version %s before creating a task', async (version) => {
+        vi.mocked(authenticateSkillToken).mockResolvedValue({
+            user: identity,
+            authSessionKey: 'skill:test',
+        })
+        const createTask = vi.fn(() => ({ created: true }))
+        const protectedApp = new Elysia()
+            .use(authenticatedApiPlugin)
+            .post('/api/analysis/tasks', createTask)
+        const response = await protectedApp.handle(
+            new Request('http://localhost/api/analysis/tasks', {
+                method: 'POST',
+                headers: {
+                    authorization: 'Bearer teeho_skill_test',
+                    ...(version === undefined ? {} : { 'x-teeho-skill-version': version }),
                 },
-            })
-            expect(createTask).not.toHaveBeenCalled()
-        },
-    )
+            }),
+        )
+        expect(response.status).toBe(400)
+        expect(await response.json()).toMatchObject({
+            code: 4260,
+            message: expect.stringContaining('升级'),
+            data: {
+                reason: 'skill_upgrade_required',
+                minimumVersion: '2.4.2',
+                latestVersion: '2.4.2',
+                downloadPath: '/skill/download',
+            },
+        })
+        expect(createTask).not.toHaveBeenCalled()
+    })
 
-    it.each(['2.3.1', '2.3.2', '2.10.0', '3.0.0'])(
+    it.each(['2.4.2', '2.4.3', '2.10.0', '3.0.0'])(
         'allows compatible numeric version %s',
         async (version) => {
             vi.mocked(authenticateSkillToken).mockResolvedValue({

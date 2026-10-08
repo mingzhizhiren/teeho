@@ -77,6 +77,7 @@ class ApiFixture:
         self.pending = False
         self.lose_submission = False
         self.anonymous = True
+        self.releases = []
 
     def respond(self, path: str, body: dict) -> tuple[int, object]:
         if self.mode == "upgrade" or (
@@ -93,10 +94,12 @@ class ApiFixture:
             return 200, {"arbitrary": "PRIVATE_STACK"}
         if path == "/api/skill/auth/start":
             return 200, {
-                "verificationUrl": "https://example.test/authorize",
+                "verificationUrl": "https://example.test/authorize#code=" + AUTHORIZATION_CODE,
                 "userCode": AUTHORIZATION_CODE,
                 "interval": 5000,
             }
+        if path == "/api/release-notes/en":
+            return 200, {"releases": self.releases}
         if path == "/api/skill/auth/anonymous":
             return 200, {"user": {"id": OWNER, "isAnonymous": True}}
         if path == "/api/skill/auth/token":
@@ -203,6 +206,24 @@ class ApiFixture:
 
 
 class CliTests(unittest.TestCase):
+    def test_release_notes_translate_and_persist_across_real_cli_processes(self) -> None:
+        self.identity()
+        self.fixture.releases = [{"version": "1.4.1", "markdown": "## Better statistics"}]
+        code, lines, _ = self.run_cli("status")
+        self.assertEqual(code, 0, lines)
+        envelope = lines[-1]
+        self.assertEqual(envelope["releaseNotesVersion"], "1.4.1")
+        translations = {**envelope["translation"]["fields"], "releaseNoteHeading": "更新日志", "releaseNoteLine0": "统计更准确"}
+        code, rendered, _ = self.run_cli("render", {"presentationId": envelope["presentationId"], "translations": translations})
+        self.assertEqual(code, 0, rendered)
+        self.assertTrue(rendered[-1]["displayText"].startswith("更新日志 · v1.4.1\n统计更准确"))
+        code, again, _ = self.run_cli("status")
+        self.assertEqual(code, 0, again)
+        self.assertNotIn("releaseNotesVersion", again[-1])
+        self.fixture.releases = [{"version": "1.5.0", "markdown": "## New features"}]
+        _, newer, _ = self.run_cli("status")
+        self.assertEqual(newer[-1]["releaseNotesVersion"], "1.5.0")
+
     def test_body_powershell_newlines_are_converted_before_http_submission(self) -> None:
         body = "第一段`n`n第二段`r`n第三段\n正常换行\\n保留反斜杠"
         code, lines, _ = self.run_cli("diagnose", {**self.note, "body": body})
@@ -247,10 +268,54 @@ class CliTests(unittest.TestCase):
         write_json(pending, state)
         with lock_directory(pending.parent / 'operation.lock'):
             for command in ['task', 'wait']:
-                code, lines, _ = self.run_cli(command, {})
+                for value in ({}, {'taskId': state['submissionId']}):
+                    with self.subTest(command=command, explicit=bool(value)):
+                        code, lines, _ = self.run_cli(command, value)
+                        self.assertEqual(code, 0, lines)
+                        self.assertEqual(lines[-1]['state'], 'not_submitted')
+                        self.assertEqual(lines[-1]['nextAction'], 'wait_for_user')
+        self.assertEqual(read_json(pending), state)
+        self.assertEqual(self.fixture.submissions, [])
+        self.assertNotIn('/api/analysis/tasks/' + state['submissionId'], self.fixture.calls)
+
+    def test_explicit_query_during_unconfirmed_submission_then_after_admission(self) -> None:
+        self.identity()
+        task_id = '00000000-0000-4000-8000-000000000099'
+        pending = self.data_root / 'accounts' / OWNER / 'pending.json'
+        state = {'userId': OWNER, 'submissionId': task_id, 'taskId': None, 'submitting': True}
+        write_json(pending, state)
+        with lock_directory(pending.parent / 'operation.lock'):
+            for command in ('task', 'wait'):
+                code, lines, _ = self.run_cli(command, {'taskId': task_id})
                 self.assertEqual(code, 0, lines)
                 self.assertEqual(lines[-1]['state'], 'not_submitted')
-                self.assertEqual(lines[-1]['nextAction'], 'wait_for_user')
+            self.fixture.tasks[task_id] = {'id': task_id, 'status': 'queued'}
+            code, lines, _ = self.run_cli('task', {'taskId': task_id})
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(lines[-1]['state'], 'processing')
+        self.assertEqual(lines[-1]['taskId'], task_id)
+        self.assertEqual(read_json(pending), state)
+        self.assertEqual(self.fixture.submissions, [])
+
+        fixtures = json.loads((Path(__file__).parent / 'fixtures' / 'presentation-golden.json').read_text(encoding='utf-8'))
+        report_task = next(case for case in fixtures if case['name'] == 'report')['result']['task']
+        self.fixture.tasks[task_id] = {**report_task, 'id': task_id}
+        code, lines, _ = self.run_cli('wait', {'taskId': task_id})
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(lines[-1]['state'], 'completed')
+        self.assertEqual(lines[-1]['taskId'], task_id)
+        self.assertEqual(read_json(pending), state)
+        self.assertEqual(self.fixture.submissions, [])
+
+    def test_unrelated_missing_task_still_returns_not_found(self) -> None:
+        self.identity()
+        pending = self.data_root / 'accounts' / OWNER / 'pending.json'
+        state = {'userId': OWNER, 'submissionId': '00000000-0000-4000-8000-000000000099', 'taskId': None}
+        write_json(pending, state)
+        for command in ('task', 'wait'):
+            code, lines, _ = self.run_cli(command, {'taskId': '00000000-0000-4000-8000-000000000098'})
+            self.assertEqual(code, 1)
+            self.assertEqual(lines[-1]['state'], 'not_found')
         self.assertEqual(read_json(pending), state)
         self.assertEqual(self.fixture.submissions, [])
 
@@ -630,7 +695,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0, rendered)
         translated = rendered[0]
         self.assertIn("授权码: " + AUTHORIZATION_CODE, translated["displayText"])
-        self.assertIn("https://example.test/authorize", translated["displayText"])
+        self.assertIn("https://example.test/authorize#code=" + AUTHORIZATION_CODE, translated["displayText"])
         self.assertTrue(translated["displayText"].startswith("🔐 登录题火\n\n"))
         for key in ("state", "nextAction", "pollAfterMs", "presentationId"):
             self.assertEqual(translated[key], original[key])

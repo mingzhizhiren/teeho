@@ -58,7 +58,11 @@ export const authenticatedApiPlugin = new Elysia({ name: 'authenticated-api' })
                 )
             const upgrade = requireCompatibleSkill(request)
             if (upgrade) return status(HTTP_STATUS.BAD_REQUEST, upgrade)
-            return { apiUser: identity.user, apiAuthSessionKey: identity.authSessionKey }
+            return {
+                apiUser: identity.user,
+                apiAuthSessionKey: identity.authSessionKey,
+                apiClientKind: 'skill' as const,
+            }
         }
         const authentication = await authenticateApiUser(readCookie(cookie, accessTokenCookieName))
         if (!authentication.success) {
@@ -67,6 +71,7 @@ export const authenticatedApiPlugin = new Elysia({ name: 'authenticated-api' })
         return {
             apiUser: authentication.user,
             apiAuthSessionKey: authentication.authSessionKey,
+            apiClientKind: 'web' as const,
         }
     })
     .as('scoped')

@@ -291,6 +291,7 @@ onBeforeUnmount(restoreBodyScroll)
                     </div>
                 </div>
                 <footer class="shrink-0 border-t border-line bg-surface px-5 py-4 sm:px-6">
+                    <component :is="runtime.accountFooter" v-if="runtime.accountFooter" @suspend="closeAccountDialog" />
                     <AccountSignOutAction @suspend="suspendAccountDialog" />
                 </footer>
             </section>

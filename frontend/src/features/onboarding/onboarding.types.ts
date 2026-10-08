@@ -15,6 +15,7 @@ export type OnboardingEvent =
     | { type: 'analysis_result_revealed'; taskId: string; resultVersion: number }
 
 export type OnboardingBlockerKind =
+    | 'business_operation'
     | 'business_dialog'
     | 'business_drawer'
     | 'workspace_recovery'
@@ -45,6 +46,8 @@ export type OnboardingReplayResult =
 
 /** 业务 feature 只依赖真实事件、blocker lease 与受控重播三类接口。 */
 export interface OnboardingCoordinator {
+    subscribeAvailability(listener: (available: boolean) => void): () => void
+    tryAcquireIdleBlocker(kind: OnboardingBlockerKind): OnboardingBlockerLease | null
     notify(event: OnboardingEvent): OnboardingNotificationResult
     acquireBlocker(kind: OnboardingBlockerKind): OnboardingBlockerLease
     replay(chapterId: OnboardingChapterId): Promise<OnboardingReplayResult>

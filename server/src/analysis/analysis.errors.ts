@@ -11,7 +11,7 @@ export interface AnalysisReferenceSelectionDiagnostics {
 /** 参考数据不足是预期的任务失败，不是 Provider 或服务器故障。 */
 export class AnalysisReferenceUnavailableError extends Error {
     constructor(readonly selection: AnalysisReferenceSelectionDiagnostics) {
-        super('本次没有找到有效参考笔记，未扣费。')
+        super('本次没有找到足够的有效参考笔记，未扣费。')
         this.name = 'AnalysisReferenceUnavailableError'
     }
 }

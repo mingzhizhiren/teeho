@@ -102,6 +102,7 @@ export default {
                 insufficient: '参考样本不足',
                 missingValue: '当前指标缺失',
                 noTopics: '无话题',
+                paragraphLocation: '第 {number} 段：{text}',
                 positions: {
                     within: '范围内',
                     short: '偏短',
@@ -116,10 +117,13 @@ export default {
                     paragraphCount: '正文段落数',
                     topicCount: '话题数量',
                     topicLength: '平均话题长度',
+                    maxTopicLength: '最长话题长度',
+                    maxParagraphLength: '最长段落长度',
                 },
             },
             savedReport: '报告已保存到本地',
             failures: {
+                model_service_unavailable: '服务器正在维护',
                 insight_unavailable: '当前模型无法可靠评估这篇笔记，本次未扣费。',
                 radar_unavailable: '本次没有足够的六维证据，未扣费。',
                 no_reference_notes: '本次没有找到有效参考笔记，未扣费。',
@@ -250,7 +254,7 @@ export default {
                 },
             },
         },
-        analysisEngineName: '题火洞察引擎 · V2.2',
+        analysisEngineName: '题火洞察引擎 · V2.3',
         loadingPage: {
             title: '正在点燃题火洞察引擎',
             description: '正在恢复你的工作区、历史结果和任务状态，请稍候。',
@@ -448,6 +452,7 @@ export default {
             required: '请先上传至少一张图片再开始分析',
             remove: '移除 {name}',
             preparing: '图片准备中',
+            processing: '处理中',
             retry: '重试',
             invalidType: '请选择 JPEG、PNG 或 WebP 图片',
             progress: '图片上传进度 {progress}%',

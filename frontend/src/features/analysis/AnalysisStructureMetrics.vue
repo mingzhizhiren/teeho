@@ -1,19 +1,25 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 import {
     structureMetricNames,
     structureDifferenceState,
     type StructureMetrics,
     type StructureReferences,
+    type StructureLocations,
 } from './analysis.structure-metrics'
 
 interface Props {
     metrics: StructureMetrics
     references: StructureReferences
+    locations?: StructureLocations
 }
 
 const props = defineProps<Props>()
 const { t, n } = useI18n()
+const metricNames = computed(() =>
+    structureMetricNames.filter((name) => props.metrics[name] !== undefined),
+)
 const statusColors = {
     aligned: 'text-emerald-700 dark:text-emerald-300',
     minor: 'text-amber-800 dark:text-amber-300',
@@ -22,8 +28,8 @@ const statusColors = {
     critical: 'text-red-800 dark:text-red-400',
 } as const
 
-function formatValue(value: number | null): string {
-    return value === null
+function formatValue(value: number | null | undefined): string {
+    return value == null
         ? t('workspace.checkup.structureMetrics.unavailable')
         : n(value, {
               style: 'decimal',
@@ -32,10 +38,9 @@ function formatValue(value: number | null): string {
 }
 
 function hasNoTopics(metric: keyof StructureMetrics): boolean {
+    if (metric === 'maxTopicLength') return props.metrics.maxTopicLength === null
     return (
-        metric === 'topicLength' &&
-        props.metrics.topicLength === null &&
-        props.metrics.topicCount === 0
+        metric === 'topicLength' && props.metrics[metric] === null && props.metrics.topicCount === 0
     )
 }
 
@@ -63,7 +68,7 @@ function differenceText(metric: keyof StructureMetrics): string {
         >
             <dl class="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
                 <div
-                    v-for="metric in structureMetricNames"
+                    v-for="metric in metricNames"
                     :key="metric"
                     class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1"
                 >
@@ -119,6 +124,27 @@ function differenceText(metric: keyof StructureMetrics): string {
                                 })
                                 : t('workspace.checkup.structureMetrics.insufficient')
                         }}
+                    </dd>
+                    <dd
+                        v-if="metric === 'maxTopicLength' && locations?.topics.length"
+                        class="w-full break-words text-sm text-muted"
+                    >
+                        <p v-for="item in locations.topics" :key="`topic-${item.index}`">
+                            {{ item.text }}
+                        </p>
+                    </dd>
+                    <dd
+                        v-if="metric === 'maxParagraphLength' && locations?.paragraphs.length"
+                        class="w-full break-words text-sm text-muted"
+                    >
+                        <p v-for="item in locations.paragraphs" :key="`paragraph-${item.index}`">
+                            {{
+                                t('workspace.checkup.structureMetrics.paragraphLocation', {
+                                    number: item.number,
+                                    text: item.text,
+                                })
+                            }}
+                        </p>
                     </dd>
                 </div>
             </dl>

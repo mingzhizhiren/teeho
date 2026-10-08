@@ -15,6 +15,7 @@ from .engagement_display import engagement_tier
 from .help_content import HELP_TEXTS, HELP_TOPICS, feature_lines, help_lines
 from .messages import CONTROL_CHARACTERS, ENGLISH, RADAR_METRICS, is_pictographic, safe_text
 from .storage import ensure_private_directory, write_json
+from .release_notes import has_seen
 from .points_display import points_lines, report_points_line
 from .radar import radar_plot
 from .content_analysis import content_analysis_lines
@@ -502,7 +503,13 @@ def _render(view: View, translations: object = None) -> tuple[str, tuple[str, ..
         )
 
     body = "\n".join(_render_lines(view, translate))
-    return _with_points(body, view, translate), used
+    body = _with_points(body, view, translate)
+    notes = view["data"].get("releaseNotes")
+    if notes:
+        header = translate("releaseNoteHeading") + " · v" + notes["version"]
+        lines = [translate(key) for key in notes["fields"]]
+        body = "\n".join([header, *lines, "", DIVIDER, "", body])
+    return body, used
 
 
 def _with_points(body: str, view: View, translate: Translate) -> str:
@@ -600,6 +607,20 @@ class PresentationStore:
         tools_data: object = None,
     ) -> View:
         """仅公开模板用到的可翻译字段和安全业务标识。"""
+        notes = view["data"].get("releaseNotes")
+        if notes:
+            try:
+                seen = has_seen(self.root, notes["version"], presentation_id)
+            except (OSError, TeehoError, ValueError):
+                seen = False
+            if seen:
+                view = {
+                    **view,
+                    "data": {
+                        key: value for key, value in view["data"].items()
+                        if key != "releaseNotes"
+                    },
+                }
         display_text, used = _render(view, translations)
         overrides = _translations_object(translations)
         translated_count = sum(
@@ -635,6 +656,10 @@ class PresentationStore:
                 "language": "text",
             },
             "nextAction": view["nextAction"],
+            **(
+                {"releaseNotesVersion": data["releaseNotes"]["version"]}
+                if data.get("releaseNotes") else {}
+            ),
             "presentationId": presentation_id,
             "translation": {"fields": {key: _source(view, key) for key in used}},
             **({"taskId": data["taskId"]} if data.get("taskId") else {}),

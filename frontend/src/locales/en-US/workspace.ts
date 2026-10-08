@@ -116,6 +116,7 @@ export default {
                 insufficient: 'Insufficient reference samples',
                 missingValue: 'Metric unavailable',
                 noTopics: 'No topics',
+                paragraphLocation: 'Paragraph {number}: {text}',
                 positions: {
                     within: 'Within range',
                     short: 'Shorter',
@@ -130,10 +131,13 @@ export default {
                     paragraphCount: 'Body paragraph count',
                     topicCount: 'Topic count',
                     topicLength: 'Average topic length',
+                    maxTopicLength: 'Longest topic length',
+                    maxParagraphLength: 'Longest paragraph length',
                 },
             },
             savedReport: 'Report saved locally',
             failures: {
+                model_service_unavailable: 'The server is under maintenance',
                 insight_unavailable: 'The model cannot reliably score this note.',
                 radar_unavailable: 'There is not enough radar evidence for this analysis.',
                 no_reference_notes: 'No valid comparable notes were found.',
@@ -271,7 +275,7 @@ export default {
                 },
             },
         },
-        analysisEngineName: 'Teeho Insight Engine · V2.2',
+        analysisEngineName: 'Teeho Insight Engine · V2.3',
         loadingPage: {
             title: 'Igniting the Teeho Insight Engine',
             description: 'Restoring your workspace, local history, and task status. Please wait.',
@@ -493,6 +497,7 @@ export default {
             required: 'Upload at least one image before starting the analysis',
             remove: 'Remove {name}',
             preparing: 'Preparing image',
+            processing: 'Processing',
             retry: 'Retry',
             invalidType: 'Choose a JPEG, PNG, or WebP image',
             progress: 'Image upload progress: {progress}%',

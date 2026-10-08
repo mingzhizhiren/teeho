@@ -123,7 +123,7 @@ export function createSkillAuthService(deps: SkillAuthDependencies) {
             })
             return {
                 userCode,
-                verificationUrl: deps.origin + '/skill/authorize',
+                verificationUrl: deps.origin + '/skill/authorize#code=' + userCode,
                 expiresIn: SKILL_AUTH.pendingMs,
                 interval: SKILL_AUTH.pollMs,
             }

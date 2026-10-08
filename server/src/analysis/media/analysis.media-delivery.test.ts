@@ -31,6 +31,63 @@ function readyAsset(id: string, content: Uint8Array): AnalysisMediaAssetRecord {
 }
 
 describe('analysis media provider delivery', () => {
+    it.each([1, 6, 18])('%i张图片最多四路下载，乱序完成仍按输入顺序返回', async (count) => {
+        const content = new Uint8Array([1, 2, 3])
+        const records = Array.from({ length: count }, (_, index) =>
+            readyAsset(String(index), content),
+        )
+        const releases: Array<() => void> = []
+        let active = 0
+        let peak = 0
+        const download = vi.fn(async () => {
+            active += 1
+            peak = Math.max(peak, active)
+            await new Promise<void>((resolve) => releases.push(resolve))
+            active -= 1
+            return content
+        })
+        const pending = loadAgentImagesForReferences(
+            records[0]!.userId,
+            records.map((asset) => asset.id),
+            { findOwned: async () => records, download },
+        )
+        try {
+            await vi.waitFor(() => expect(download).toHaveBeenCalledTimes(Math.min(count, 4)))
+            for (let completed = 0; completed < count; completed += 1) {
+                await vi.waitFor(() => expect(releases.length).toBeGreaterThan(0))
+                releases.pop()!()
+                await Promise.resolve()
+            }
+            const result = await pending
+            expect(peak).toBe(Math.min(count, 4))
+            expect(result.map((image) => image.reference)).toEqual(records.map((asset) => asset.id))
+        } finally {
+            for (const release of releases) release()
+        }
+    })
+    it('完整性失败后停止排入后续图片，并等待已开始的下载收尾', async () => {
+        const content = new Uint8Array([1])
+        const records = Array.from({ length: 6 }, (_, index) => readyAsset(String(index), content))
+        const releases: Array<(value: Uint8Array) => void> = []
+        const download = vi.fn(() => new Promise<Uint8Array>((resolve) => releases.push(resolve)))
+        let settled = false
+        const pending = loadAgentImagesForReferences(
+            records[0]!.userId,
+            records.map((asset) => asset.id),
+            { findOwned: async () => records, download },
+        )
+        const result = pending.catch((error: unknown) => {
+            settled = true
+            return error
+        })
+        await vi.waitFor(() => expect(download).toHaveBeenCalledTimes(4))
+        releases[0]!(new Uint8Array([9]))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(settled).toBe(false)
+        for (const release of releases.slice(1)) release(content)
+        expect(await result).toBeInstanceOf(AnalysisAssetExpiredError)
+        expect(download).toHaveBeenCalledTimes(4)
+    })
     it('loads only owned ready derived assets and preserves the shared draft order', async () => {
         const firstId = '00000000-0000-4000-8000-000000000010'
         const secondId = '00000000-0000-4000-8000-000000000011'

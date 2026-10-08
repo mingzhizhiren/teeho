@@ -24,7 +24,7 @@ export async function findFrozenAnalysisEvidenceSet(
 }
 
 /**
- * 首次写入任务证据集；并发执行时返回最先成功冻结的版本，之后不得覆盖。
+ * 首次写入完整证据；并发执行时返回最先冻结的版本，之后不得覆盖。
  */
 export async function freezeAnalysisEvidenceSet(
     taskId: string,

@@ -36,6 +36,28 @@ SECOND_ID = "00000000-0000-4000-8000-000000000002"
 
 
 class PresentationTests(unittest.TestCase):
+    def test_model_maintenance_http_response_keeps_safe_reason(self) -> None:
+        transport = Mock()
+        transport.request.return_value = HttpResponse(503, json.dumps({
+            "code": 5000, "message": "private endpoint",
+            "data": {"reason": "model_service_unavailable"},
+        }).encode(), {})
+        api = TeehoApi("https://teeho.test/api", transport)
+        with self.assertRaises(TeehoError) as caught:
+            api.start_login("test-device")
+        self.assertEqual(caught.exception.code, "model_service_unavailable")
+        self.assertEqual(caught.exception.status, 503)
+
+    def test_model_maintenance_is_explicit_for_http_and_failed_tasks(self) -> None:
+        error_view = create_error_presentation(TeehoError("model_service_unavailable", 503))
+        self.assertIn("The server is under maintenance", render_presentation(error_view))
+        task_view = create_presentation("task", {"task": {
+            "id": FIRST_ID, "status": "technical_failed",
+            "failure": {"code": "model_service_unavailable", "message": "private details"},
+        }})
+        self.assertIn("The server is under maintenance", render_presentation(task_view))
+        self.assertNotIn("private details", json.dumps(task_view))
+
     def test_installation_metadata_survives_render_in_another_process_store(self) -> None:
         cases = (
             ("help", {}, {"topics": ["account", "diagnose", "task", "status", "history", "help"]}),

@@ -116,6 +116,7 @@ export default {
         close: '关闭',
         cancel: '取消',
         requestFailed: '请求失败，请稍后重试',
+        modelServiceMaintenance: '服务器正在维护',
         serverUnavailable: '服务器功能异常，请稍后重试',
         language: '语言',
         theme: '主题',

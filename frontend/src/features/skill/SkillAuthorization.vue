@@ -1,18 +1,24 @@
 <script setup lang="ts">
 import { ref, onBeforeUnmount } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { approveSkillDevice } from '@/api/skill'
 import { ApiRequestError } from '@/utils/apiRequestError'
 import { HTTP_STATUS } from '@/config/constants'
+import { useSkillAuthorizationStore } from '@/stores/skillAuthorization'
 const { t } = useI18n()
-const userCode = ref('')
+const authorization = useSkillAuthorizationStore()
+const { userCode } = storeToRefs(authorization)
 const remember = ref(true)
 const isPending = ref(false)
 const isApproved = ref(false)
 const error = ref<'unknown' | 'rejected' | null>(null)
 const expiresAt = ref<string | null>(null)
 const controller = new AbortController()
-onBeforeUnmount(() => controller.abort())
+onBeforeUnmount(() => {
+    controller.abort()
+    authorization.clear()
+})
 async function approve(): Promise<void> {
     if (isPending.value) return
     isPending.value = true
@@ -26,6 +32,7 @@ async function approve(): Promise<void> {
         if (controller.signal.aborted) return
         expiresAt.value = result.expiresAt
         isApproved.value = true
+        authorization.clear()
     } catch (cause) {
         if (controller.signal.aborted) return
         const rejected =

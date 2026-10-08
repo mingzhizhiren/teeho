@@ -34,7 +34,7 @@ export class AnalysisMediaWorker {
     private readonly pollIntervalMs: number
     private readonly log: Pick<typeof logger, 'info' | 'warn'>
     private timer: ReturnType<typeof setInterval> | undefined
-    private running = false
+    private activeRuns: readonly Promise<void>[] = []
     private claimFailureLogged = false
 
     constructor(options: AnalysisMediaWorkerOptions = {}) {
@@ -50,33 +50,48 @@ export class AnalysisMediaWorker {
     }
 
     start() {
-        if (this.timer) {
+        if (this.timer || this.activeRuns.length > 0) {
             return
         }
         this.timer = setInterval(() => void this.wake(), this.pollIntervalMs)
         void this.wake()
     }
 
-    stop() {
+    async stop(): Promise<void> {
         if (this.timer) {
             clearInterval(this.timer)
             this.timer = undefined
         }
+        await Promise.all(this.activeRuns)
     }
 
     /** 暴露只读生命周期快照，供维护恢复健康矩阵判断待命状态。 */
     readReadiness(): { readonly started: boolean; readonly busy: boolean } {
-        return { started: Boolean(this.timer), busy: this.running }
+        return { started: Boolean(this.timer), busy: this.activeRuns.length > 0 }
     }
 
     wake() {
-        if (this.running) {
-            return
+        if (!this.timer) return
+        while (this.activeRuns.length < analysisMediaConstraints.processingConcurrency) {
+            const run = this.drain()
+                .catch((error: unknown) => {
+                    this.log.warn(
+                        { event: 'analysis_media_worker_failed', err: error },
+                        '图片处理槽异常，下一轮重试',
+                    )
+                })
+                .finally(() => {
+                    this.activeRuns = this.activeRuns.filter((active) => active !== run)
+                })
+            this.activeRuns = [...this.activeRuns, run]
         }
-        this.running = true
-        void this.runOnce().finally(() => {
-            this.running = false
-        })
+    }
+
+    /** 每个槽独立处理；领取为空或暂时失败时等待下一次唤醒。 */
+    private async drain(): Promise<void> {
+        while (this.timer) {
+            if (!(await this.runOnce())) return
+        }
     }
 
     /** 领取并处理一张图片；无待处理记录时返回 false。 */

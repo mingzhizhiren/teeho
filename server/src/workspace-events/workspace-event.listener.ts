@@ -80,7 +80,10 @@ export class PostgresWorkspaceEventListener {
     async stop() {
         const handle = this.handle
         this.handle = null
-        await handle?.unlisten()
-        await this.client.end({ timeout: 5 })
+        try {
+            await handle?.unlisten()
+        } finally {
+            await this.client.end({ timeout: 5 })
+        }
     }
 }

@@ -91,6 +91,8 @@ def _media_record(record: dict) -> None:
 
 def _rejection(path: str, status: int, envelope: dict) -> str:
     data = envelope.get("data")
+    if status == 503 and isinstance(data, dict) and data.get("reason") == "model_service_unavailable":
+        return "model_service_unavailable"
     if status == 404 and path.startswith("/analysis/tasks/") and UUID_PATTERN.fullmatch(path.removeprefix("/analysis/tasks/")):
         # 任务详情的明确缺失必须传给诊断层；展示层按 HTTP 状态分类不能代替业务错误码。
         return "not_found"
@@ -120,6 +122,17 @@ class TeehoApi:
         self.base_url = normalize_api_url(base_url)
         self.transport = transport
         self.authorize = authorize
+
+    def get_release_notes(self) -> dict:
+        """可选公告固定读取英文，不刷新身份，短超时且不重试。"""
+        path = constants.API_RELEASE_NOTES
+        response = self.transport.request(
+            self.base_url + path,
+            route=path,
+            timeout=constants.RELEASE_NOTES_TIMEOUT_SECONDS,
+            headers={"X-Teeho-Skill-Version": skill_version()},
+        )
+        return self._decode(path, response)
 
     def _request(self, path: str, body: Optional[dict] = None, token: Optional[str] = None) -> dict:
         route = UUID_PATTERN.sub(":id", path)
@@ -195,8 +208,14 @@ class TeehoApi:
             constants.API_AUTH_START,
             {"deviceToken": device_token, "deviceName": device_name},
         )
-        validate_http_url(_text(data.get("verificationUrl")))
-        _text(data.get("userCode"))
+        code = _text(data.get("userCode"))
+        if not re.fullmatch(r"[A-F0-9]{10}", code):
+            raise TeehoError("invalid_response")
+        # 授权链接用于浏览器导航；仅允许与完整授权码一致的片段，网络请求仍禁用片段。
+        address, separator, fragment = _text(data.get("verificationUrl")).partition("#")
+        validate_http_url(address)
+        if separator and fragment != "code=" + code:
+            raise TeehoError("invalid_response")
         if type(data.get("interval")) not in (int, float) or data["interval"] <= 0:
             raise TeehoError("invalid_response")
         return data

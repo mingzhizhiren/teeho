@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { ModelServiceUnavailableError } from '../../utils/model-service-error'
 import { z } from 'zod'
 import { PluginError } from '../../customization/errors'
 import { analysisEvidenceSetSchema, type AnalysisEvidenceSet } from '../evidence/analysis.evidence'
@@ -7,11 +8,30 @@ import { checkupVersions } from './analysis.checkup.constants'
 import type { CheckupEvaluationInput } from './analysis.checkup.evaluation'
 import { SEMANTIC_REFERENCE_KEY, semanticReferenceSamples } from './analysis.reference-evidence'
 
-const recallFailureSchema = z.object({
-    category: z.enum(['embedding_failed', 'query_failed', 'timeout']),
-    modelVersion: z.string().nullable(),
+const recallTimingsSchema = z.object({
+    embeddingDurationMs: z.number().finite().nonnegative().optional(),
+    queryDurationMs: z.number().finite().nonnegative().optional(),
+    validationDurationMs: z.number().finite().nonnegative().optional(),
+    queryAttempts: z.number().int().nonnegative().optional(),
+    retryErrorCode: z
+        .string()
+        .regex(/^[A-Z0-9_]{1,32}$/u)
+        .optional(),
 })
-const recallIdentitySchema = z.object({ modelVersion: z.string() })
+const recallFailureSchema = z.object({
+    category: z.enum(['embedding_failed', 'query_failed', 'validation_failed', 'timeout']),
+    modelVersion: z.string().nullable(),
+    diagnostics: recallTimingsSchema
+        .extend({
+            stage: z.enum(['embedding', 'query', 'validation']),
+            errorCode: z
+                .string()
+                .regex(/^[A-Z0-9_]{1,32}$/u)
+                .optional(),
+        })
+        .optional(),
+})
+const recallIdentitySchema = recallTimingsSchema.extend({ modelVersion: z.string() })
 
 function unavailableEvidence(input: CheckupEvaluationInput, asOf: string): AnalysisEvidenceSet {
     return {
@@ -49,6 +69,7 @@ function unavailableEvidence(input: CheckupEvaluationInput, asOf: string): Analy
 export async function loadCheckupEvidence(
     input: CheckupEvaluationInput,
     existing?: AnalysisEvidenceSet | null,
+    prepare?: (evidence: AnalysisEvidenceSet) => Promise<AnalysisEvidenceSet>,
 ): Promise<AnalysisEvidenceSet> {
     const stored =
         existing === undefined
@@ -122,6 +143,21 @@ export async function loadCheckupEvidence(
                 {
                     event: 'analysis_reference_recall',
                     source: 'semantic',
+                    sourceKind: 'semantic',
+                    state: referenceEvidence.notes.length ? 'selected' : 'empty',
+                    ...(identity.success
+                        ? {
+                              embeddingDurationMs: identity.data.embeddingDurationMs,
+                              queryDurationMs: identity.data.queryDurationMs,
+                              validationDurationMs: identity.data.validationDurationMs,
+                              queryAttempts: identity.data.queryAttempts,
+                              retryErrorCode: identity.data.retryErrorCode,
+                              retryDecision:
+                                  (identity.data.queryAttempts ?? 0) > 1
+                                      ? 'read_retry_succeeded'
+                                      : undefined,
+                          }
+                        : {}),
                     count: referenceEvidence.notes.length,
                     candidateCount: recalled.aggregate.totalNoteCount,
                     durationMs: Date.now() - started,
@@ -134,11 +170,16 @@ export async function loadCheckupEvidence(
             )
         } catch (error) {
             input.signal.throwIfAborted()
+            if (error instanceof ModelServiceUnavailableError) throw error
             const failure = recallFailureSchema.safeParse(error)
             input.log.warn(
                 {
                     event: 'analysis_reference_recall',
                     source: 'sql',
+                    sourceKind: 'sql',
+                    state: 'degraded',
+                    errorCategory: failure.success ? failure.data.category : 'semantic_unavailable',
+                    ...(failure.success ? failure.data.diagnostics : {}),
                     category: failure.success ? failure.data.category : 'semantic_unavailable',
                     modelVersion: failure.success ? failure.data.modelVersion : null,
                     durationMs: Date.now() - started,
@@ -165,5 +206,8 @@ export async function loadCheckupEvidence(
                   .digest('hex'),
           }
         : evidence
-    return input.evidenceStore.freeze(input.task.id, input.task.userId, withMaterials)
+    // 数据库证据不可变：模型分和随机选择完成后才首写，不能先保存候选再 UPDATE。
+    const prepared = prepare ? await prepare(withMaterials) : withMaterials
+    input.signal.throwIfAborted()
+    return input.evidenceStore.freeze(input.task.id, input.task.userId, prepared)
 }

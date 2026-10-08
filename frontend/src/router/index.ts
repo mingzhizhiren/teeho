@@ -1,6 +1,7 @@
 import { createRouter, type Router, type RouterHistory } from 'vue-router'
 import { appRoutePaths } from '@/config/appRoutes'
 import { useAuthStore } from '@/stores/auth'
+import { useSkillAuthorizationStore } from '@/stores/skillAuthorization'
 import { resolveSafeRedirect } from '@/utils/redirect'
 
 /** 路由只装配诊断、账号和 Agent Skill。 */
@@ -59,6 +60,11 @@ export function createAppRouter(
     })
     if (options.installAuthGuard) {
         router.beforeEach(async (to) => {
+            if (to.path === appRoutePaths.skillAuthorize && to.hash) {
+                useSkillAuthorizationStore().readLink(to.hash)
+                // 先清除片段，再执行登录跳转，授权码不能进入 redirect 查询参数。
+                return { path: to.path, query: to.query, hash: '', replace: true }
+            }
             if (!to.meta.requiresAuth && !to.meta.guestOnly) return
             const auth = useAuthStore()
             await auth.initialize()

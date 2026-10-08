@@ -94,8 +94,13 @@ export const analysisRoutes = new Elysia({ prefix: '/analysis' })
         set.status = result.status
         return result.response
     })
-    .post('/tasks', async ({ apiUser, body, request, set }) => {
-        const result = await handleSubmitAnalysisTask(apiUser.id, body, request.signal)
+    .post('/tasks', async ({ apiUser, apiClientKind, body, request, set }) => {
+        const result = await handleSubmitAnalysisTask(
+            apiUser.id,
+            body,
+            request.signal,
+            apiClientKind,
+        )
         set.status = result.status
         const headers = 'headers' in result ? result.headers : undefined
         if (headers) {
@@ -103,13 +108,17 @@ export const analysisRoutes = new Elysia({ prefix: '/analysis' })
         }
         return result.response
     })
-    .get('/tasks/latest', async ({ apiUser, set }) => {
-        const result = await handleGetLatestAnalysisTask(apiUser.id)
+    .get('/tasks/latest', async ({ apiUser, apiClientKind, set }) => {
+        const result = await handleGetLatestAnalysisTask(apiUser.id, apiClientKind)
         set.status = result.status
         return result.response
     })
-    .get('/tasks/admissions/:submissionId', async ({ apiUser, params, set }) => {
-        const result = await handleGetAnalysisTaskAdmission(apiUser.id, params.submissionId)
+    .get('/tasks/admissions/:submissionId', async ({ apiUser, apiClientKind, params, set }) => {
+        const result = await handleGetAnalysisTaskAdmission(
+            apiUser.id,
+            params.submissionId,
+            apiClientKind,
+        )
         set.status = result.status
         return result.response
     })
@@ -138,13 +147,18 @@ export const analysisRoutes = new Elysia({ prefix: '/analysis' })
         set.status = result.status
         return result.response
     })
-    .post('/tasks/:taskId/reanalyze', async ({ apiUser, params, body, set }) => {
-        const result = await handleReanalyzeAnalysisTask(apiUser.id, params.taskId, body)
+    .post('/tasks/:taskId/reanalyze', async ({ apiUser, apiClientKind, params, body, set }) => {
+        const result = await handleReanalyzeAnalysisTask(
+            apiUser.id,
+            params.taskId,
+            body,
+            apiClientKind,
+        )
         set.status = result.status
         return result.response
     })
-    .get('/tasks/:taskId', async ({ apiUser, params, set }) => {
-        const result = await handleGetAnalysisTask(apiUser.id, params.taskId)
+    .get('/tasks/:taskId', async ({ apiUser, apiClientKind, params, set }) => {
+        const result = await handleGetAnalysisTask(apiUser.id, params.taskId, apiClientKind)
         set.status = result.status
         return result.response
     })

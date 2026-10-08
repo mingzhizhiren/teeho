@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { logger } from '../../utils/logger'
 
+import { analysisMediaConstraints } from '../analysis.constants'
 import { AnalysisAssetExpiredError } from '../analysis.errors'
 import type { AgentImageAsset } from '../providers/analysis.provider'
 import type { AnalysisMediaAssetRecord } from './analysis.media.repository'
@@ -79,38 +80,74 @@ export async function loadAgentImagesForReferences(
     const adapter = dependencies ?? (await productionDependencies())
     const records = await adapter.findOwned(userId, references)
     const byId = new Map(records.map((asset) => [asset.id, asset]))
-    const images: AgentImageAsset[] = []
-    for (const reference of references) {
-        const asset = assertReadyAsset(byId.get(reference))
-        logger.debug(
-            {
-                event: 'analysis_media_download_reference',
-                assetId: reference,
-                objectKeyHash: createHash('sha256').update(asset.processedObjectPath).digest('hex'),
-                assetState: asset.state,
-                expiresAt: asset.expiresAt,
-                boundTaskId: asset.taskId,
-                expectedByteSize: asset.byteSize,
-            },
-            '核对待下载图片引用',
-        )
-        const content = await adapter.download(asset.processedObjectPath)
-        const digest = createHash('sha256').update(content).digest('hex')
-        if (content.byteLength !== asset.byteSize || digest !== asset.sha256) {
-            throw new AnalysisAssetExpiredError('图片完整性校验失败，请重新上传')
+    const assets = references.map((reference) => ({
+        reference,
+        asset: assertReadyAsset(byId.get(reference)),
+    }))
+    let nextIndex = 0
+    let failed = false
+    const consume = async () => {
+        let completed: Array<{ index: number; image: AgentImageAsset }> = []
+        while (!failed && nextIndex < assets.length) {
+            const index = nextIndex++
+            const { reference, asset } = assets[index]!
+            try {
+                const image = await downloadReadyImage(reference, asset, adapter)
+                completed = [...completed, { index, image }]
+            } catch (error) {
+                failed = true
+                throw error
+            }
         }
-        images.push({
-            reference,
-            mediaType: asset.mediaType,
-            byteSize: asset.byteSize,
-            width: asset.width,
-            height: asset.height,
-            content,
-            sourceSha256: asset.originalSha256 ?? asset.sha256,
-            availability: 'processed_private',
-        })
+        return completed
     }
-    return images
+    // 失败也等待在途读取结束，避免重试时叠加旧请求；不再排入剩余图片。
+    const outcomes = await Promise.allSettled(
+        Array.from(
+            { length: Math.min(assets.length, analysisMediaConstraints.downloadConcurrency) },
+            consume,
+        ),
+    )
+    const failure = outcomes.find((outcome) => outcome.status === 'rejected')
+    if (failure?.status === 'rejected') throw failure.reason
+    return outcomes
+        .flatMap((outcome) => (outcome.status === 'fulfilled' ? outcome.value : []))
+        .sort((left, right) => left.index - right.index)
+        .map(({ image }) => image)
+}
+
+async function downloadReadyImage(
+    reference: string,
+    asset: ReturnType<typeof assertReadyAsset>,
+    adapter: AnalysisMediaDeliveryDependencies,
+): Promise<AgentImageAsset> {
+    logger.debug(
+        {
+            event: 'analysis_media_download_reference',
+            assetId: reference,
+            objectKeyHash: createHash('sha256').update(asset.processedObjectPath).digest('hex'),
+            assetState: asset.state,
+            expiresAt: asset.expiresAt,
+            boundTaskId: asset.taskId,
+            expectedByteSize: asset.byteSize,
+        },
+        '核对待下载图片引用',
+    )
+    const content = await adapter.download(asset.processedObjectPath)
+    const digest = createHash('sha256').update(content).digest('hex')
+    if (content.byteLength !== asset.byteSize || digest !== asset.sha256) {
+        throw new AnalysisAssetExpiredError('图片完整性校验失败，请重新上传')
+    }
+    return {
+        reference,
+        mediaType: asset.mediaType,
+        byteSize: asset.byteSize,
+        width: asset.width,
+        height: asset.height,
+        content,
+        sourceSha256: asset.originalSha256 ?? asset.sha256,
+        availability: 'processed_private',
+    }
 }
 
 /** Worker 根据不可变任务快照读取已绑定的有序派生图。 */

@@ -1,7 +1,7 @@
 /** 算法及评分口径的单一版本来源。 */
 export const checkupVersions = {
     algorithm: 'radar-rules.v120.2',
-    selection: 'checkup-selection.v7',
+    selection: 'checkup-selection.v8',
     score: 'insight-consistency-score.v2',
     explanation: 'content-analysis.v4',
 } as const
@@ -41,7 +41,7 @@ export const checkupSampling = {
         CHECKUP_WINDOW_DAYS.expanded,
         CHECKUP_WINDOW_DAYS.maximum,
     ],
-    candidateLimit: 1000,
+    candidateLimit: 50,
     // 仅标记词面主题匹配供审计；参考资格不再由该阈值决定。
     minimumSimilarity: 0.1,
     observationMaxAgeDays: 30,

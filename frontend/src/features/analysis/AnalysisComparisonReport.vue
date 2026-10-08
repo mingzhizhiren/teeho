@@ -25,6 +25,7 @@ const referenceNotes = computed(() =>
     <AnalysisStructureMetrics
         :metrics="result.structureMetrics"
         :references="result.structureReferences"
+        :locations="result.structureLocations"
     />
     <section
         v-if="result.comparisonNotes.length"
@@ -59,7 +60,10 @@ const referenceNotes = computed(() =>
                 <p v-if="!note.url" class="mt-1 text-xs text-muted">
                     {{ t('workspace.checkup.missingNoteUrl') }}
                 </p>
-                <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-muted">
+                <p
+                    v-if="note.bodyExcerpt"
+                    class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-muted"
+                >
                     {{ note.bodyExcerpt }}
                 </p>
                 <p v-if="note.topics?.length" class="mt-2 break-words text-sm text-muted">

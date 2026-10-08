@@ -118,6 +118,7 @@ export default {
         close: 'Close',
         cancel: 'Cancel',
         requestFailed: 'Request failed. Please try again later.',
+        modelServiceMaintenance: 'The server is under maintenance',
         serverUnavailable: 'The analysis service is temporarily unavailable. Please try again.',
         language: 'Language',
         theme: 'Theme',

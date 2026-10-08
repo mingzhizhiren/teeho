@@ -6,9 +6,15 @@ import type { predictInsight } from '../../runtime/insight'
 import { createAnalysisCompletedNotification } from '../../notifications/notification.repository'
 import { getTaskPolicy, type TaskPolicy } from '../../runtime/task-policy'
 import { logger } from '../../utils/logger'
+import {
+    ModelServiceUnavailableError,
+    MODEL_SERVICE_UNAVAILABLE,
+    MODEL_SERVICE_MAINTENANCE_MESSAGE,
+} from '../../utils/model-service-error'
 import { loadAgentVideoEvidenceForTask } from '../../video/video.analysis-evidence'
 import { resetVideoStartEventsForAnalysisSuccess } from '../../video/video.repository'
 import { analysisExecutionConstraints } from '../analysis.constants'
+import { analysisObservationErrorCategory } from '../analysis.observation'
 import {
     AnalysisAssetExpiredError,
     AnalysisReferenceUnavailableError,
@@ -40,6 +46,7 @@ import {
     AgentProviderError,
     AgentTimeoutError,
     agentProviderErrorLogFields,
+    isAgentServiceUnavailable,
     sanitizeAgentProviderDebugDetails,
     type AgentProvider,
 } from '../providers/analysis.provider'
@@ -238,6 +245,8 @@ export function createAnalysisTaskExecutor(
 
 /** 把未知异常转换为稳定的分析失败结果 */
 function toAnalysisFailure(error: unknown): AnalysisFailure {
+    if (error instanceof ModelServiceUnavailableError || isAgentServiceUnavailable(error))
+        return { code: MODEL_SERVICE_UNAVAILABLE, message: MODEL_SERVICE_MAINTENANCE_MESSAGE }
     if (error instanceof AgentContractError && error.ruleId === 'radar.coverage.required')
         return { code: 'radar_unavailable', message: '本次没有足够的六维证据，未扣费。' }
     if (error instanceof AgentContractError && error.ruleId === 'insight.coverage.required')
@@ -253,9 +262,6 @@ function toAnalysisFailure(error: unknown): AnalysisFailure {
     if (error instanceof AnalysisAssetExpiredError) {
         return { code: 'image_expired', message: publicFailureMessage }
     }
-    if (error instanceof AgentTimeoutError) {
-        return { code: 'agent_timeout', message: publicFailureMessage }
-    }
     if (error instanceof AgentContractError) {
         return { code: 'agent_invalid_output', message: publicFailureMessage }
     }
@@ -264,6 +270,8 @@ function toAnalysisFailure(error: unknown): AnalysisFailure {
 
 /** 提取适合写入日志的脱敏错误字段 */
 export function analysisExecutionErrorLogFields(error: unknown, includeDebugDetails: boolean) {
+    if (error instanceof ModelServiceUnavailableError)
+        return { errorCategory: MODEL_SERVICE_UNAVAILABLE, validationFieldPaths: [], ruleId: null }
     if (error instanceof PluginError)
         return {
             errorCategory: 'plugin_failure',
@@ -515,6 +523,20 @@ async function commitTaskSuccess(
         )
     })
     persistence.requestOriginalImageCleanup(task.userId, task.id)
+    try {
+        await getTaskPolicy().resultCommitted?.(task.userId, task.id, task.resultVersion)
+    } catch (error) {
+        log.warn(
+            {
+                event: 'analysis_result_observation_failed',
+                taskId: task.id,
+                resultVersion: task.resultVersion,
+                requestId,
+                errorCategory: analysisObservationErrorCategory(error),
+            },
+            '分析已完成，统计暂不可用',
+        )
+    }
     const context = {
         requestId,
         taskId: task.id,
@@ -568,8 +590,11 @@ async function persistTaskFailure(
     requestId: string,
     startedAt: number,
     runtime: AnalysisTaskExecutionRuntime,
+    taskTimedOut = false,
 ) {
-    const failure = toAnalysisFailure(error)
+    const failure: AnalysisFailure = taskTimedOut
+        ? { code: 'agent_timeout', message: publicFailureMessage }
+        : toAnalysisFailure(error)
     if (error instanceof AnalysisReferenceUnavailableError) {
         runtime.log.info(
             {
@@ -749,7 +774,14 @@ async function processClaimedAnalysisTask(
             )
         )
             return
-        await persistTaskFailure(error, task, attempt.requestId, attempt.startedAt, runtime)
+        await persistTaskFailure(
+            error,
+            task,
+            attempt.requestId,
+            attempt.startedAt,
+            runtime,
+            timedOut,
+        )
     } finally {
         await attempt.finish()
     }

@@ -218,7 +218,7 @@ test('技能包解包后能运行帮助命令，且不包含凭据或测试', as
         expect(version).toBe(sourceMarkdown.match(/version:\s*["']([^"']+)["']/)?.[1])
         const release = JSON.parse(await files.get('teeho/release.json')!.text())
         expect(release.version).toBe(version)
-        expect(release.minimumVersion).toBe('2.3.1')
+        expect(release.minimumVersion).toBe('2.4.2')
         expect([...files.keys()].filter((path) => path.endsWith('.md')).sort()).toEqual([
             'teeho/README.md',
             'teeho/SKILL.md',
@@ -380,8 +380,8 @@ test('安装包跨进程恢复本站身份，切换服务不复用另一站凭�
                 const path = new URL(request.url).pathname
                 const data = path.endsWith('/start')
                     ? {
-                          userCode: label,
-                          verificationUrl: 'https://example.test/authorize',
+                          userCode: '0ABCDEF123',
+                          verificationUrl: 'https://example.test/authorize#code=0ABCDEF123',
                           interval: 5000,
                       }
                     : path.endsWith('/token')
@@ -431,7 +431,9 @@ test('安装包跨进程恢复本站身份，切换服务不复用另一站凭�
             return result
         }
         await writeFile(endpoint, JSON.stringify({ apiUrl: `${first.url.origin}/api` }))
-        await run('login')
+        expect((await run('login')).displayText).toContain(
+            'https://example.test/authorize#code=0ABCDEF123',
+        )
         expect((await run('login-status')).state).toBe('authenticated')
         expect((await run('status')).displayText).toContain('first@example.test')
         await writeFile(endpoint, JSON.stringify({ apiUrl: `${second.url.origin}/api` }))

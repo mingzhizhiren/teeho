@@ -1,6 +1,6 @@
 import type { AnalysisEvidenceSet } from '../evidence/analysis.evidence'
 
-/** 每个任务只有一份冻结笔记证据，重试复用原始事实。 */
+/** 每任务只首写完整证据，恢复复用已冻结的模型选择，不覆盖原始快照。 */
 export interface AnalysisQuantificationEvidenceStore {
     find(taskId: string, userId: string): Promise<AnalysisEvidenceSet | null>
     freeze(

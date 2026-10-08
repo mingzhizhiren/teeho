@@ -28,10 +28,23 @@ import {
 
 import { AnalysisMediaUploadRateLimitError } from '../media/analysis.media-upload-admission'
 
-import { AgentProviderError } from '../providers/analysis.provider'
+import {
+    ModelServiceUnavailableError,
+    MODEL_SERVICE_UNAVAILABLE,
+    MODEL_SERVICE_MAINTENANCE_MESSAGE,
+} from '../../utils/model-service-error'
+import { AgentProviderError, isAgentServiceUnavailable } from '../providers/analysis.provider'
 
 /** 把领域异常映射为稳定的 HTTP 响应 */
 export function domainErrorResponse(error: unknown) {
+    if (error instanceof ModelServiceUnavailableError || isAgentServiceUnavailable(error)) {
+        return {
+            status: HTTP_STATUS.SERVICE_UNAVAILABLE,
+            response: fail(API_CODES.INTERNAL_ERROR, MODEL_SERVICE_MAINTENANCE_MESSAGE, {
+                reason: MODEL_SERVICE_UNAVAILABLE,
+            }),
+        }
+    }
     if (error instanceof MaintenanceGateClosedError) {
         return {
             status: HTTP_STATUS.SERVICE_UNAVAILABLE,

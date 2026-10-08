@@ -34,6 +34,7 @@ export const HTTP_STATUS = {
     INTERNAL_SERVER_ERROR: 500,
     BAD_GATEWAY: 502,
     SERVICE_UNAVAILABLE: 503,
+    GATEWAY_TIMEOUT: 504,
 } as const
 
 /** 跨模块使用的时间单位，避免重复手写换算系数。 */

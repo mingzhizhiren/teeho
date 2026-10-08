@@ -3,8 +3,9 @@ import type { DatabaseTransaction } from '../db/database'
 import type { StandardAnalysisTask } from '../analysis/analysis.schema'
 import type { AnalysisTaskClaimCandidate } from '../analysis/tasks/analysis.queue.contract'
 
-/** 部署侧任务策略。回调在原事务内运行，不能提交、回滚或创建新事务。 */
+/** 部署侧任务策略。业务回调沿用原事务；resultCommitted 是提交后的可选观测。 */
 export interface TaskPolicy {
+    resultCommitted?(userId: string, taskId: string, resultVersion: number): Promise<void>
     assertAvailable(transaction: DatabaseTransaction): Promise<void>
     authorize(
         transaction: DatabaseTransaction,

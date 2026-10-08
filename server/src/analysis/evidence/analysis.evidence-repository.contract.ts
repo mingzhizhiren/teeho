@@ -22,6 +22,8 @@ export interface AnalysisEvidenceCandidate {
     contentObservedAt?: string | null
     firstImportedAt?: string | null
     fans?: number | null
+    follows?: number | null
+    interactions?: number | null
     authorObservedAt?: string | null
     coverDescription?: string | null
     modelTrackCode?: number | null

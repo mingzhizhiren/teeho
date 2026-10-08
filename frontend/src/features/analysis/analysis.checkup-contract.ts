@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { customMetricSchema, customMetricLimits } from './analysis.custom-metrics'
-import { structureMetricsSchema, structureReferencesSchema } from './analysis.structure-metrics'
+import {
+    structureMetricsSchema,
+    structureReferencesSchema,
+    structureLocationsSchema,
+} from './analysis.structure-metrics'
 const INSIGHT_MAX_SCORE = 10
 import { analysisUiConstraints } from './analysis.constants'
 import {
@@ -106,6 +110,9 @@ export const analysisResultSchema = z
         customMetrics: z.array(customMetricSchema).max(customMetricLimits.count).optional(),
         structureMetrics: structureMetricsSchema,
         structureReferences: structureReferencesSchema,
+        structureMetricsVersion: z.literal('structure.v2').optional(),
+        structureReferencePolicy: z.string().min(1).optional(),
+        structureLocations: structureLocationsSchema.optional(),
         primaryScore: z
             .object({
                 source: z.enum(['insight', 'radar_average']),
@@ -202,6 +209,19 @@ export const analysisResultSchema = z
     })
     .strict()
     .superRefine((report, context) => {
+        if (
+            report.structureMetricsVersion === 'structure.v2' &&
+            (report.structureMetrics.maxTopicLength === undefined ||
+                report.structureMetrics.maxParagraphLength == null ||
+                report.structureReferences.maxTopicLength === undefined ||
+                report.structureReferences.maxParagraphLength === undefined ||
+                !report.structureLocations)
+        )
+            context.addIssue({
+                code: 'custom',
+                path: ['structureMetrics'],
+                message: 'Incomplete structure v2 report',
+            })
         const primary = report.primaryScore
         const isBlocked =
             report.contentAnalysis?.status === 'completed' &&

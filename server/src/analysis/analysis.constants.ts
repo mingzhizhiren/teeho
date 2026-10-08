@@ -66,6 +66,8 @@ export const analysisMediaConstraints = {
     lossyQuality: 82,
     signedUploadLifetimeSeconds: signedUploadLifetimeMinutes * secondsPerMinute,
     processingPollIntervalMs: 500,
+    processingConcurrency: 3,
+    downloadConcurrency: 4,
     processingLeaseSeconds: processingLeaseMinutes * secondsPerMinute,
     maxProcessingAttempts: 3,
     cleanupBatchSize: 100,
