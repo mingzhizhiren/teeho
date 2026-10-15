@@ -7,7 +7,7 @@ import AppIcon from '@/components/icons/AppIcon.vue'
 import AnalysisMediaPreviewDialog from './AnalysisMediaPreviewDialog.vue'
 import { resultCoverIndex } from './analysis.result-cover'
 import type { AnalysisTask } from './analysis.contract'
-import type { LocalHistoryImage, LocalHistoryImageLoader, LocalHistoryRecord } from './localHistory'
+import { originalImageMetadataForAsset, type LocalHistoryImage, type LocalHistoryImageLoader, type LocalHistoryRecord } from './localHistory'
 
 interface ResultImagePreview {
     readonly id: string
@@ -33,9 +33,11 @@ let loadVersion = 0
 const contentKind = computed(() => props.task.standardTask.contentKind)
 const showImageSection = computed(() => props.historyRecord !== null)
 const showVideoSection = computed(() => contentKind.value === 'video')
-const coverImageId = computed(
-    () => props.historyRecord?.originalImages[resultCoverIndex(props.task.standardTask)]?.id,
-)
+const coverImageId = computed(() => {
+    const standard = props.task.standardTask
+    const assetId = standard.contentKind === 'video' ? standard.coverReference : standard.imageReferences[resultCoverIndex(standard)]
+    return props.historyRecord && assetId ? originalImageMetadataForAsset(props.historyRecord, assetId)?.id : undefined
+})
 
 function revokeImagePreviews() {
     imagePreviews.value.forEach((image) => URL.revokeObjectURL(image.source))
@@ -93,12 +95,12 @@ async function loadImages() {
 }
 
 watch(
-    () => [
-        props.task.id,
-        props.task.standardTask.contentKind,
-        props.viewContext,
-        props.historyRecord?.savedAt,
-        props.historyRecord?.originalImages.map((image) => image.id).join('|'),
+    [
+        () => props.task.id,
+        () => props.task.standardTask.contentKind,
+        () => props.viewContext,
+        () => props.historyRecord?.savedAt,
+        () => props.historyRecord?.originalImages.map((image) => image.id).join('|'),
     ],
     () => void loadImages(),
     { immediate: true },

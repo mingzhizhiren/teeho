@@ -12,6 +12,7 @@ interface ParsedAnalysisRequest {
     admission?: AnalysisTaskAdmission
     preparationId?: string
     submissionId?: string
+    deferMediaPreparation?: boolean
 }
 
 /** 把草稿校验错误转换为用户可读消息 */
@@ -46,6 +47,8 @@ export function parseAnalysisRequest(
     if (!parsedSubmissionId.success) {
         return { success: false, message: '提交标识无效' }
     }
+    const deferred = z.boolean().optional().safeParse(rawDraft.deferMediaPreparation)
+    if (!deferred.success) return { success: false, message: '素材准备选项无效' }
     const parsedAdmission = analysisTaskAdmissionSchema.optional().safeParse(rawDraft.admission)
     if (!parsedAdmission.success) {
         return { success: false, message: '任务受理凭据无效' }
@@ -54,11 +57,13 @@ export function parseAnalysisRequest(
         admission: omittedAdmission,
         preparationId: omittedPreparationId,
         submissionId: omittedSubmissionId,
+        deferMediaPreparation: omittedDeferred,
         ...draftPayload
     } = rawDraft
     void omittedAdmission
     void omittedPreparationId
     void omittedSubmissionId
+    void omittedDeferred
     const parsed = analysisDraftSchema.safeParse(draftPayload)
     if (!parsed.success) {
         return { success: false, message: draftValidationMessage(parsed.error) }
@@ -76,6 +81,7 @@ export function parseAnalysisRequest(
             admission: parsedAdmission.data,
             preparationId: parsedPreparationId.data,
             submissionId: parsedSubmissionId.data,
+            ...(deferred.data !== undefined ? { deferMediaPreparation: deferred.data } : {}),
         },
     }
 }

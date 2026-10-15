@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
                     </div>
                     <button
                         ref="closeButton"
-                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line text-muted transition hover:border-brand/40 hover:bg-brand/5 hover:text-ink"
+                        class="app-button app-button--secondary app-button--icon-only app-button--sm shrink-0"
                         type="button"
                         :aria-label="t('workspace.history.close')"
                         @click="close"

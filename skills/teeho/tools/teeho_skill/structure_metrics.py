@@ -8,7 +8,7 @@ from .messages import safe_text
 METRIC_NAMES = (
     "titleLength", "bodyLength", "paragraphLength", "paragraphCount",
     "topicCount", "topicLength",
-    "maxTopicLength", "maxParagraphLength",
+    "maxTopicLength", "maxParagraphLength", "imageCount", "videoDurationSeconds",
 )
 LEVELS = ("aligned", "minor", "moderate", "major", "critical")
 LEVEL_ICONS = {
@@ -28,7 +28,7 @@ def project_structure_metrics(result: dict[str, Any]) -> list[dict[str, Any]]:
         raise ValueError("invalid_structure_metrics")
     rows = []
     for name in METRIC_NAMES:
-        if name.startswith('max') and name not in metrics:
+        if metrics.get(name) is None:
             continue
         value, reference = metrics.get(name), references.get(name)
         if value is not None and not _number(value):
@@ -61,7 +61,7 @@ def _difference_status(row: dict[str, Any]) -> str:
         return "metricInsufficient"
     if reference["low"] <= value <= reference["high"]:
         return "metricInRange"
-    is_count = row["name"] in ("paragraphCount", "topicCount")
+    is_count = row["name"] in ("paragraphCount", "topicCount", "imageCount")
     if value < reference["low"]:
         return "metricFewer" if is_count else "metricShorter"
     return "metricMore" if is_count else "metricLonger"
@@ -76,7 +76,9 @@ def structure_metric_lines(
     frozen_rows = [
         indexed.get(name, {"name": name, "value": None, "reference": None})
         for name in METRIC_NAMES
-        if not name.startswith('max') or name in indexed
+        if name in indexed and indexed[name].get("value") is not None
+        and (name not in ("imageCount", "videoDurationSeconds")
+             or indexed[name].get("reference") is not None)
     ]
     topic_count = indexed.get("topicCount", {}).get("value")
     for row in frozen_rows:
@@ -90,11 +92,10 @@ def structure_metric_lines(
         value_text = (translate("metricNoTopics") if has_no_topics else
                       formatted(value) if value is not None else translate("unavailable"))
         lines.append(icon + " " + translate(name) + ": " + value_text +
-                     ("" if has_no_topics else " · " + translate(level)))
-        lines.append(translate("peerRange") + ": " + (
-            formatted(reference["low"]) + " ~ " + formatted(reference["high"])
-            if reference else translate("metricInsufficient")
-        ))
+                     (" · " + translate(level) if reference else ""))
+        if reference:
+            lines.append(translate("peerRange") + ": " +
+                         formatted(reference["low"]) + " ~ " + formatted(reference["high"]))
         for position in row.get('positions', []):
             prefix = (translate('metricParagraph') + ' ' + str(position['number']) + ': '
                       if name == 'maxParagraphLength' else '')

@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { AnalysisMediaAssetRecord } from './analysis.media.repository'
+import type { AnalysisMediaAssetRecord, markMediaAssetReady } from './analysis.media.repository'
 import { AnalysisMediaWorker } from './analysis.media.worker'
 import type { AnalysisObjectStorage } from './analysis.storage'
 
@@ -189,6 +189,7 @@ describe('analysis media worker', () => {
             asset.id,
             expect.stringContaining('/processed/'),
             expect.objectContaining({ width: 2_048, height: 683 }),
+            asset.processingAttemptCount,
         )
         expect(markFailed).not.toHaveBeenCalled()
         expect(log.info).toHaveBeenCalledWith(
@@ -220,7 +221,7 @@ describe('analysis media worker', () => {
         })
 
         await expect(worker.runOnce()).resolves.toBe(true)
-        expect(markFailed).toHaveBeenCalledWith(record().id, 'image_decode_failed')
+        expect(markFailed).toHaveBeenCalledWith(record().id, 'image_decode_failed', 1)
     })
 
     it('超限清理在处理中发生时删除刚生成的派生对象', async () => {
@@ -252,6 +253,48 @@ describe('analysis media worker', () => {
         await expect(worker.runOnce()).resolves.toBe(true)
 
         expect(storage.remove).toHaveBeenCalledWith([expect.stringContaining('/processed/')])
+    })
+
+    it('旧租约迟到后清理自己的派生图，不删除第二次尝试已提交的对象', async () => {
+        const original = new Uint8Array(
+            await sharp({
+                create: { width: 20, height: 20, channels: 3, background: '#112233' },
+            })
+                .jpeg()
+                .toBuffer(),
+        )
+        let finishOldDownload: (bytes: Uint8Array) => void = () => undefined
+        const oldDownload = new Promise<Uint8Array>((resolve) => {
+            finishOldDownload = resolve
+        })
+        const storage: AnalysisObjectStorage = {
+            createSignedUpload: vi.fn(),
+            info: vi.fn(),
+            download: vi.fn(async () => original),
+            upload: vi.fn(async () => undefined),
+            remove: vi.fn(async () => undefined),
+        }
+        const markReady = vi.fn<typeof markMediaAssetReady>(
+            async (_id, _path, _processed, attemptNumber) => attemptNumber === 2,
+        )
+        const options = { storage, markReady, markFailed: vi.fn(async () => undefined) }
+        const currentAsset = { ...record(), declaredByteSize: original.byteLength }
+        const first = new AnalysisMediaWorker({
+            ...options,
+            storage: { ...storage, download: vi.fn(() => oldDownload) },
+            claimNext: vi.fn(async () => currentAsset),
+        }).runOnce()
+        await new AnalysisMediaWorker({
+            ...options,
+            claimNext: vi.fn(async () => ({ ...currentAsset, processingAttemptCount: 2 })),
+        }).runOnce()
+        finishOldDownload(original)
+        await first
+        const successfulPath = markReady.mock.calls[0]![1]
+        const stalePath = markReady.mock.calls[1]![1]
+        expect(successfulPath).not.toBe(stalePath)
+        expect(storage.remove).toHaveBeenCalledTimes(1)
+        expect(storage.remove).toHaveBeenCalledWith([stalePath])
     })
 
     it('does not leak an unhandled rejection when failure-state persistence is transiently unavailable', async () => {

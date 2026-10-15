@@ -1,8 +1,32 @@
+@import './ui-surfaces.css';
+@import './buttons.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+    font-family: 'Teeho Sans';
+    src: url('/fonts/teeho-sans-latin.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-024F, U+2000-206F;
+}
+
+@font-face {
+    font-family: 'Teeho Sans';
+    src: url('/fonts/teeho-sans-cjk.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FF00-FFEF;
+}
+
 :root {
+    --font-ui:
+        'Teeho Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei',
+        system-ui, sans-serif;
     --color-brand: 216 58 18;
     --color-brand-hover: 185 44 11;
     --color-brand-vivid: 255 101 0;
@@ -10,12 +34,12 @@
     --color-brand-hot: 240 24 24;
     --color-on-brand: 255 255 255;
     --color-accent: 180 83 9;
-    --color-canvas: 251 250 248;
-    --color-surface: 255 255 255;
-    --color-surface-muted: 248 250 252;
-    --color-text: 15 23 42;
-    --color-text-muted: 100 116 139;
-    --color-border: 226 232 240;
+    --color-canvas: 250 248 244;
+    --color-surface: 255 254 251;
+    --color-surface-muted: 247 245 240;
+    --color-text: 34 34 32;
+    --color-text-muted: 110 105 99;
+    --color-border: 225 222 216;
 }
 
 .dark {
@@ -24,19 +48,23 @@
     --color-brand-vivid: 255 101 0;
     --color-brand-glow: 255 176 0;
     --color-brand-hot: 255 74 61;
-    --color-on-brand: 15 23 42;
+    --color-on-brand: 28 28 27;
     --color-accent: 255 176 0;
-    --color-canvas: 9 13 23;
-    --color-surface: 17 24 39;
-    --color-surface-muted: 23 32 51;
-    --color-text: 248 250 252;
-    --color-text-muted: 148 163 184;
-    --color-border: 39 52 73;
+    --color-canvas: 28 28 27;
+    --color-surface: 36 36 34;
+    --color-surface-muted: 41 40 38;
+    --color-text: 247 242 232;
+    --color-text-muted: 178 173 164;
+    --color-border: 67 65 61;
 }
 
 html {
     color-scheme: light;
     background: rgb(var(--color-canvas));
+    font-family: var(--font-ui);
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 html.dark {
@@ -51,14 +79,8 @@ body {
     transition:
         background-color 160ms ease,
         color 160ms ease;
-    font-family:
-        Inter,
-        ui-sans-serif,
-        system-ui,
-        -apple-system,
-        BlinkMacSystemFont,
-        'Segoe UI',
-        sans-serif;
+    font-family: var(--font-ui);
+    line-height: 1.7;
 }
 
 a {
@@ -69,6 +91,64 @@ a {
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
     outline: 3px solid rgb(var(--color-brand) / 0.35);
     outline-offset: 2px;
+}
+
+@layer components {
+    .art-panel {
+        border: 1px solid rgb(var(--color-border) / 0.8);
+        background: rgb(var(--color-surface));
+        box-shadow: 0 12px 36px -28px rgb(var(--color-text) / 0.12);
+    }
+
+    .art-page-heading {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2rem;
+        padding-bottom: 2rem;
+        border-bottom: 1px solid rgb(var(--color-border) / 0.65);
+    }
+
+    .art-page-heading > :first-child {
+        min-width: 0;
+    }
+    .art-page-heading > .art-scene {
+        flex: 0 0 9rem;
+        max-width: 25%;
+    }
+
+    .art-workspace-note {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        border-radius: 0;
+        border-bottom: 1px solid rgb(var(--color-border) / 0.55);
+    }
+
+    .art-workspace-note > .art-scene {
+        width: 3rem;
+        flex: 0 0 3rem;
+    }
+
+    @media (max-width: 639px) {
+        .art-page-heading {
+            gap: 1rem;
+        }
+        .art-page-heading > .art-scene {
+            flex-basis: 5rem;
+        }
+        .art-workspace-note {
+            padding-inline: 0.75rem;
+        }
+        .art-workspace-note > .art-scene {
+            width: 3rem;
+            flex-basis: 3rem;
+        }
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

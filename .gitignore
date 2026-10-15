@@ -9,6 +9,7 @@ test-results/
 .runtime/
 .tmp/
 frontend/public/downloads/
+artifacts/
 supabase/.temp/
 supabase/.branches/
 *.pem

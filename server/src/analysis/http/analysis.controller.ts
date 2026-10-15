@@ -121,6 +121,9 @@ export async function handleSubmitAnalysisTask(
             admission: parsed.data.admission,
             preparationId: parsed.data.preparationId,
             submissionId: parsed.data.submissionId,
+            ...(parsed.data.deferMediaPreparation !== undefined
+                ? { deferMediaPreparation: parsed.data.deferMediaPreparation }
+                : {}),
             signal,
         })
         if (outcome.task) await recordTaskAccepted(userId, outcome.task.id, source)

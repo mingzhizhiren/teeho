@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/icons/AppIcon.vue'
@@ -50,15 +51,17 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="flex flex-col items-end gap-2">
-        <button
+        <AppButton
+            variant="secondary"
+            size="sm"
             type="button"
-            class="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink transition hover:border-brand/50 hover:bg-brand/5 disabled:opacity-50"
+            class="shrink-0"
             :disabled="isCopying"
             @click="copyNote"
         >
             <AppIcon name="copy" size="sm" />
             {{ isCopying ? t('workspace.copy.copying') : t('workspace.copy.note') }}
-        </button>
+        </AppButton>
         <InlineFeedback
             v-if="hasCopyError"
             compact

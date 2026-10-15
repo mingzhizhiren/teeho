@@ -2,7 +2,8 @@ import { test, expect } from 'bun:test'
 import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, posix } from 'node:path'
-import { packageSkill } from './package-skill'
+import { buildSkillAssets, packageSkill } from './package-skill'
+import { buildGithubSkillAsset } from './package-skill-github'
 import { findPythonExecutable } from './python-runtime'
 import {
     readSkillZip,
@@ -12,6 +13,42 @@ import { createSkillDistributionRoutes } from '../../server/src/skill-distributi
 import { createSkillDistributionController } from '../../server/src/skill-distribution/skill-distribution.controller'
 import { parseAnalysisRequest } from '../../server/src/analysis/http/analysis.http-input'
 const pythonExecutable = findPythonExecutable()
+const MULTI_PROCESS_TIMEOUT_MS = 30_000
+// 安装配置测试保留真实包内 URL，但所有可选网络请求必须止于本机关闭的代理端口。
+const blockedNetwork = {
+    HTTP_PROXY: 'http://127.0.0.1:1',
+    HTTPS_PROXY: 'http://127.0.0.1:1',
+    http_proxy: 'http://127.0.0.1:1',
+    https_proxy: 'http://127.0.0.1:1',
+    NO_PROXY: '',
+    no_proxy: '',
+}
+
+test('官网和 GitHub 发布入口生成各自来源的包，用户说明与版本保持一致', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'teeho-skill-release-channels-'))
+    try {
+        await buildSkillAssets(join(root, 'website'))
+        await buildGithubSkillAsset(join(root, 'teeho-agent-skill.zip'))
+        const website = readSkillZip(
+            await Bun.file(join(root, 'website/public/downloads/teeho-skill.zip')).bytes(),
+        )
+        const github = readSkillZip(await Bun.file(join(root, 'teeho-agent-skill.zip')).bytes())
+        expect(await website.get('teeho/tools/teeho_skill/distribution.py')!.text()).toContain(
+            "SOURCE = 'official'",
+        )
+        expect(await github.get('teeho/tools/teeho_skill/distribution.py')!.text()).toContain(
+            "SOURCE = 'github'",
+        )
+        expect(await website.get('teeho/SKILL.md')!.text()).toBe(
+            await github.get('teeho/SKILL.md')!.text(),
+        )
+        expect(await website.get('teeho/release.json')!.text()).toBe(
+            await github.get('teeho/release.json')!.text(),
+        )
+    } finally {
+        await rm(root, { recursive: true, force: true })
+    }
+})
 
 test('ZIP 支持 Unicode 文件名、二进制与空文件，损坏包拒绝读取', async () => {
     const zip = writeSkillZip({
@@ -220,6 +257,7 @@ test('技能包解包后能运行帮助命令，且不包含凭据或测试', as
         expect(release.version).toBe(version)
         expect(release.minimumVersion).toBe('2.4.2')
         expect([...files.keys()].filter((path) => path.endsWith('.md')).sort()).toEqual([
+            'teeho/LICENSE.md',
             'teeho/README.md',
             'teeho/SKILL.md',
             'teeho/references/uninstall.md',
@@ -354,6 +392,7 @@ test('技能包解包后能运行帮助命令，且不包含凭据或测试', as
                 stderr: 'pipe',
                 env: {
                     ...process.env,
+                    ...blockedNetwork,
                     PYTHONDONTWRITEBYTECODE: '1',
                     TEEHO_API_URL: '',
                     TEEHO_HOME: join(root, 'data'),
@@ -370,88 +409,99 @@ test('技能包解包后能运行帮助命令，且不包含凭据或测试', as
     }
 })
 
-test('安装包跨进程恢复本站身份，切换服务不复用另一站凭据，重复安装保留身份', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'teeho-skill-environments-'))
-    const fakeApi = (label: string, userId: string) =>
-        Bun.serve({
-            port: 0,
-            hostname: '127.0.0.1',
-            fetch(request) {
-                const path = new URL(request.url).pathname
-                const data = path.endsWith('/start')
-                    ? {
-                          userCode: '0ABCDEF123',
-                          verificationUrl: 'https://example.test/authorize#code=0ABCDEF123',
-                          interval: 5000,
-                      }
-                    : path.endsWith('/token')
-                      ? {
-                            user: {
-                                id: userId,
-                                email: label + '@example.test',
-                                isAnonymous: false,
-                            },
-                            expiresAt: null,
-                            accessToken: `test-${label}`,
-                            accessExpiresAt: '2099-01-01T00:00:00Z',
-                        }
-                      : {
-                            summary: {
-                                enabled: true,
-                                balances: { free: 30, package: 0, purchased: 0, total: 30 },
-                            },
-                        }
-                return Response.json({ code: 0, data })
-            },
-        })
-    const first = fakeApi('first', '10000000-0000-4000-8000-000000000001')
-    const second = fakeApi('second', '10000000-0000-4000-8000-000000000002')
-    try {
-        const output = join(root, 'source.zip')
-        await packageSkill(output)
-        const archive = zipArchive(await Bun.file(output).bytes())
-        await archive.extract(root)
-        const endpoint = join(root, 'teeho/endpoint.json')
-        const run = async (command: string) => {
-            const child = Bun.spawn(
-                [pythonExecutable, '-S', '-X', 'utf8', join(root, 'teeho/tools/teeho.py'), command],
-                {
-                    stdout: 'pipe',
-                    stderr: 'pipe',
-                    env: {
-                        ...process.env,
-                        PYTHONDONTWRITEBYTECODE: '1',
-                        TEEHO_API_URL: '',
-                        TEEHO_HOME: join(root, 'home'),
-                    },
+test(
+    '安装包跨进程恢复本站身份，切换服务不复用另一站凭据，重复安装保留身份',
+    async () => {
+        const root = await mkdtemp(join(tmpdir(), 'teeho-skill-environments-'))
+        const fakeApi = (label: string, userId: string) =>
+            Bun.serve({
+                port: 0,
+                hostname: '127.0.0.1',
+                fetch(request) {
+                    const path = new URL(request.url).pathname
+                    const data = path.endsWith('/start')
+                        ? {
+                              userCode: '0ABCDEF123',
+                              verificationUrl: 'https://example.test/authorize#code=0ABCDEF123',
+                              interval: 5000,
+                          }
+                        : path.endsWith('/token')
+                          ? {
+                                user: {
+                                    id: userId,
+                                    email: label + '@example.test',
+                                    isAnonymous: false,
+                                },
+                                expiresAt: null,
+                                accessToken: `test-${label}`,
+                                accessExpiresAt: '2099-01-01T00:00:00Z',
+                            }
+                          : {
+                                summary: {
+                                    enabled: true,
+                                    balances: { free: 30, package: 0, purchased: 0, total: 30 },
+                                },
+                            }
+                    return Response.json({ code: 0, data })
                 },
+            })
+        const first = fakeApi('first', '10000000-0000-4000-8000-000000000001')
+        const second = fakeApi('second', '10000000-0000-4000-8000-000000000002')
+        try {
+            const output = join(root, 'source.zip')
+            await packageSkill(output)
+            const archive = zipArchive(await Bun.file(output).bytes())
+            await archive.extract(root)
+            const endpoint = join(root, 'teeho/endpoint.json')
+            const run = async (command: string) => {
+                const child = Bun.spawn(
+                    [
+                        pythonExecutable,
+                        '-S',
+                        '-X',
+                        'utf8',
+                        join(root, 'teeho/tools/teeho.py'),
+                        command,
+                    ],
+                    {
+                        stdout: 'pipe',
+                        stderr: 'pipe',
+                        env: {
+                            ...process.env,
+                            PYTHONDONTWRITEBYTECODE: '1',
+                            TEEHO_API_URL: '',
+                            TEEHO_HOME: join(root, 'home'),
+                        },
+                    },
+                )
+                const result = JSON.parse(await new Response(child.stdout).text())
+                await child.exited
+                return result
+            }
+            await writeFile(endpoint, JSON.stringify({ apiUrl: `${first.url.origin}/api` }))
+            expect((await run('login')).displayText).toContain(
+                'https://example.test/authorize#code=0ABCDEF123',
             )
-            const result = JSON.parse(await new Response(child.stdout).text())
-            await child.exited
-            return result
+            expect((await run('login-status')).state).toBe('authenticated')
+            expect((await run('status')).displayText).toContain('first@example.test')
+            await writeFile(endpoint, JSON.stringify({ apiUrl: `${second.url.origin}/api` }))
+            expect((await run('status')).state).toBe('login_required')
+            await run('login')
+            expect((await run('login-status')).state).toBe('authenticated')
+            expect((await run('status')).displayText).toContain('second@example.test')
+            await archive.extract(root)
+            await writeFile(endpoint, JSON.stringify({ apiUrl: `${first.url.origin}/api/` }))
+            expect((await run('status')).displayText).toContain('first@example.test')
+            await writeFile(endpoint, '{broken')
+            expect((await run('installation')).state).toBe('invalid_configuration')
+        } finally {
+            first.stop(true)
+            second.stop(true)
+            await rm(root, { recursive: true, force: true })
         }
-        await writeFile(endpoint, JSON.stringify({ apiUrl: `${first.url.origin}/api` }))
-        expect((await run('login')).displayText).toContain(
-            'https://example.test/authorize#code=0ABCDEF123',
-        )
-        expect((await run('login-status')).state).toBe('authenticated')
-        expect((await run('status')).displayText).toContain('first@example.test')
-        await writeFile(endpoint, JSON.stringify({ apiUrl: `${second.url.origin}/api` }))
-        expect((await run('status')).state).toBe('login_required')
-        await run('login')
-        expect((await run('login-status')).state).toBe('authenticated')
-        expect((await run('status')).displayText).toContain('second@example.test')
-        await archive.extract(root)
-        await writeFile(endpoint, JSON.stringify({ apiUrl: `${first.url.origin}/api/` }))
-        expect((await run('status')).displayText).toContain('first@example.test')
-        await writeFile(endpoint, '{broken')
-        expect((await run('installation')).state).toBe('invalid_configuration')
-    } finally {
-        first.stop(true)
-        second.stop(true)
-        await rm(root, { recursive: true, force: true })
-    }
-})
+    },
+    MULTI_PROCESS_TIMEOUT_MS,
+)
 
 test('同一静态包按部署配置下载，本地与正式站安装后自动使用对应API', async () => {
     const root = await mkdtemp(join(tmpdir(), 'teeho-skill-download-'))
@@ -502,6 +552,7 @@ test('同一静态包按部署配置下载，本地与正式站安装后自动�
                     stderr: 'pipe',
                     env: {
                         ...process.env,
+                        ...blockedNetwork,
                         PYTHONDONTWRITEBYTECODE: '1',
                         TEEHO_API_URL: '',
                         TEEHO_HOME: join(root, 'data'),

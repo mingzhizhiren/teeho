@@ -41,7 +41,7 @@ export default {
         description:
             '直接把已有的小红书笔记或笔记文件夹交给你的 Agent，使用题火完成诊断，并查询任务和本机历史报告。',
         compatibility:
-            '适用于支持 Agent Skills 且能执行本地 Python 的客户端，如 Codex、Claude Code、Cursor、Gemini CLI。支持 Windows、Linux、macOS。',
+            '适用于支持 Agent Skills 且能执行本地 Python 的客户端，如 Claude Code、Codex、WorkBuddy、千问、Cursor、OpenClaw等。支持 Windows、Linux、macOS。',
         agentTitle: '让 Agent 帮你安装或升级',
         agentDescription: '一句话安装题火',
         agentPrompt: '请根据 {url} 的说明安装或升级题火 Skill（当前发布版本：{version}）。',

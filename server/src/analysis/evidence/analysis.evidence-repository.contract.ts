@@ -19,6 +19,8 @@ export interface AnalysisEvidenceCandidate {
     observedAt: string
     observationId?: string
     noteType?: 'normal' | 'video'
+    imageCount?: number | null
+    videoDurationSeconds?: number | null
     contentObservedAt?: string | null
     firstImportedAt?: string | null
     fans?: number | null

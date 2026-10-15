@@ -74,9 +74,7 @@ export default {
                 'The real target changed. Return to the matching feature and try again.',
             chapters: {
                 workspace_foundation: 'Workspace basics',
-                agent_reply: 'Agent replies',
-                task_confirmation: 'Task confirmation',
-                expert_mode: 'Custom mode',
+                expert_mode: 'Note form',
                 analysis_result: 'Analysis results',
             },
         },

@@ -21,6 +21,7 @@ from .history import HistoryTools
 from .public_history import clear_public_owner, publish_anonymous_history, visible_history, visible_report
 from .http_transport import HttpTransport
 from .note import normalize_note, require_id
+from .observations import SkillObservations
 from .presentation import create_error_presentation, create_presentation
 from .points_display import points_snapshot
 from .rendering import PUBLIC_PRESENTATION_OWNER, PresentationStore, render_presentation
@@ -153,6 +154,7 @@ class CommandRunner:
         self.final_state = "starting"
         self.anonymous_reminder_shown = False
         self.identity = None
+        self.observations = None
 
     def output(self, view: dict, tools_data: Optional[dict] = None) -> None:
         """发布展示快照，缓存失败时仍交付已确定的业务结果。"""
@@ -220,6 +222,10 @@ class CommandRunner:
         self.auth = AuthSession(config.root, public_api, config.base_url, log=self.debug.log)
         self.api = TeehoApi(config.base_url, transport, authorize=self.auth.authorized)
         self.config = config
+        try:
+            self.observations = SkillObservations(self.auth, self.debug.log, HttpTransport())
+        except (OSError, TeehoError, ValueError):
+            self.debug.log("observation_unavailable", {"stage": "observation"})
 
     def _fingerprint(self) -> None:
         if not self.config.debug:
@@ -388,9 +394,12 @@ class CommandRunner:
     def run(self, argv: list[str]) -> int:
         """处理一次命令，所有已知失败使用统一安全信封。"""
         exit_code = 1
+        command = None
         try:
             self._configure()
             command, file_path = parse_arguments(argv)
+            if self.observations:
+                self.observations.begin(command)
             self.debug.log("command_started", {"command": command}, "info")
             self._fingerprint()
             value = read_input(file_path) if command in INPUT_COMMANDS or file_path else {}
@@ -403,6 +412,11 @@ class CommandRunner:
                 exit_code = 0
             else:
                 result, data = self._dispatch(command, value)
+                if self.observations:
+                    self.observations.finish(
+                        command, result, _owner(self.identity),
+                        authorization_pending=bool((self.identity or {}).get("challenge")),
+                    )
                 if command in IDENTITY_COMMANDS:
                     self.store = PresentationStore(
                         self.auth.root, owner=_owner(self.auth.read_identity())
@@ -417,8 +431,13 @@ class CommandRunner:
         except BrokenPipeError:
             exit_code = 1
         except (Exception, KeyboardInterrupt) as error:
-            self.output(create_error_presentation(error))
+            view = create_error_presentation(error)
+            if command in {"diagnose", "resume"} and self.observations:
+                self.observations.blocked(view["state"])
+            self.output(view)
         finally:
+            if self.observations:
+                self.observations.flush()
             self.debug.log(
                 "command_finished",
                 {"exitCode": exit_code, "state": self.final_state},

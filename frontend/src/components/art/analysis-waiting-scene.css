@@ -1,0 +1,465 @@
+.waiting-scene {
+    position: relative;
+    width: min(100%, 760px);
+    margin-inline: auto;
+    container-type: inline-size;
+    isolation: isolate;
+}
+.waiting-artboard {
+    position: relative;
+    aspect-ratio: 760 / 340;
+}
+.art-enter {
+    opacity: 0;
+    transform: translate(var(--assembly-x, 0px), var(--assembly-y, 0px))
+        rotate(var(--assembly-rotate, 0deg));
+}
+.waiting-scene[data-phase='waiting']:not([data-reduced='true']) .art-enter {
+    opacity: 0;
+}
+.waiting-artboard img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.waiting-halo {
+    position: absolute;
+    inset: 0 12%;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgb(var(--color-brand-glow) / 0.08), transparent 70%);
+}
+.waiting-character {
+    position: absolute;
+    left: 34.6%;
+    top: 4.7%;
+    width: 30.9%;
+    height: 80%;
+    z-index: 4;
+}
+.waiting-character img {
+    animation: waiting-float 5s ease-in-out infinite;
+}
+.waiting-ground {
+    position: absolute;
+    left: 38%;
+    top: 82%;
+    width: 24%;
+    height: 5%;
+    border-radius: 50%;
+    background: rgb(var(--color-text) / 0.07);
+    filter: blur(7px);
+}
+.waiting-orbits {
+    position: absolute;
+    inset: 0;
+}
+.waiting-orbit {
+    position: absolute;
+    width: 71%;
+    height: 62%;
+    left: 14.5%;
+    top: 17%;
+    border: 1px solid rgb(var(--color-border));
+    border-radius: 50%;
+    rotate: -15deg;
+}
+.waiting-orbit--cross {
+    rotate: 18deg;
+    width: 67%;
+    left: 16.5%;
+}
+.waiting-orbit--round {
+    width: 42%;
+    height: 94%;
+    left: 29%;
+    top: -1%;
+    border-style: dashed;
+    opacity: 0.45;
+    animation: waiting-orbit 65s linear infinite;
+}
+.waiting-orbit::after {
+    content: '';
+    position: absolute;
+    left: 14%;
+    top: 12%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgb(var(--color-accent));
+}
+.waiting-sheet-entry {
+    position: absolute;
+    width: 9.2%;
+    height: 26.5%;
+    z-index: 2;
+}
+.waiting-sheet-entry--1 {
+    left: 25.7%;
+    top: 30%;
+}
+.waiting-sheet-entry--2 {
+    right: 24.2%;
+    top: 42%;
+}
+.waiting-sheet-entry--3 {
+    left: 47.4%;
+    top: 9.7%;
+}
+.waiting-sheet {
+    width: 100%;
+    height: 100%;
+    padding: 18%;
+    border: 1px solid rgb(var(--color-accent) / 0.4);
+    border-radius: 3px;
+    background: rgb(var(--color-surface-muted));
+    animation: waiting-paper 6s ease-in-out infinite;
+    rotate: -18deg;
+}
+.waiting-sheet b {
+    display: block;
+    width: 48%;
+    aspect-ratio: 1;
+    background: rgb(var(--color-brand) / 0.15);
+    border-radius: 2px;
+    margin-bottom: 20%;
+}
+.waiting-sheet i {
+    display: block;
+    height: 3px;
+    margin-top: 12%;
+    border-radius: 2px;
+    background: rgb(var(--color-text-muted) / 0.6);
+}
+.waiting-sheet-entry--2 .waiting-sheet {
+    rotate: 15deg;
+    animation-delay: -2s;
+}
+.waiting-sheet-entry--3 .waiting-sheet {
+    rotate: 8deg;
+    animation-delay: -4s;
+}
+.waiting-tags {
+    font-size: clamp(10px, 1.8cqw, 12px);
+}
+.waiting-tag {
+    position: absolute;
+    padding: 0.5em 1em;
+    border: 1px solid rgb(var(--color-border));
+    border-radius: 9px;
+    background: rgb(var(--color-surface));
+    color: rgb(var(--color-text));
+    z-index: 6;
+}
+.waiting-tag::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    margin-right: 8px;
+    vertical-align: middle;
+    border-radius: 50%;
+    background: rgb(var(--color-brand));
+}
+.waiting-tag--intent {
+    left: 18%;
+    top: 13%;
+}
+.waiting-tag--audience {
+    right: 15%;
+    top: 18%;
+}
+.waiting-tag--demand {
+    left: 13%;
+    top: 65%;
+}
+.waiting-tag--novelty {
+    right: 13%;
+    top: 65%;
+}
+.waiting-tag--expression {
+    left: 50%;
+    bottom: -3%;
+    translate: -50% 0;
+}
+.waiting-spark {
+    position: absolute;
+    color: rgb(var(--color-accent) / 0.7);
+    font-size: clamp(10px, 3cqw, 22px);
+    animation: waiting-twinkle 4s ease-in-out infinite;
+}
+.waiting-spark--1 {
+    left: 28%;
+    top: 6%;
+}
+.waiting-spark--2 {
+    right: 29%;
+    top: 1%;
+    animation-delay: -1s;
+}
+.waiting-spark--3 {
+    left: 21%;
+    top: 51%;
+    animation-delay: -2s;
+}
+.waiting-spark--4 {
+    right: 20%;
+    top: 44%;
+    animation-delay: -3s;
+}
+.waiting-scene--B .waiting-character {
+    left: 29.5%;
+    width: 32%;
+}
+.waiting-scene--B .waiting-character img {
+    animation-name: waiting-projector;
+    animation-duration: 3s;
+}
+.waiting-scene--B .waiting-ground {
+    left: 32.5%;
+}
+.waiting-beam {
+    position: absolute;
+    left: 58%;
+    top: 30%;
+    width: 21%;
+    height: 41%;
+}
+.waiting-beam i {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        rgb(var(--color-brand-glow) / 0.22),
+        rgb(var(--color-brand-glow) / 0.02)
+    );
+    clip-path: polygon(0 45%, 100% 0, 100% 100%, 0 55%);
+    animation: waiting-project 4s ease-in-out infinite;
+}
+.waiting-scene--B .waiting-sheet-entry {
+    left: 66.5%;
+    top: 28%;
+    width: 12.6%;
+    height: 38%;
+}
+.waiting-scene--B .waiting-sheet {
+    rotate: 4deg;
+    animation: waiting-film 7s ease-in-out infinite;
+}
+.waiting-scene--B .waiting-sheet-entry--2 .waiting-sheet {
+    animation-delay: -2.33s;
+}
+.waiting-scene--B .waiting-sheet-entry--3 .waiting-sheet {
+    animation-delay: -4.66s;
+}
+.waiting-scan {
+    position: absolute;
+    left: 64.5%;
+    top: 27%;
+    width: 16%;
+    height: 2px;
+    z-index: 5;
+    background: rgb(var(--color-accent) / 0.6);
+    animation: waiting-scan 4s ease-in-out infinite;
+}
+.waiting-scene--C .waiting-sheet-entry--1 {
+    left: 25%;
+}
+.waiting-scene--C .waiting-sheet-entry--2 {
+    left: 66.5%;
+    top: 22%;
+}
+.waiting-scene--C .waiting-sheet-entry--3 {
+    left: 64.5%;
+    top: 59%;
+}
+.waiting-scene--C .waiting-sheet {
+    animation: waiting-bind 7s ease-in-out infinite;
+}
+.waiting-scene--C .waiting-sheet-entry--2 .waiting-sheet {
+    animation-delay: -2.33s;
+}
+.waiting-scene--C .waiting-sheet-entry--3 .waiting-sheet {
+    animation-delay: -4.66s;
+}
+.waiting-scene--loading .waiting-artboard {
+    aspect-ratio: 760 / 430;
+}
+.waiting-scene--loading .waiting-character {
+    left: 27.8%;
+    top: 6.3%;
+    width: 40%;
+    height: 84%;
+}
+.waiting-scene--loading .waiting-character img {
+    animation: none;
+}
+.waiting-scene--loading .waiting-ground {
+    left: 18%;
+    top: 89%;
+    width: 65%;
+    height: 5%;
+}
+.waiting-scene--loading .waiting-orbit {
+    border-color: rgb(var(--color-accent) / 0.25);
+}
+.waiting-note {
+    position: absolute;
+    z-index: 3;
+}
+.waiting-note--1 {
+    left: 13.3%;
+    top: 29.3%;
+    width: 9.5%;
+    height: 24%;
+    rotate: -13deg;
+}
+.waiting-note--2 {
+    left: 71.3%;
+    top: 17.2%;
+    width: 8.8%;
+    height: 23%;
+    rotate: 11deg;
+}
+.waiting-note--3 {
+    left: 79.6%;
+    top: 56%;
+    width: 7.2%;
+    height: 19%;
+    rotate: 14deg;
+}
+.waiting-note img {
+    animation: waiting-float 8s ease-in-out infinite;
+}
+.waiting-note--2 img {
+    animation-delay: -1.3s;
+}
+.waiting-note--3 img {
+    animation-delay: -3s;
+}
+.waiting-companion {
+    position: absolute;
+    left: 64%;
+    top: 43%;
+    width: 16.3%;
+    height: 38%;
+    z-index: 5;
+}
+.waiting-companion img {
+    transform-origin: 50% 100%;
+    animation: waiting-hop 4s ease-in-out infinite;
+}
+.waiting-scene:not([data-moving='true']) *,
+.waiting-scene:not([data-moving='true']) *::after {
+    animation-play-state: paused !important;
+}
+.waiting-scene[data-reduced='true'] * {
+    animation: none !important;
+}
+.waiting-scene[data-reduced='true'] .waiting-scan {
+    display: none;
+}
+@keyframes waiting-float {
+    50% {
+        transform: translateY(-8px) rotate(-1deg);
+    }
+}
+@keyframes waiting-paper {
+    50% {
+        transform: translateY(-14px) rotate(6deg);
+    }
+}
+@keyframes waiting-orbit {
+    to {
+        rotate: 360deg;
+    }
+}
+@keyframes waiting-twinkle {
+    50% {
+        opacity: 0.3;
+        transform: scale(0.7) rotate(30deg);
+    }
+}
+@keyframes waiting-project {
+    50% {
+        opacity: 0.4;
+        transform: scaleY(0.94);
+    }
+}
+@keyframes waiting-projector {
+    50% {
+        transform: rotate(-1.5deg) translateY(-3px);
+    }
+}
+@keyframes waiting-film {
+    0%,
+    100% {
+        opacity: 0;
+        transform: translateY(30px) rotate(8deg) scale(0.8);
+    }
+    20%,
+    65% {
+        opacity: 1;
+        transform: none;
+    }
+    85% {
+        opacity: 0;
+        transform: translateY(-35px) rotate(-8deg) scale(0.85);
+    }
+}
+@keyframes waiting-scan {
+    50% {
+        transform: translateY(80px);
+        opacity: 0.4;
+    }
+}
+@keyframes waiting-bind {
+    0%,
+    100% {
+        opacity: 0;
+        transform: translateY(-25px) rotate(-20deg);
+    }
+    20%,
+    45% {
+        opacity: 1;
+        transform: none;
+    }
+    80% {
+        opacity: 0;
+        transform: translate(25px, 20px) scale(0.6);
+    }
+}
+@keyframes waiting-hop {
+    50% {
+        transform: translateY(-14px) rotate(3deg) scale(1.025, 0.975);
+    }
+}
+@container (max-width: 480px) {
+    .waiting-tags {
+        position: relative;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: center;
+        margin-top: 8px;
+    }
+    .waiting-tag {
+        position: static;
+        translate: none;
+    }
+    .waiting-tag::before {
+        margin-right: 5px;
+    }
+    .waiting-sheet i {
+        height: 2px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .waiting-scene * {
+        animation: none !important;
+    }
+    .art-enter {
+        opacity: 1;
+        transform: none;
+    }
+}

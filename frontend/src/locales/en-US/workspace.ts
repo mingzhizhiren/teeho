@@ -1,17 +1,81 @@
 export default {
     workspace: {
+        edit: {
+            videoUnavailable:
+                'The report video has expired or is unavailable. Upload it again; your text and other media are preserved.',
+            action: 'Edit again',
+            restoring: 'Restoring note',
+            confirmTitle: 'Replace the unsubmitted draft?',
+            confirmDescription:
+                'Replace this draft with the original note and available media from this report. Existing reports are kept.',
+            confirmAction: 'Replace and edit',
+            failed: 'Could not restore the note. Try again later. Your report and current draft are kept.',
+            missingMedia:
+                'Some media has expired or is unavailable. Upload the missing media again. Missing image positions: {images}; also check the video.',
+            none: 'None',
+        },
+        noteTemplate: {
+            overwriteTitle: 'Replace the current text?',
+            overwriteDescription:
+                'The template will replace the title, body and topics. Your selected media and note format are kept.',
+            overwriteAction: 'Replace text',
+            paste: 'Paste content',
+            pasteFailed:
+                'The browser could not read your clipboard. Paste your completed template below.',
+            manualTitle: 'Paste content manually',
+            manualLabel: 'Template content',
+            manualAction: 'Fill form',
+            errors: {
+                missing:
+                    'Please click to copy the template, then edit it according to the template format.',
+                duplicate:
+                    'A section marker is repeated. Use each of # 标题, # 内容 and # 话题 once.',
+                order: 'Place the sections in this order: # 标题, # 内容, # 话题.',
+            },
+            copy: 'Copy template',
+            copied: 'Template copied',
+            copyFailed: 'Could not copy the template. Check clipboard permissions and try again.',
+            titlePlaceholder: 'Enter your note title here',
+            bodyPlaceholder: 'Enter your note content here',
+            multilinePlaceholder: 'Multiple lines are supported',
+            topicsPlaceholder: '#Topic1 #Topic2 #Topic3 #Topic4',
+        },
+        agentChat: {
+            turnBusy: 'The Agent is processing a message on another page. Try again shortly.',
+            conversationSuperseded: 'This session was started on another page.',
+            rollingRateLimited: 'The daily Agent usage limit was reached. Try again in {duration}.',
+        },
+        formDraft: {
+            recoveredInput: 'Previously unsent text',
+            recoveredInputHelp:
+                'Your original text is preserved. Copy what you need into the note fields below. Editing and submitting keep this text; clearing the draft removes it. Its original retention period still applies.',
+            navigation: 'Enter your note and upload media',
+            clear: 'Clear draft',
+            clearConfirmTitle: 'Clear this draft?',
+            clearConfirmDescription:
+                'This removes unsubmitted text and media. Existing reports are kept.',
+            clearConfirmAction: 'Clear draft',
+            storageFull:
+                'Browser storage is full. Clear local history and try again. Your draft remains on this page.',
+            unavailable:
+                'The draft could not be saved locally. Check browser storage and reload to try again.',
+            expired: 'This draft has expired. Enter your note and upload the media again.',
+            reset: 'The local draft was damaged and has been reset. Existing reports are kept.',
+            mediaCleanupFailed:
+                'The draft was cleared. Video cleanup is pending and follows the existing retention rules.',
+        },
         radarInsufficient:
             'Insufficient six-dimension evidence to draw the chart. “—” means a score is unavailable, not zero.',
         mediaRequired: {
             cover: 'Please upload a cover image',
             video: 'Please upload a video',
-            preparing: 'Media is not ready. Please check the upload status.',
+            preparing: 'Media upload is not confirmed yet. Please check its status.',
+            previewPreparing:
+                'Media is still being prepared. You can start analysis now, or preview note information once preparation finishes.',
         },
         checkupInput: {
             optionalMediaHint:
                 'For image notes, provide a cover and images. For video notes, upload a full video; the cover is optional.',
-            budgetExhausted:
-                'Conversation tokens are exhausted. Your draft is saved. Switch to Expert mode to complete it and start the checkup.',
             videoCover: 'Video cover (optional)',
             videoCoverHint:
                 'Upload a finished video. A separate cover is optional; otherwise, the first video frame is used.',
@@ -31,19 +95,37 @@ export default {
                 'Each topic allows up to {limit} characters. Adjust it before submitting.',
             titlePlaceholder: 'Paste your note title',
             bodyPlaceholder: 'Paste the complete note body, keeping your paragraphs',
-            topicsPlaceholder: 'Paste topics separated by commas or new lines',
+            topicsPlaceholder: '#Topic1 #Topic2, or separate with commas or new lines',
         },
         checkup: {
             contentAnalysis: {
                 title: 'Content analysis',
                 consistency: 'Content consistency',
                 stars: '{count} / 5 stars',
+                consistencyRating: 'Content consistency: {count} / 5 stars',
                 risks: 'High-risk terms',
                 weaknesses: 'Shortcomings compared with reference notes',
                 noRisks: 'No matching high-risk terms were found.',
                 riskReviewUnavailable: 'The high-risk term check could not be completed.',
                 noWeaknesses:
                     'The available reference data does not establish specific shortcomings.',
+                noObviousWeaknesses: 'No obvious shortcomings',
+                advice: {
+                    title: 'Issues and optimization advice',
+                    unavailable: 'Optimization advice is temporarily unavailable',
+                    problem: 'Problem',
+                    location: 'Location',
+                    evidence: 'Evidence',
+                    suggestion: 'Suggested action',
+                    priorities: {
+                        high: 'High priority',
+                        medium: 'Medium priority',
+                        low: 'Low priority',
+                    },
+                    paragraphLocation: 'Body paragraph {number}',
+                    topicLocation: 'Topic {number}',
+                    contentLocation: 'Existing image / video materials',
+                },
                 fallback:
                     'Content analysis did not complete. The default is 3 stars; consistency has not been assessed.',
                 scoreBlocked: 'Content consistency is 0 stars. The final score has been set to 0.',
@@ -133,11 +215,17 @@ export default {
                     topicLength: 'Average topic length',
                     maxTopicLength: 'Longest topic length',
                     maxParagraphLength: 'Longest paragraph length',
+                    imageCount: 'Image count',
+                    videoDurationSeconds: 'Video duration (seconds)',
                 },
             },
             savedReport: 'Report saved locally',
             failures: {
                 model_service_unavailable: 'The server is under maintenance',
+                media_preparation_failed:
+                    'Media preparation failed before analysis started. Check your media and try again.',
+                media_preparation_timeout:
+                    'Media preparation timed out before analysis started. Try again later.',
                 insight_unavailable: 'The model cannot reliably score this note.',
                 radar_unavailable: 'There is not enough radar evidence for this analysis.',
                 no_reference_notes: 'No valid comparable notes were found.',
@@ -168,6 +256,11 @@ export default {
             referenceMax: 'Insight model highest score for comparable notes',
             referenceMin: 'Insight model lowest score for comparable notes',
             referenceUnavailable: 'Unavailable',
+            referenceExtremes: 'View score extremes',
+            referenceWeightedRange: 'Reference range',
+            referenceWeightedMedian: 'Median reference',
+            referenceWeightedMax: 'Maximum reference',
+            referenceWeightedMin: 'Minimum reference',
             referenceRange: 'Score range of the middle 80% of comparable notes',
             referenceComparison: {
                 above: 'Above the comparable median',
@@ -275,7 +368,7 @@ export default {
                 },
             },
         },
-        analysisEngineName: 'Teeho Insight Engine · V2.3',
+        analysisEngineName: 'Teeho Insight Engine · V2.5.2',
         loadingPage: {
             title: 'Igniting the Teeho Insight Engine',
             description: 'Restoring your workspace, local history, and task status. Please wait.',
@@ -347,76 +440,16 @@ export default {
         title: 'Check your finished note before publishing',
         description:
             'Add your title, body, topics and cover for content dimensions, key differences and model score references.',
-        modeToggleLabel: 'Switch between Agent and Custom modes',
         inputModeLabel: 'Input mode',
         modes: {
             agent: 'Agent',
             custom: 'Expert',
         },
-        modeLabels: {
-            agent: 'Natural-language analysis',
-            custom: 'Task field settings',
-        },
         viewTitles: {
             agent: 'Let the Agent understand and run your task',
             custom: 'Customize this analysis task',
         },
-        modeDescriptions: {
-            agent: 'Enter your existing note in natural language. The Agent organizes it and asks for missing details.',
-        },
         composerTitle: 'Task input',
-        agentChat: {
-            composerLabel: 'Chat with the Teeho Agent',
-            logLabel: 'Agent conversation',
-            replyLabel: 'Reply to Agent',
-            send: 'Send message',
-            waiting: 'Please wait',
-            thinking: 'Agent is thinking',
-            turnBusy: 'The Agent is handling a message in another tab. Please try again shortly.',
-            conversationSuperseded: 'This conversation was started on another page.',
-            syncing:
-                'Syncing the previous conversation. Your content is restored; controls are temporarily disabled.',
-            disconnected: 'Disconnected',
-            syncRetrying:
-                'Service temporarily unavailable. Reconnecting automatically. Your messages, draft and media are preserved.',
-            coordinationUnavailable:
-                'This page cannot send safely right now. Refresh the page and try again.',
-            localConversationUnavailable:
-                'The local conversation is temporarily unavailable. Refresh and try again.',
-            localStorageFull:
-                'Browser storage is full. Remove old history or browser data, then try again.',
-            localConversationReset:
-                'The local conversation could not be restored safely, so a new task was started.',
-            conversationExpired:
-                'The previous unfinished task exceeded 24 hours and was cleared automatically.',
-            draftRateLimited:
-                'You have reached the send limit. Please try again in {minutes} minute(s).',
-            rollingRateLimited: 'Agent usage is high today. You can continue in about {duration}.',
-            tokenProgress: 'Conversation progress',
-            inputHint: 'The Agent organizes your note and asks you to confirm when it is complete.',
-            imageAttachmentRequired: 'Add an image before sending',
-            videoAttachmentRequired: 'Add a video before sending',
-            mediaPreparationPending: 'Wait for the image or video upload to finish',
-            removeStoppedVideo: 'Please remove the video',
-            adjustPlaceholder: 'Paste the original note text you want to add or replace…',
-            imageOnlyMessage: 'Please analyze the {count} images I uploaded.',
-            confirmTitle: 'Confirm this task',
-            confirmDescription:
-                'The checkup uses this original text and media. Check that they match your note.',
-            taskSummary: 'Current task',
-            analysisReady: 'Ready to analyze',
-            taskSummaryButtonLabel: 'Current task, ready to analyze',
-            otherFields: 'Other parameters',
-            expandFields: 'Expand',
-            confirmStart: 'Confirm and start',
-            clear: 'Clear',
-            clearConfirmTitle: 'Clear this task?',
-            clearConfirmDescription:
-                'The current conversation, draft, and media will be discarded to start a new task.',
-            clearForContentKind:
-                'The content type is locked. Clear the current conversation, draft, and media before switching.',
-            clearConfirmAction: 'Clear and start a new task',
-        },
         rawTextLabel: 'Your finished note',
         contentKind: {
             label: 'Content type',
@@ -489,6 +522,9 @@ export default {
             'Title and topics are required; the body is optional. Image covers are required; video covers are optional.',
         imageReferenceCount: '{count} image references remain in this draft when switching modes.',
         upload: {
+            processedPreview: 'View processed preview of {name}',
+            previewUnavailable: 'Preview unavailable',
+            reupload: 'Upload again',
             limits: 'Up to {count} images, {fileSize} MB each, {totalSize} MB total.',
             choose: 'Choose images',
             chooseCover: 'Choose cover',
@@ -525,7 +561,7 @@ export default {
             },
             topics: {
                 label: 'Topics',
-                help: 'Up to 25 topics, 100 characters each. Separate them with commas or new lines.',
+                help: 'Up to 25 topics, 100 characters each. Use hashtags, commas or new lines. Spaces within topic names are kept.',
             },
             track: {
                 label: 'Content track',
@@ -608,6 +644,7 @@ export default {
             'Submit your finished note to see content dimensions, key differences, reference notes and a model score.',
         technicalFailureTitle: 'This task hit a technical failure',
         statuses: {
+            media_preparing: 'Preparing media',
             no_reference_notes: 'Failed',
             researching: 'Preparing context',
             queued: 'Queued',
@@ -621,6 +658,7 @@ export default {
             maintenance_cancelled: 'Cancelled for maintenance',
         },
         statusTitles: {
+            media_preparing: 'Preparing media',
             no_reference_notes: 'Analysis failed',
             researching: 'Preparing analysis context',
             queued: 'Task queued',
@@ -634,6 +672,8 @@ export default {
             maintenance_cancelled: 'Task cancelled for Teeho maintenance',
         },
         statusDescriptions: {
+            media_preparing:
+                'Your files are uploaded. Analysis will start automatically when the media is ready. Refreshing or signing out will not stop this task.',
             researching:
                 'Teeho is gathering current context before continuing the analysis in the background.',
             processing:
@@ -652,6 +692,11 @@ export default {
             'This task usually finishes within {minutes} minute(s). Queue time does not count toward processing timeout.',
         longRunning: 'Processing is taking longer than usual. The system is still working.',
         ritual: {
+            captions: {
+                A: 'Gathering scattered ideas into clearer clues.',
+                B: 'A different angle reveals a little more.',
+                C: 'Every thoughtful page deserves a closer look.',
+            },
             eyebrow: 'Teeho · Checking your note',
             phases: {
                 ignition: {

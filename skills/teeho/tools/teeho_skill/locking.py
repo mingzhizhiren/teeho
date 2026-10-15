@@ -3,7 +3,7 @@
 import os
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -17,10 +17,24 @@ from .storage import (
 )
 
 STALE_INITIALIZATION_SECONDS = 60
+RELEASE_LOCK_ATTEMPTS = 20
+RELEASE_LOCK_DELAY_SECONDS = 0.01
+
+
+def _lock_guard(acquire: Callable[[], None], wait: bool) -> None:
+    attempts = RELEASE_LOCK_ATTEMPTS if wait else 1
+    for attempt in range(attempts):
+        try:
+            acquire()
+            return
+        except OSError as error:
+            if attempt == attempts - 1:
+                raise TeehoError("identity_busy") from error
+            time.sleep(RELEASE_LOCK_DELAY_SECONDS)
 
 
 @contextmanager
-def _acquisition_guard(path: Path) -> Iterator[None]:
+def _acquisition_guard(path: Path, wait: bool = False) -> Iterator[None]:
     """操作系统锁序列化本版回收过程，进程退出自动释放。"""
     guard = path.with_name("." + path.name + ".guard")
     with guard.open("a+b") as stream:
@@ -29,10 +43,7 @@ def _acquisition_guard(path: Path) -> Iterator[None]:
             import msvcrt
 
             stream.seek(0)
-            try:
-                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-            except OSError as error:
-                raise TeehoError("identity_busy") from error
+            _lock_guard(lambda: msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1), wait)
             try:
                 yield
             finally:
@@ -41,10 +52,7 @@ def _acquisition_guard(path: Path) -> Iterator[None]:
         else:
             import fcntl
 
-            try:
-                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                raise TeehoError("identity_busy") from error
+            _lock_guard(lambda: fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB), wait)
             try:
                 yield
             finally:
@@ -126,6 +134,8 @@ def lock_directory(path: Path) -> Iterator[None]:
     try:
         yield
     finally:
-        if read_json(path / "owner.json") == owner:
-            (path / "owner.json").unlink(missing_ok=True)
-            path.rmdir()
+        # Windows 不允许删除被竞争者读取的文件；释放与陈旧锁检查共用守卫。
+        with _acquisition_guard(path, wait=True):
+            if read_json(path / "owner.json") == owner:
+                (path / "owner.json").unlink(missing_ok=True)
+                path.rmdir()

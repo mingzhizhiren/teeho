@@ -10,84 +10,54 @@ export default {
             anchor_missing: 'This page target is unavailable. You can skip this step.',
         },
         onboarding: {
+            template: {
+                copy: {
+                    title: 'Copy template',
+                    content: 'Copy the template and fill in your title, body and topics.',
+                },
+                paste: {
+                    title: 'Paste content',
+                    content: 'Copy your completed template, then click here to fill the form.',
+                },
+            },
             workspaceFoundation: {
                 steps: {
                     welcome: {
                         title: 'Welcome to the Teeho workspace',
                         content:
-                            'Enter a finished note, run its checkup and review the report. This guide explains the interface without filling or submitting for you.',
+                            'Enter your note, upload media, then start analysis to view the report.',
                     },
                     modeChoice: {
-                        title: 'Choose how you want to work',
-                        content:
-                            'Agent mode builds a shared draft through replies. Custom mode lets you edit the complete task fields directly. Switching changes the editing workflow and never starts analysis by itself.',
+                        title: 'Choose the note format',
+                        content: 'Choose images or video. Switching keeps your draft.',
                     },
                     taskOptions: {
-                        title: 'Set the track and content type',
-                        content:
-                            'The track sets the analysis context. Image notes need images and a cover; video notes need a full video, with an optional cover.',
+                        title: 'Prepare images or a video',
+                        content: 'The first image is the default cover. A video cover is optional.',
                     },
                     agentInput: {
                         title: 'Start with a finished note',
-                        content:
-                            'Paste your title, body and topics and add media. The Agent organizes them and asks for missing details. Only confirmation starts the checkup.',
-                    },
-                },
-            },
-            agentReply: {
-                steps: {
-                    replyRegion: {
-                        title: 'This is the real Agent reply area',
-                        content:
-                            'The Agent uses this area to explain the shared draft, ask for a decision, or suggest the next step. The history remains scoped to forming this task and is not general chat.',
-                    },
-                    freeInput: {
-                        title: 'You can always reply in your own words',
-                        content:
-                            'Add missing original text or correct the entered content in natural language. Sending updates the shared draft; the checkup requires confirmation.',
-                    },
-                },
-            },
-            taskConfirmation: {
-                steps: {
-                    card: {
-                        title: 'The confirmation card is not an analysis result',
-                        content:
-                            'This is the durably saved task draft. Open the card yourself and inspect it; the guide never opens or submits it for you.',
-                    },
-                    keyFields: {
-                        title: 'Review the key fields first',
-                        content:
-                            'Check the original title, body and topics, the track and the media. Source labels explain how each field was entered.',
-                    },
-                    startAnalysis: {
-                        title: 'Analysis starts only after confirmation',
-                        content:
-                            'This button creates the analysis task. If anything is wrong, reply to the Agent and adjust it first.',
+                        content: 'Enter your finished note. Title and topics are required.',
                     },
                 },
             },
             expertMode: {
                 steps: {
                     taskOptions: {
-                        title: 'Set the basic options in Custom mode',
-                        content:
-                            'Choose the track and image or video format, then enter your original note.',
+                        title: 'Choose the note format first',
+                        content: 'Choose an image or video note, then enter your original text.',
                     },
                     coreFields: {
                         title: 'Enter the title, body and topics',
-                        content:
-                            'Use up to 200 characters for the title, 1000 for the body and 25 topics. Title and topics are required; the body is optional.',
+                        content: 'Title and topics are required. The body is optional.',
                     },
                     startAnalysis: {
                         title: 'Start only after reviewing the task',
-                        content:
-                            'This button creates the task. Custom mode still checks your note, media and storage.',
+                        content: 'Click to start analysis. Missing content will be highlighted.',
                     },
                     media: {
                         title: 'Upload media and check the cover',
-                        content:
-                            'Add up to 18 images and select a cover; the first image is the default. A video note needs one full video; a separate cover is optional.',
+                        content: 'Upload images or a full video and choose a cover as needed.',
                     },
                 },
             },
@@ -95,24 +65,29 @@ export default {
                 steps: {
                     metrics: {
                         title: 'Review key note metrics',
-                        content:
-                            'Read the primary score and assessment first, followed by content differences and reference notes. Insight Engine score references appear when sufficient data is available; radar charts and dimension scores are temporarily hidden.',
+                        content: 'Review the score and metrics alongside comparable notes.',
                     },
                     actions: {
                         title: 'Copy the report or run another checkup',
-                        content:
-                            'Copy the report or run another checkup to create a separate report. The original remains available; upload expired media again.',
+                        content: 'Copy the report, or edit your note and analyze it again.',
                     },
                     report: {
                         title: 'Review differences and reference notes',
-                        content:
-                            'The report shows six key note metrics: title length, title emoji ratio, body length, characters per paragraph, list or step count, and topic count. Reference notes include original links when available.',
+                        content: 'Review suggestions, key metrics and reference notes.',
                     },
                 },
             },
         },
     },
     common: {
+        art: {
+            perspective: 'See your post from a new perspective.',
+            nextPost: 'Insights for your next post.',
+            workspace: 'Post ready? Let’s take a closer look.',
+            report: 'See the details. Find what to improve.',
+            skill: 'Install the teeho skill in one step.',
+            signature: 'teeho',
+        },
         appName: 'Teeho',
         home: 'Teeho home',
         close: 'Close',
@@ -180,6 +155,7 @@ export default {
     },
     auth: {
         heroEyebrow: 'Check your Xiaohongshu note before publishing',
+        xhsLogoAlt: 'Xiaohongshu',
         heroTitleLine1: 'Check your note',
         heroTitleLine2: 'and publish with evidence.',
         heroDescription:
@@ -218,12 +194,12 @@ export default {
         clearLocalData: 'Clear local data',
         clearLocalDataOnlyConfirmTitle: 'Clear local data?',
         clearLocalDataOnlyConfirm:
-            'This permanently deletes this account’s local tasks, media, and analysis results from this browser and asynchronously cleans up temporary cloud media. It keeps you signed in and does not delete the account or cloud business records. This cannot be undone. Continue?',
+            'This permanently deletes local history, media and results from this browser, and clears temporary cloud media that active tasks do not need. Submitted tasks and required media remain. Recovery records stay until tasks finish. You stay signed in and your account is kept. Continue?',
         clearLocalDataOnlyConfirmAction: 'Clear and stay signed in',
         clearLocalDataAndLogout: 'Sign out and clear local data',
         clearLocalDataConfirmTitle: 'Clear local data?',
         clearLocalDataConfirm:
-            'This deletes this account’s tasks, original media, and results from this browser, asynchronously cleans up temporary cloud media, then signs out. It does not delete the account or cloud business records. This cannot be undone. Continue?',
+            'This permanently deletes local history, media and results from this browser, clears temporary cloud media that active tasks do not need, then signs out. Submitted tasks and required media remain, and can be viewed after signing in again. Your account is kept. Continue?',
         clearLocalDataConfirmAction: 'Clear and sign out',
         clearLocalDataFailed:
             'Not all local data for this account could be cleared safely. You remain signed in so you can retry.',

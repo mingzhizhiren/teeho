@@ -3,7 +3,7 @@ export const checkupVersions = {
     algorithm: 'radar-rules.v120.2',
     selection: 'checkup-selection.v8',
     score: 'insight-consistency-score.v2',
-    explanation: 'content-analysis.v4',
+    explanation: 'content-analysis.v6',
 } as const
 
 /** 候选数据按发布时间逐段扩展的窗口。 */

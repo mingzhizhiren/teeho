@@ -1,6 +1,6 @@
 import {
     PERFORMANCE,
-    extractExtendedStructureFeatures,
+    extractMediaStructureFeatures,
     extractLongestStructure,
 } from '@teeho/content-metrics'
 import { createHash } from 'node:crypto'
@@ -20,9 +20,6 @@ import { understandTaskMaterials } from '../materials/analysis.material'
 import { resolveAnalysisCover } from '../media/analysis.cover'
 import {
     AgentContractError,
-    AgentCancelledError,
-    isAgentServiceUnavailable,
-    AgentProviderError,
     type AgentImageAsset,
     type AgentProvider,
     type AgentVideoEvidence,
@@ -48,17 +45,15 @@ import {
     type CheckupTopicEvidenceSource,
 } from './analysis.checkup.topics'
 
-import {
-    readContentExplanation,
-    fallbackContentExplanation,
-} from './analysis.comparison-explanation'
 import { collectRiskCandidates } from './analysis.risk-candidates'
-import { contentScoreMultiplier } from './analysis.content-analysis'
+import { CONTENT_EVALUATION_VERSION, contentScoreMultiplier } from './analysis.content-analysis'
 import { calculateDifferences } from './analysis.differences'
 import { calculateStructureReferences } from './analysis.structure-metrics'
+import { createAdviceEvidenceSources } from './analysis.advice'
+import { reviewAnalysisContent } from './analysis.content-review'
 const SHANGHAI_OFFSET_MS = 28800000
-const RETRY_ATTEMPT = 2
 const DATE_WIDTH = 10
+const MILLISECONDS_PER_SECOND = 1000
 
 export interface CheckupEvaluationInput {
     insightEnabled: boolean
@@ -157,6 +152,13 @@ export async function evaluateAnalysisCheckup(
                   topics: provisionalTask.fields.topics.value,
                   cover: localMaterials.cover,
                   contentType: provisionalTask.contentKind,
+                  imageCount:
+                      provisionalTask.contentKind === 'image'
+                          ? provisionalTask.imageReferences.length
+                          : null,
+                  videoDurationSeconds: input.media.videoEvidence
+                      ? input.media.videoEvidence.durationMs / MILLISECONDS_PER_SECOND
+                      : null,
                   publishedAt: publication,
               },
               publication,
@@ -296,9 +298,25 @@ export async function evaluateAnalysisCheckup(
         task: { ...input.task, standardTask: task },
     })
     const differences = calculateDifferences(evidence, task, references)
+    const structureMetrics = extractMediaStructureFeatures(
+        task.fields.title.value,
+        task.fields.body.value,
+        task.fields.topics.value,
+        {
+            contentType: task.contentKind,
+            imageCount: task.imageReferences.length,
+            videoDurationSeconds: input.media.videoEvidence
+                ? input.media.videoEvidence.durationMs / MILLISECONDS_PER_SECOND
+                : null,
+        },
+    )
+    const structureReferences = calculateStructureReferences(evidence, task, structureMetrics)
     const generationBase = {
         task,
         materialDescriptions: materials,
+        adviceSources: createAdviceEvidenceSources({ task, materialDescriptions: materials }),
+        structureMetrics,
+        structureReferences,
         comparisonFacts: differences,
         comparisonNotes: references,
         topicEvidence,
@@ -325,52 +343,15 @@ export async function evaluateAnalysisCheckup(
             riskLevel,
         }),
     )
-    const explain = (attempt: number) =>
-        input.agent.usage.execute({
-            userId: input.task.userId,
-            association: { kind: 'task', id: input.task.id },
-            requestId: input.requestId,
-            stage: 'generate_result',
-            provider: input.agent.descriptor,
-            promptVersion: checkupVersions.explanation,
-            attemptNumber: attempt,
-            media: { imageInputCount: 0, videoFrameInputCount: 0 },
-            invoke: async () => {
-                try {
-                    return await input.agent.provider.generateResult(generationInput)
-                } catch (error) {
-                    if (input.signal.aborted || error instanceof AgentProviderError) throw error
-                    throw new AgentProviderError('capability', { cause: error })
-                }
-            },
-            parse: (raw: unknown) => readContentExplanation(generationInput, raw),
-            shouldRetry: (error) =>
-                attempt === 1 && error instanceof AgentProviderError && error.retryable,
-        })
-    const tracked = await explain(1)
-        .catch(async (error: unknown) => {
-            if (input.signal.aborted || !(error instanceof AgentProviderError) || !error.retryable)
-                throw error
-            return explain(RETRY_ATTEMPT)
-        })
-        .catch((error: unknown) => {
-            if (
-                input.signal.aborted ||
-                error instanceof AgentCancelledError ||
-                isAgentServiceUnavailable(error) ||
-                !(error instanceof AgentProviderError)
-            )
-                throw error
-            input.log.warn(
-                {
-                    event: 'analysis_content_review_fallback',
-                    taskId: input.task.id,
-                    errorCategory: error.category,
-                },
-                '内容分析失败，使用默认三星',
-            )
-            return { value: fallbackContentExplanation(generationInput), metadata: null }
-        })
+    const tracked = await reviewAnalysisContent({
+        userId: input.task.userId,
+        taskId: input.task.id,
+        requestId: input.requestId,
+        signal: input.signal,
+        generation: generationInput,
+        agent: input.agent,
+        log: input.log,
+    })
     const forceZero = tracked.value.status === 'completed' && tracked.value.consistency.stars === 0
     if (!references.length && input.plugins.referenceRequirement !== 'optional')
         throw new AnalysisReferenceUnavailableError({
@@ -462,6 +443,8 @@ export async function evaluateAnalysisCheckup(
             ).values(),
         ],
         contentAnalysis: {
+            evaluationVersion: CONTENT_EVALUATION_VERSION,
+            advice: tracked.value.advice,
             scorePolicy,
             status: tracked.value.status,
             consistency: tracked.value.consistency,
@@ -470,18 +453,14 @@ export async function evaluateAnalysisCheckup(
             originalScore,
         },
         customMetrics: pluginOutput.customMetrics,
-        structureMetricsVersion: 'structure.v2' as const,
+        structureMetricsVersion: 'structure.v3' as const,
         structureReferencePolicy: cohort?.policy ?? readCaseRankingVersion(),
         structureLocations: extractLongestStructure(
             task.fields.body.value,
             task.fields.topics.value,
         ).locations,
-        structureMetrics: extractExtendedStructureFeatures(
-            task.fields.title.value,
-            task.fields.body.value,
-            task.fields.topics.value,
-        ),
-        structureReferences: calculateStructureReferences(evidence, task),
+        structureMetrics,
+        structureReferences,
         primaryScore: { source: insight ? 'insight' : 'radar_average', value: mainScore },
         primaryTrack: materials.primaryTrack,
         secondaryTracks: materials.secondaryTracks ?? [],

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -10,13 +11,10 @@ import { authInputConstraints } from '@/features/auth/auth.constants'
 import { useAuthStore } from '@/stores/auth'
 import { getApiRequestErrorMessage } from '@/utils/apiRequestError'
 
-const props = withDefaults(
-    defineProps<{ redirectPath?: string; showRegistration?: boolean }>(),
-    {
-        redirectPath: '/workspace',
-        showRegistration: true,
-    },
-)
+const props = withDefaults(defineProps<{ redirectPath?: string; showRegistration?: boolean }>(), {
+    redirectPath: '/workspace',
+    showRegistration: true,
+})
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -137,7 +135,7 @@ async function submit() {
                         required
                     />
                     <button
-                        class="absolute inset-y-0 right-1 my-auto flex h-11 w-11 items-center justify-center rounded-lg text-muted transition hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        class="app-button app-button--secondary app-button--icon-only app-button--sm absolute inset-y-0 right-1 my-auto"
                         type="button"
                         :aria-label="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
                         :title="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
@@ -157,17 +155,16 @@ async function submit() {
                 :feedback="errorFeedback"
             />
 
-            <button
-                class="flex h-12 w-full items-center justify-center rounded-xl bg-ink px-4 text-sm font-semibold text-surface transition hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60"
+            <AppButton
+                variant="primary"
+                size="md"
+                class="w-full"
                 type="submit"
                 :disabled="submitting"
             >
-                <AppSpinner
-                    v-if="submitting"
-                    class="mr-2"
-                />
+                <AppSpinner v-if="submitting" class="mr-2" />
                 {{ submitting ? t('auth.loggingIn') : t('auth.login') }}
-            </button>
+            </AppButton>
         </form>
 
         <p v-if="showRegistration" class="mt-7 text-center text-sm text-muted">

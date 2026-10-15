@@ -6,10 +6,7 @@ import { i18n } from '@/locales'
 import { resolveApiErrorMessage } from '@/utils/apiErrorMessage'
 import { ApiRequestError } from '@/utils/apiRequestError'
 import { createBestEffortRequest } from '@/utils/bestEffortRequest'
-import {
-    isServiceMaintenanceResponse,
-    readApiErrorReason,
-} from '@/utils/maintenanceResponse'
+import { isServiceMaintenanceResponse, readApiErrorReason } from '@/utils/maintenanceResponse'
 
 export { isServiceMaintenanceResponse } from '@/utils/maintenanceResponse'
 
@@ -97,13 +94,16 @@ async function ensureFreshSession() {
 /** Axios 实例：携带 HttpOnly 会话 Cookie，并在 access token 过期时轮换会话 */
 export const request = axios.create(requestOptions)
 
-export const sendBestEffortRequest = createBestEffortRequest(
-    fetch,
-    requestOptions.baseURL,
-)
+export const sendBestEffortRequest = createBestEffortRequest(fetch, requestOptions.baseURL)
 
 request.interceptors.response.use(
     (response) => {
+        // 显式文件下载沿用会话刷新，但不按普通 JSON envelope 解析。
+        if (
+            response.config.responseType === 'blob' &&
+            String(response.headers['content-type']).startsWith('text/plain')
+        )
+            return response
         const body = response.data as ApiResponse<unknown>
         if (body.code !== 0) {
             return Promise.reject(

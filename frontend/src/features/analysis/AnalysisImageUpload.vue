@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -11,7 +12,8 @@ import { createUploadingDraftImage, refreshDraftImageStatuses } from './analysis
 import { isAnalysisMediaUploadRateLimitError } from './analysis.media-upload-rate'
 import { browserAnalysisMediaTransport } from './analysis.media-upload.adapter'
 import AnalysisMediaPreviewDialog from './AnalysisMediaPreviewDialog.vue'
-import type { SharedTaskImage } from './taskDraft'
+import { draftImageName, draftImageBytes, type SharedTaskImage } from './taskDraft'
+import { getAnalysisMediaPreview } from '@/api/analysis'
 
 const props = withDefaults(
     defineProps<{
@@ -52,6 +54,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const objectUrls = new Map<string, string>()
 const previewSource = ref('')
 const previewTitle = ref('')
+const remotePreviews = ref<Record<string, { url: string; expiresAt: string; retries: number }>>({})
+let isDisposed = false
 let latestImages = props.images
 const visibleImages = computed(() => (props.firstOnly ? props.images.slice(0, 1) : props.images))
 
@@ -72,6 +76,7 @@ function formatFileSize(bytes: number) {
 }
 
 function previewUrl(image: SharedTaskImage) {
+    if (!image.file) return remotePreviews.value[image.assetId ?? '']?.url ?? ''
     const existing = objectUrls.get(image.localId)
     if (existing) {
         return existing
@@ -81,8 +86,54 @@ function previewUrl(image: SharedTaskImage) {
     return created
 }
 
+async function loadRemotePreview(image: SharedTaskImage, retries = 0): Promise<void> {
+    if (image.file || !image.assetId) return
+    const assetId = image.assetId
+    try {
+        const preview = await getAnalysisMediaPreview(assetId)
+        if (isDisposed || !props.images.some((candidate) => candidate.assetId === assetId)) return
+        if (preview.assetId !== assetId) throw new Error('Preview asset mismatch')
+        remotePreviews.value = {
+            ...remotePreviews.value,
+            [assetId]: { url: preview.previewUrl, expiresAt: preview.previewExpiresAt, retries },
+        }
+    } catch {
+        if (!isDisposed)
+            remotePreviews.value = {
+                ...remotePreviews.value,
+                [assetId]: { url: '', expiresAt: '', retries },
+            }
+    }
+}
+
+function refreshFailedPreview(image: SharedTaskImage): void {
+    if (image.file || !image.assetId) return
+    const previous = remotePreviews.value[image.assetId]
+    if ((previous?.retries ?? 0) > 0) {
+        remotePreviews.value = {
+            ...remotePreviews.value,
+            [image.assetId]: { url: '', expiresAt: '', retries: 1 },
+        }
+        return
+    }
+    void loadRemotePreview(image, 1)
+}
+
+watch(
+    () =>
+        props.images
+            .filter((image) => !image.file)
+            .map((image) => image.assetId)
+            .join('|'),
+    () => {
+        for (const image of props.images)
+            if (!image.file && image.assetId) void loadRemotePreview(image)
+    },
+    { immediate: true },
+)
+
 function canPreviewImage(image: SharedTaskImage) {
-    return image.status === 'processing' || image.status === 'ready'
+    return (image.status === 'processing' || image.status === 'ready') && Boolean(previewUrl(image))
 }
 
 function openImagePreview(image: SharedTaskImage) {
@@ -90,7 +141,9 @@ function openImagePreview(image: SharedTaskImage) {
         return
     }
     previewSource.value = previewUrl(image)
-    previewTitle.value = image.file.name
+    previewTitle.value = image.file
+        ? draftImageName(image)
+        : t('workspace.upload.processedPreview', { name: draftImageName(image) })
 }
 
 function closeImagePreview() {
@@ -118,9 +171,17 @@ async function selectFiles(event: Event) {
 async function acceptFiles(selected: File[]): Promise<void> {
     if (props.mutationLocked) return
     const selection = selectImageAttachments(
-        (props.firstOnly ? latestImages.slice(0, 1) : latestImages).map((image) => image.file),
+        (props.firstOnly ? latestImages.slice(0, 1) : latestImages).flatMap((image) =>
+            image.file ? [image.file] : [],
+        ),
         selected,
         props.limits,
+        {
+            count: visibleImages.value.filter((image) => !image.file).length,
+            bytes: visibleImages.value
+                .filter((image) => !image.file)
+                .reduce((total, image) => total + draftImageBytes(image), 0),
+        },
     )
     if (selection.error) {
         emit('error', t(`workspace.upload.${selection.error}`, { count: props.limits.maxFiles }))
@@ -196,6 +257,7 @@ watch(
 )
 
 onUnmounted(() => {
+    isDisposed = true
     polling.stop()
     for (const url of objectUrls.values()) {
         URL.revokeObjectURL(url)
@@ -208,9 +270,7 @@ onUnmounted(() => {
     <div
         :aria-invalid="invalid || undefined"
         :class="[
-            !compact && invalid
-                ? 'border-red-500 ring-1 ring-red-500 dark:border-red-400 dark:ring-red-400'
-                : 'border-line',
+            'border-line',
             compact
                 ? 'relative flex h-full min-h-0 flex-1 flex-col'
                 : 'rounded-2xl border border-dashed bg-surface-muted p-4',
@@ -249,11 +309,9 @@ onUnmounted(() => {
                 </p>
             </div>
             <label
-                class="shrink-0 cursor-pointer border border-line bg-surface text-center font-semibold text-ink transition hover:border-brand/50 hover:bg-brand/5"
-                :class="[
-                    compact ? 'rounded-lg px-3 py-2 text-xs' : 'rounded-xl px-4 py-2.5 text-sm',
-                    mutationLocked ? 'cursor-not-allowed opacity-50' : '',
-                ]"
+                class="app-button app-button--secondary shrink-0"
+                :class="compact ? 'app-button--sm' : 'app-button--md'"
+                :aria-disabled="mutationLocked"
             >
                 {{ t(firstOnly ? 'workspace.upload.chooseCover' : 'workspace.upload.choose') }}
                 <input
@@ -275,7 +333,7 @@ onUnmounted(() => {
                 compact
                     ? [
                         'mt-2 min-h-0 flex-1 rounded-2xl border border-dashed bg-surface-muted p-2 xl:mt-0',
-                        invalid ? 'border-red-500 dark:border-red-400' : 'border-line',
+                        'border-line',
                     ]
                     : 'mt-4 max-h-40'
             "
@@ -285,15 +343,17 @@ onUnmounted(() => {
                 v-if="compact && !images.length"
                 class="flex h-full w-full flex-col items-center justify-center gap-4"
             >
-                <button
+                <AppButton
+                    variant="secondary"
+                    size="md"
+                    icon="image"
                     type="button"
-                    class="rounded-xl border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink transition hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="mutationLocked"
                     data-testid="empty-image-upload"
                     @click="fileInput?.click()"
                 >
                     {{ t(firstOnly ? 'workspace.upload.chooseCover' : 'workspace.upload.choose') }}
-                </button>
+                </AppButton>
                 <p v-if="firstOnly" class="px-1 text-center text-xs leading-relaxed text-muted">
                     {{ t('workspace.upload.defaultVideoCover') }}
                 </p>
@@ -311,17 +371,32 @@ onUnmounted(() => {
                         :disabled="!canPreviewImage(image)"
                         :aria-label="
                             canPreviewImage(image)
-                                ? t('workspace.upload.preview', { name: image.file.name })
+                                ? t(
+                                    image.file
+                                        ? 'workspace.upload.preview'
+                                        : 'workspace.upload.processedPreview',
+                                    { name: draftImageName(image) },
+                                )
                                 : undefined
                         "
                         @click="openImagePreview(image)"
                     >
                         <img
+                            v-if="previewUrl(image)"
+                            :key="`${image.localId}:${remotePreviews[image.assetId ?? '']?.retries ?? 0}`"
                             class="h-full w-full object-cover"
                             :src="previewUrl(image)"
-                            :alt="image.file.name"
+                            :alt="draftImageName(image)"
                             data-testid="image-material-thumbnail"
+                            @error="refreshFailedPreview(image)"
                         />
+                        <span
+                            v-else
+                            class="flex h-full items-center justify-center text-muted"
+                            data-testid="image-material-thumbnail"
+                            :aria-label="t('workspace.upload.previewUnavailable')"
+                        ><AppIcon name="image"
+                        /></span>
                     </button>
                     <div
                         v-if="image.status === 'uploading' || image.status === 'processing'"
@@ -396,14 +471,19 @@ onUnmounted(() => {
                         v-else-if="image.status === 'failed'"
                         class="absolute inset-0 flex items-center justify-center bg-black/45"
                     >
-                        <button
-                            class="rounded-full bg-surface/95 px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        <AppButton
+                            v-if="image.file && !image.reusable"
+                            variant="secondary"
+                            size="sm"
                             type="button"
                             :disabled="mutationLocked"
                             @click="retryImage(image)"
                         >
                             {{ t('workspace.upload.retry') }}
-                        </button>
+                        </AppButton>
+                        <span v-else class="px-1 text-center text-xs text-white">{{
+                            t('workspace.upload.reupload')
+                        }}</span>
                     </div>
                     <span
                         v-else-if="image.status === 'ready'"
@@ -417,7 +497,7 @@ onUnmounted(() => {
                         class="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/55 text-xs text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"
                         type="button"
                         :disabled="mutationLocked"
-                        :aria-label="t('workspace.upload.remove', { name: image.file.name })"
+                        :aria-label="t('workspace.upload.remove', { name: draftImageName(image) })"
                         @click="removeImage(image.localId)"
                     >
                         <AppIcon name="close" size="sm" />
@@ -425,10 +505,10 @@ onUnmounted(() => {
                 </div>
                 <div v-if="!compact || coverSelectable" class="px-2 py-1.5">
                     <p v-if="!compact" class="truncate text-xs font-medium text-ink">
-                        {{ image.file.name }}
+                        {{ draftImageName(image) }}
                     </p>
                     <p v-if="!compact" class="text-[10px] text-muted">
-                        {{ formatFileSize(image.file.size) }}
+                        {{ formatFileSize(draftImageBytes(image)) }}
                     </p>
                     <button
                         v-if="coverSelectable"
@@ -441,7 +521,7 @@ onUnmounted(() => {
                         "
                         :aria-pressed="(coverLocalId ?? images[0]?.localId) === image.localId"
                         :aria-label="
-                            t('workspace.checkupInput.selectCover', { name: image.file.name })
+                            t('workspace.checkupInput.selectCover', { name: draftImageName(image) })
                         "
                         :disabled="mutationLocked"
                         @click="emit('update:cover', image.localId)"

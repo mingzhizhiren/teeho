@@ -13,6 +13,7 @@ import {
     createSemanticDraftFingerprint,
     createSubmissionInputFingerprint,
     createVideoEffectiveInputFingerprint,
+    createDeferredSubmissionFingerprint,
 } from './analysis.input-fingerprint'
 import { createStandardAnalysisTask } from './analysis.resolver'
 import type { AnalysisDraft, StandardAnalysisTask, VideoEvidenceReference } from './analysis.schema'
@@ -46,6 +47,7 @@ import {
     createResearchingAnalysisTask,
     retryFailedAnalysisTask,
 } from './tasks/analysis.task.service'
+import { MEDIA_PREPARATION } from './tasks/analysis.media-preparation.service'
 export {
     createEffectiveInputFingerprint,
     createEffectiveInputFingerprintFromDigests,
@@ -84,6 +86,51 @@ export interface AnalysisSubmissionOptions extends AnalysisDraftPreparationOptio
     admission?: AnalysisTaskAdmission
     preparationId?: string
     submissionId?: string
+    deferMediaPreparation?: boolean
+}
+
+/** 已确认上传的输入先持久受理；真实执行证据由后台准备完成后一次冻结。 */
+async function submitPreparingAnalysisTask(
+    userId: string,
+    draft: AnalysisDraft,
+    options: AnalysisSubmissionOptions,
+): Promise<AnalysisSubmissionOutcome> {
+    const preparation = prepareDraft(draft)
+    if (preparation.acceptance.status !== 'accepted')
+        return { acceptance: preparation.acceptance, task: null }
+    const fingerprint = createDeferredSubmissionFingerprint(draft)
+    const submissionId =
+        options.admission?.idempotencyKey ?? options.submissionId ?? crypto.randomUUID()
+    const existing = await findAnalysisTaskById(userId, submissionId)
+    if (existing) {
+        if (existing.inputFingerprint !== fingerprint) throw new AnalysisSubmissionConflictError()
+        return { acceptance: preparation.acceptance, task: existing }
+    }
+    const active = await findActiveAnalysisTaskByFingerprint(userId, fingerprint)
+    if (active) return { acceptance: preparation.acceptance, task: active }
+    const standardTask = createStandardAnalysisTask(draft, {
+        agentInference: preparation.inferredFields,
+        workspaceDefault: workspaceDefaults,
+        mediaPreparation: {
+            schemaVersion: 'media-preparation.v1',
+            ...(draft.videoReference ? { videoReference: draft.videoReference } : {}),
+            deadlineAt: new Date(Date.now() + MEDIA_PREPARATION.timeoutMs).toISOString(),
+        },
+    })
+    const taskId = await createResearchingAnalysisTask({
+        taskId: submissionId,
+        userId,
+        inputMode: draft.inputMode,
+        inputFingerprint: fingerprint,
+        fingerprints: createAnalysisFingerprints(standardTask, []),
+        standardTask,
+        assetIds: requiredAnalysisImageReferences(draft),
+        session: options.admission?.session,
+    })
+    const task = await findAnalysisTaskById(userId, taskId)
+    if (!task) throw new Error('分析任务保存后无法读取')
+    requestAnalysisTaskProcessing()
+    return { acceptance: preparation.acceptance, task }
 }
 
 /** 把提交草稿解析为完整的标准任务 */
@@ -187,6 +234,7 @@ export async function submitAnalysisTask(
     draft: AnalysisDraft,
     options: AnalysisSubmissionOptions = {},
 ): Promise<AnalysisSubmissionOutcome> {
+    if (options.deferMediaPreparation) return submitPreparingAnalysisTask(userId, draft, options)
     const videoEvidence = draft.videoReference
         ? await (options.loadVideoEvidence ?? loadReadyVideoEvidenceForReference)(
               userId,

@@ -7,6 +7,7 @@ import {
     analysisAssetCleanupDataSchema,
     analysisDraftPreviewDataSchema,
     analysisMediaAssetDataSchema,
+    analysisMediaPreviewDataSchema,
     analysisMediaStatusesDataSchema,
     analysisMediaUploadSessionDataSchema,
     analysisVideoDataSchema,
@@ -24,15 +25,6 @@ import {
 } from '@/features/analysis/analysis.contract'
 import { request, sendBestEffortRequest, type ApiResponse } from '@/utils/request'
 import { videoEvidenceDownloadDataSchema } from '@/features/analysis/localVideoEvidence'
-import {
-    analysisConversationClearDataSchema,
-    analysisConversationControlDataSchema,
-    analysisConversationTurnDataSchema,
-    analysisConversationTurnAckDataSchema,
-    analysisConversationTurnRecoveryDataSchema,
-    type AnalysisConversationSessionIdentity,
-    type AnalysisConversationTurnRequest,
-} from '@/features/analysis/analysis.conversation'
 
 export type {
     AnalysisAssetCleanupOutcome,
@@ -85,71 +77,6 @@ export function previewAnalysisDraft(payload: AnalysisDraftPayload, timeoutMs: n
     )
 }
 
-/** POST `/analysis/conversation/turns`；完整语义历史只随本轮临时传输。 */
-export function formAnalysisConversationTurn(
-    payload: AnalysisConversationTurnRequest,
-    timeoutMs: number,
-) {
-    return validateAnalysisResponse(
-        request.post<ApiResponse<unknown>>('/analysis/conversation/turns', payload, {
-            timeout: timeoutMs,
-        }),
-        analysisConversationTurnDataSchema,
-    )
-}
-
-/** 查询同一浏览器会话仍未领取的临时 Agent 回合。 */
-export async function recoverAnalysisConversationTurn(
-    turnId: string,
-    session: AnalysisConversationSessionIdentity,
-) {
-    const response = await validateAnalysisResponse(
-        request.post<ApiResponse<unknown>>('/analysis/conversation/turns/recovery', {
-            turnId,
-            session,
-        }),
-        analysisConversationTurnRecoveryDataSchema,
-    )
-    return response.data.data.turn
-}
-
-/** IndexedDB 成功保存结果后确认清除云端临时正文。 */
-export async function acknowledgeAnalysisConversationTurn(
-    turnId: string,
-    session: AnalysisConversationSessionIdentity,
-) {
-    const response = await validateAnalysisResponse(
-        request.post<ApiResponse<unknown>>('/analysis/conversation/turns/ack', {
-            turnId,
-            session,
-        }),
-        analysisConversationTurnAckDataSchema,
-    )
-    return response.data.data.acknowledged
-}
-
-/** Read the account-authoritative identity without taking over the conversation. */
-export async function getAnalysisConversationControl(timeoutMs?: number) {
-    const response = await validateAnalysisResponse(
-        request.get<ApiResponse<unknown>>('/analysis/conversation/control', {
-            ...(timeoutMs === undefined ? {} : { timeout: timeoutMs }),
-        }),
-        analysisConversationControlDataSchema,
-    )
-    return response.data.data.control
-}
-
-/** Clear only the exact authoritative conversation identity. */
-export async function clearAnalysisConversation(session: AnalysisConversationSessionIdentity) {
-    const response = await validateAnalysisResponse(
-        request.delete<ApiResponse<unknown>>('/analysis/conversation', {
-            data: session,
-        }),
-        analysisConversationClearDataSchema,
-    )
-    return response.data.data
-}
-
 /** POST `/analysis/tasks` */
 export function submitAnalysisTask(
     payload: AnalysisDraftPayload,
@@ -160,6 +87,7 @@ export function submitAnalysisTask(
             '/analysis/tasks',
             {
                 ...payload,
+                ...(options.deferMediaPreparation ? { deferMediaPreparation: true } : {}),
                 ...(options.preparationId ? { preparationId: options.preparationId } : {}),
                 admission: {
                     schemaVersion: 'analysis-task-admission.v1',
@@ -330,6 +258,15 @@ export async function getAnalysisMediaStatuses(assetIds: string[]) {
         analysisMediaStatusesDataSchema,
     )
     return response.data.data.assets
+}
+
+/** 取得账号所属资产的短期处理后预览，不下载或缓存原片。 */
+export async function getAnalysisMediaPreview(assetId: string) {
+    const response = await validateAnalysisResponse(
+        request.get<ApiResponse<unknown>>(`/analysis/media/${encodeURIComponent(assetId)}/preview`),
+        analysisMediaPreviewDataSchema,
+    )
+    return response.data.data.preview
 }
 
 /** 对保留期内的处理失败图片发起有限重试。 */

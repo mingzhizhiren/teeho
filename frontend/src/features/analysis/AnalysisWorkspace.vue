@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import { cleanupAnalysisTaskAssets, getAnalysisTaskConfig } from '@/api/analysis'
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
+import ArtScene from '@/components/art/ArtScene.vue'
+import ArtNote from '@/components/art/ArtNote.vue'
 import InlineFeedback from '@/components/feedback/InlineFeedback.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import ToastMessage from '@/components/ToastMessage.vue'
@@ -16,9 +19,7 @@ import { useOnboardingBlocker } from '@/features/onboarding/useOnboardingBlocker
 import { useAuthStore } from '@/stores/auth'
 import { getFrontendRuntime } from '@/edition/runtime'
 import { retryTransientRead } from '@/utils/retryTransientRead'
-import { getAppConfig, updateAppConfig } from '@/utils/appConfig'
 import { getApiRequestErrorMessage } from '@/utils/apiRequestError'
-import AnalysisAgentComposer from './AnalysisAgentComposer.vue'
 import AnalysisComposerMain from './AnalysisComposerMain.vue'
 import AnalysisHistoryDrawer from './AnalysisHistoryDrawer.vue'
 import AnalysisResultPanel from './AnalysisResultPanel.vue'
@@ -30,12 +31,13 @@ import {
     createAnalysisRitualAssignmentManager,
 } from './analysis.ritual-assignment'
 import AnalysisTaskComposer from './AnalysisTaskComposer.vue'
+import AnalysisTemplateActions from './AnalysisTemplateActions.vue'
 import AnalysisTaskStatus from './AnalysisTaskStatus.vue'
 import AnalysisWorkspaceSidebar from './AnalysisWorkspaceSidebar.vue'
 import AnalysisWorkspaceLoading from './AnalysisWorkspaceLoading.vue'
 import { analysisUiConstraints } from './analysis.constants'
 import { createAnalysisOnboardingEventReporter } from './analysis.onboarding'
-import type { AnalysisInputMode, AnalysisTask, AnalysisTaskConfig } from './analysis.contract'
+import type { AnalysisTask, AnalysisTaskConfig } from './analysis.contract'
 import { createBrowserAnalysisConversationPersistence } from './analysis.conversation-persistence.browser'
 import {
     canDeleteAnalysisLocalHistory,
@@ -43,9 +45,10 @@ import {
     isActiveAnalysisTaskStatus,
 } from './analysis.task-status'
 import { browserAnalysisTaskLifecycleAdapter } from './analysis.lifecycle.adapter'
-import { createAnalysisResultActions } from './analysis.result-actions'
-import { createLocalHistoryName, hasCompleteLocalHistoryImages } from './localHistory'
-import { activeDraftImages } from './taskDraft'
+import type { ReportEditSource } from './analysis.report-edit'
+import { createLocalHistoryName } from './localHistory'
+import { activeDraftImages, areDraftImagesUploaded } from './taskDraft'
+import { preserveAnalysisTaskVideoEvidence } from './analysis.video-evidence.browser'
 import { useAnalysisLocalHistory } from './useAnalysisLocalHistory'
 import { useAnalysisTaskLifecycle } from './useAnalysisTaskLifecycle'
 import { useAnalysisReanalysisIntents, ReanalysisIntentError } from './useAnalysisReanalysisIntents'
@@ -77,12 +80,12 @@ const analysisLocalHistory = useAnalysisLocalHistory({
 })
 const submissionIntents = useAnalysisSubmissionIntents()
 provide(analysisSubmissionIntentKey, submissionIntents)
-const mode = ref<AnalysisInputMode>(getAppConfig().analysisInputMode)
-const activeView = ref<AnalysisInputMode | 'result'>(mode.value)
+const activeView = ref<'custom' | 'result'>('custom')
 const resultViewContext = ref<'current' | 'history'>('current')
 const taskConfig = ref<AnalysisTaskConfig | null>(null)
 const localHistoryRecords = analysisLocalHistory.records
 const loadingLatest = ref(true)
+let workspaceInitializationRevision = 0
 const workspaceInitializationFailed = ref(false)
 const composerInitializationSettled = ref(false)
 const abandonConfirmOpen = ref(false)
@@ -102,7 +105,7 @@ let pendingSubmittedImages: {
     readonly submissionId: string
     readonly inputFingerprint: string
     readonly assetIds: readonly string[]
-    readonly files: readonly File[]
+    readonly files: readonly (File | null)[]
 } | null = null
 let pendingSubmittedImagesWrite: Promise<void> | null = null
 const taskLifecycle = useAnalysisTaskLifecycle(
@@ -110,9 +113,11 @@ const taskLifecycle = useAnalysisTaskLifecycle(
         historyRecords: localHistoryRecords,
         submissionIntents: submissionIntents.intents,
         reanalysisIntents: useAnalysisReanalysisIntents(),
+        ownerUserId: () => auth.user?.id ?? null,
         persistHistory: (taskToPersist, sourceTaskId) =>
             persistHistoryTask(taskToPersist, undefined, sourceTaskId),
         removeHistory: (taskToRemove) => excludeHistoryTask(taskToRemove),
+        forgetSubmissionIntent: forgetTaskSubmissionIntents,
         setError: (message) => {
             workspaceError.value = message
         },
@@ -132,8 +137,10 @@ const historyOpen = ref(false)
 const historyTrigger = ref<HTMLButtonElement | null>(null)
 const taskComposer = ref<{
     operationsLocked: boolean
-    requestClearConversation: () => void
-    discardCompletedTaskConversation: (completedTask: AnalysisTask) => Promise<boolean>
+    requestReportEdit: (source: ReportEditSource) => Promise<boolean>
+    cancelReportEdit: () => void
+    requestClearDraft: () => void
+    discardCompletedTaskDraft: (completedTask: AnalysisTask) => Promise<boolean>
 } | null>(null)
 const draftSessionHasContent = ref(false)
 const activeTaskWaitToastVisible = ref(false)
@@ -159,7 +166,10 @@ useOnboardingBlocker(showWorkspaceLoading, 'workspace_recovery')
 useOnboardingBlocker(businessDialogOpen, 'business_dialog')
 useOnboardingBlocker(historyOpen, 'business_drawer')
 useOnboardingBlocker(
-    () => lifecycleBusy.value || !!taskComposer.value?.operationsLocked || tasks.value.some((value) => isActiveAnalysisTaskStatus(value.status)),
+    () =>
+        lifecycleBusy.value ||
+        !!taskComposer.value?.operationsLocked ||
+        tasks.value.some((value) => isActiveAnalysisTaskStatus(value.status)),
     'business_operation',
 )
 let reportedWorkspaceReadyAccountId: string | null = null
@@ -172,8 +182,7 @@ async function reportWorkspaceReady(): Promise<void> {
         showWorkspaceLoading.value ||
         businessDialogOpen.value ||
         historyOpen.value ||
-        mode.value !== 'agent' ||
-        activeView.value !== 'agent' ||
+        activeView.value !== 'custom' ||
         typeof document === 'undefined'
     ) {
         return
@@ -232,7 +241,7 @@ const displayedResult = computed(() => task.value?.result ?? null)
 const currentLocalHistoryDeleteBlocked = computed(() =>
     Boolean(task.value && !canDeleteAnalysisLocalHistory(task.value.status)),
 )
-const canReanalyze = computed(() => {
+const canEdit = computed(() => {
     const currentTask = task.value
     return (
         Boolean(displayedResult.value) &&
@@ -269,19 +278,16 @@ function beginRitualForTask(taskId: string): Promise<void> {
     return bindingPromise
 }
 
-function startResultTask(nextTask: AnalysisTask) {
-    const actionMessage = workspaceError.value
-    void beginRitualForTask(nextTask.id)
-    selectTask(nextTask, 'current')
-    workspaceError.value = actionMessage
+async function editCurrentReport(): Promise<void> {
+    if (!task.value || activeTask.value || lifecycleBusy.value) return
+    workspaceError.value = ''
+    const edited = await taskComposer.value?.requestReportEdit({
+        task: task.value,
+        historyRecord: selectedLocalHistoryRecord.value,
+        loadOriginalImage: analysisLocalHistory.getOriginalImage,
+    })
+    if (edited) activeView.value = 'custom'
 }
-const resultActions = createAnalysisResultActions({
-    task,
-    busy: lifecycleBusy,
-    canRun: canReanalyze,
-    reanalyzeCurrent: () => taskLifecycle.reanalyzeCurrent(),
-    onTaskStarted: startResultTask,
-})
 const ritualPreviewEnabled = computed(() => import.meta.env.DEV && route.query.ritual === 'preview')
 const ritualVariant = computed<AnalysisRitualVariant>(() => {
     if (!ritualPreviewEnabled.value) {
@@ -294,6 +300,7 @@ const ritualVisible = computed(
     () =>
         task.value !== null &&
         task.value.id === ritualTaskId.value &&
+        task.value.preparationStatus !== 'waiting' &&
         ritualVariantReady.value &&
         (isActiveAnalysisTaskStatus(task.value.status) || task.value.status === 'succeeded'),
 )
@@ -329,48 +336,20 @@ async function revealRitualResult() {
     }
 }
 
-/** 切换工作台输入模式 */
-function setMode(nextMode: AnalysisInputMode) {
-    mode.value = nextMode
-    activeView.value = nextMode
-    updateAppConfig({ analysisInputMode: nextMode })
-    if (parseCompletionResultTarget(route.query.task)) {
-        void router.replace({ name: 'workspace' })
-    }
-}
-
-/** 在 Agent 和定制输入模式之间切换 */
-async function toggleMode() {
-    if (taskComposer.value?.operationsLocked) return
-    const previousMode = mode.value
-    const nextMode = previousMode === 'agent' ? 'custom' : 'agent'
-    setMode(nextMode)
-    if (previousMode !== 'agent' || nextMode !== 'custom') return
-    const entryId = crypto.randomUUID()
-    await nextTick()
-    onboardingEventReporter.reportExpertMode({
-        entryId,
-        origin: 'new',
-        targetsReady:
-            mode.value === 'custom' &&
-            activeView.value === 'custom' &&
-            isOnboardingChapterTargetAvailable(document, 'expert_mode'),
-    })
-}
-
 /** 打开移动端任务编辑区域 */
 async function openComposer() {
+    taskComposer.value?.cancelReportEdit()
     if (activeTask.value) {
         selectTask(activeTask.value, 'current')
         showActiveTaskWaitToast()
         return
     }
     if (task.value) {
-        await taskComposer.value?.discardCompletedTaskConversation(task.value)
+        await taskComposer.value?.discardCompletedTaskDraft(task.value)
     }
     workspaceError.value = ''
     historyActionError.value = ''
-    activeView.value = mode.value
+    activeView.value = 'custom'
     if (parseCompletionResultTarget(route.query.task)) {
         void router.replace({ name: 'workspace' })
     }
@@ -403,6 +382,7 @@ function manageLocalHistory() {
 
 /** 选择任务并关闭移动端历史抽屉 */
 function selectTask(selectedTask: AnalysisTask, viewContext: 'current' | 'history' = 'history') {
+    taskComposer.value?.cancelReportEdit()
     workspaceError.value = ''
     historyActionError.value = ''
     taskLifecycle.select(selectedTask)
@@ -511,7 +491,7 @@ function handleComposerInitializationState(state: 'loading' | 'ready' | 'error')
 /** 登记新提交任务并安排本地保存 */
 async function handleSubmittedTask(
     submittedTask: AnalysisTask,
-    originalImages: File[],
+    originalImages: (File | null)[],
     persistHistory: boolean,
 ) {
     taskLifecycle.invalidatePendingRefresh()
@@ -528,6 +508,7 @@ async function handleSubmittedTask(
 
 /** 清除与同一后端任务或活动输入匹配的提交意图。 */
 async function forgetTaskSubmissionIntents(taskToForget: AnalysisTask) {
+    if (isActiveAnalysisTaskStatus(taskToForget.status)) return
     const matchingIntentIds = submissionIntents.intents.value
         .filter(
             (intent) =>
@@ -554,28 +535,45 @@ async function excludeHistoryTask(taskToExclude: AnalysisTask) {
 /** 保存仍符合历史条件的任务，并处理保存期间收到的排除状态。 */
 async function persistHistoryTask(
     taskToPersist: AnalysisTask,
-    originalImages?: File[],
+    originalImages?: (File | null)[],
     sourceTaskId?: string,
 ) {
+    const ownerUserId = auth.user?.id
+    const revision = workspaceInitializationRevision
+    const isCurrent = () =>
+        ownerUserId && ownerUserId === auth.user?.id && revision === workspaceInitializationRevision
     if (
         taskToPersist.status === 'insufficient_points' ||
         historyExcludedTaskIds.has(taskToPersist.id)
     ) {
         return
     }
-    const record = sourceTaskId
-        ? await analysisLocalHistory.saveFromTask(taskToPersist, sourceTaskId)
-        : await analysisLocalHistory.save(taskToPersist, originalImages)
-    if (hasCompleteLocalHistoryImages(record)) {
-        await forgetTaskSubmissionIntents(taskToPersist)
+    if (taskToPersist.standardTask.videoEvidence && ownerUserId) {
+        try {
+            await preserveAnalysisTaskVideoEvidence(
+                taskToPersist.standardTask.videoEvidence,
+                ownerUserId,
+                () => Boolean(isCurrent()),
+            )
+            if (!isCurrent()) return
+        } catch (error) {
+            if (isCurrent()) analysisLocalHistory.reportWriteFailure(taskToPersist.id)
+            throw error
+        }
     }
+    if (sourceTaskId) await analysisLocalHistory.saveFromTask(taskToPersist, sourceTaskId)
+    else await analysisLocalHistory.save(taskToPersist, originalImages)
+    if (!isCurrent()) return
+    // 已明确保存终态后结束受理对账；活动任务继续保留恢复索引。
+    await forgetTaskSubmissionIntents(taskToPersist)
+    if (!isCurrent()) return
     if (historyExcludedTaskIds.has(taskToPersist.id)) {
         await analysisLocalHistory.remove(taskToPersist.id)
     }
 }
 
 /** 把已提交任务及原图保存到本地历史 */
-async function persistSubmittedTask(submittedTask: AnalysisTask, originalImages: File[]) {
+async function persistSubmittedTask(submittedTask: AnalysisTask, originalImages: (File | null)[]) {
     try {
         await persistHistoryTask(submittedTask, originalImages)
         localHistoryError.value = ''
@@ -601,9 +599,8 @@ async function capturePendingSubmittedImages() {
             return
         }
         const images = activeDraftImages(restored.snapshot.draft)
-        const assetIds = images.flatMap((image) =>
-            image.status === 'ready' && image.assetId ? [image.assetId] : [],
-        )
+        if (userId !== auth.user?.id || !areDraftImagesUploaded(images)) return
+        const assetIds = images.flatMap((image) => (image.assetId ? [image.assetId] : []))
         if (images.length === 0 || assetIds.length !== images.length) return
         pendingSubmittedImages = {
             submissionId: intent.submissionId,
@@ -676,30 +673,69 @@ async function retryCurrentTask() {
     await taskLifecycle.retryCurrent()
 }
 
+watch(
+    () => auth.user?.id,
+    () => {
+        workspaceInitializationRevision += 1
+    },
+    { flush: 'sync' },
+)
+
 onMounted(async () => {
+    const ownerId = auth.user?.id ?? null
+    const revision = ++workspaceInitializationRevision
+    const isCurrent = () =>
+        ownerId !== null &&
+        auth.user?.id === ownerId &&
+        revision === workspaceInitializationRevision
     try {
-        await Promise.all([analysisLocalHistory.load(), submissionIntents.load()])
+        const [, pendingSubmissionIds] = await Promise.all([
+            analysisLocalHistory.load(),
+            // 立即复制读取结果；并发历史保存可能在初始化结束前清除注册表中的意图。
+            submissionIntents
+                .load()
+                .then((intents) => new Set(intents.map((intent) => intent.submissionId))),
+        ])
+        if (!isCurrent()) return
         await capturePendingSubmittedImages()
+        if (!isCurrent()) return
         await Promise.all([
             retryTransientRead(getAnalysisTaskConfig).then((response) => {
-                taskConfig.value = response.data.data.config
+                if (isCurrent()) taskConfig.value = response.data.data.config
             }),
             retryTransientRead(() => taskLifecycle.initialize()),
             getFrontendRuntime().useAnalysisAccess().refresh(),
         ])
+        if (!isCurrent()) return
         await recoverPendingSubmittedImages()
-        if (task.value && isActiveAnalysisTaskStatus(task.value.status)) {
-            await beginRitualForTask(task.value.id)
-            selectTask(task.value, 'current')
+        if (!isCurrent()) return
+        // 终态只按本账号待确认提交的精确 ID 恢复，不能用相同指纹认领旧报告。
+        const recoveredTask = tasks.value.find((candidate) =>
+            pendingSubmissionIds.has(candidate.id),
+        )
+        const selectedTask =
+            recoveredTask ??
+            (task.value && isActiveAnalysisTaskStatus(task.value.status) ? task.value : null)
+        if (selectedTask) {
+            if (isActiveAnalysisTaskStatus(selectedTask.status)) {
+                await beginRitualForTask(selectedTask.id)
+            }
+            if (!isCurrent()) return
+            selectTask(
+                tasks.value.find((candidate) => candidate.id === selectedTask.id) ?? selectedTask,
+                'current',
+            )
         }
         await openTaskFromRoute()
     } catch (error) {
+        if (!isCurrent()) return
         workspaceInitializationFailed.value = true
         workspaceError.value = getApiRequestErrorMessage(error, t('workspace.genericError'))
     } finally {
-        loadingLatest.value = false
+        if (isCurrent()) loadingLatest.value = false
     }
 
+    if (!isCurrent()) return
     taskLifecycle.activate()
     clockTimer = setInterval(() => {
         clock.value = Date.now()
@@ -719,7 +755,6 @@ watch(
         showWorkspaceLoading,
         businessDialogOpen,
         historyOpen,
-        mode,
         activeView,
     ],
     () => void reportWorkspaceReady(),
@@ -756,6 +791,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+    workspaceInitializationRevision += 1
     taskLifecycle.deactivate()
     if (clockTimer) {
         clearInterval(clockTimer)
@@ -768,23 +804,19 @@ onBeforeUnmount(() => {
 
 <template>
     <section
-        class="analysis-workspace-shell mx-auto grid w-full max-w-screen-2xl gap-4 px-5 py-4 sm:p-6 lg:min-h-[calc(100dvh-4rem)] lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-5"
+        class="ui-workspace-layout analysis-workspace-shell mx-auto grid w-full max-w-screen-2xl gap-4 px-5 py-4 sm:p-6 lg:min-h-[calc(100dvh-4rem)] lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-5"
     >
         <AnalysisWorkspaceLoading v-if="showWorkspaceLoading" />
 
         <AnalysisWorkspaceSidebar
             v-else
-            :mode="mode"
             :tasks="filteredTasks"
             :display-names="localHistoryNames"
             :selected-task-id="activeView === 'result' ? (task?.id ?? null) : null"
             :loading="loadingLatest"
             :error="localHistoryError"
             :query="historyQuery"
-            :draft-session-has-content="draftSessionHasContent"
-            :draft-session-locked="taskComposer?.operationsLocked ?? true"
             @compose="openComposer"
-            @clear-draft="taskComposer?.requestClearConversation()"
             @select="selectTask"
             @update:query="historyQuery = $event"
         />
@@ -793,18 +825,18 @@ onBeforeUnmount(() => {
             v-if="!loadingLatest"
             v-show="!showWorkspaceLoading"
             ref="taskComposer"
-            :mode="mode"
             :task-config="taskConfig"
             :owner-user-id="auth.user?.id ?? null"
             :accept-submitted-task="handleSubmittedTask"
             @manage-history="manageLocalHistory"
+            @edit-error="workspaceError = $event"
             @submission-state-change="handleSubmissionStateChange"
             @session-content-change="draftSessionHasContent = $event"
             @initialization-state-change="handleComposerInitializationState"
         >
             <div class="analysis-workspace-column flex min-h-0 min-w-0 flex-1 flex-col gap-4">
                 <main
-                    class="analysis-workspace-main order-1 min-h-0 flex-1 overflow-y-auto rounded-3xl border border-line bg-surface shadow-sm"
+                    class="ui-workspace-main analysis-workspace-main order-1 min-h-0 flex-1 overflow-y-auto rounded-3xl border border-line bg-surface shadow-sm"
                 >
                     <div class="p-5 sm:p-7 lg:p-8">
                         <div
@@ -819,17 +851,11 @@ onBeforeUnmount(() => {
                                 <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink">
                                     {{ t(`workspace.viewTitles.${activeView}`) }}
                                 </h1>
-                                <p
-                                    v-if="activeView === 'agent'"
-                                    class="mt-2 max-w-2xl text-sm leading-6 text-muted"
-                                >
-                                    {{ t(`workspace.modeDescriptions.${activeView}`) }}
-                                </p>
                             </div>
                             <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
                                 <button
                                     ref="historyTrigger"
-                                    class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink transition hover:border-brand/40 hover:bg-brand/5 lg:hidden"
+                                    class="app-button app-button--secondary app-button--sm lg:hidden"
                                     type="button"
                                     :aria-label="t('workspace.history.open')"
                                     aria-haspopup="dialog"
@@ -851,54 +877,25 @@ onBeforeUnmount(() => {
                                         {{ activeTaskCount }}
                                     </span>
                                 </button>
-                                <button
-                                    v-if="activeView !== 'result'"
-                                    v-guide-anchor="'onboarding.workspace.mode'"
-                                    class="group flex min-h-10 items-center rounded-xl border border-line bg-surface-muted p-1 text-xs font-semibold text-muted transition hover:border-brand/40"
-                                    type="button"
-                                    role="switch"
-                                    :aria-checked="mode === 'custom'"
-                                    :aria-label="t('workspace.modeToggleLabel')"
-                                    data-testid="mode-toggle"
-                                    :disabled="taskComposer?.operationsLocked ?? true"
-                                    @click="toggleMode"
-                                >
-                                    <span
-                                        class="rounded-lg px-3 py-2 transition"
-                                        :class="
-                                            mode === 'agent'
-                                                ? 'bg-surface text-ink shadow-sm ring-1 ring-line'
-                                                : ''
-                                        "
-                                    >
-                                        {{ t('workspace.modes.agent') }}
-                                    </span>
-                                    <span
-                                        class="rounded-lg px-3 py-2 transition"
-                                        :class="
-                                            mode === 'custom'
-                                                ? 'bg-surface text-ink shadow-sm ring-1 ring-line'
-                                                : ''
-                                        "
-                                    >
-                                        {{ t('workspace.modes.custom') }}
-                                    </span>
-                                </button>
                                 <div
                                     v-if="activeView === 'result' && task"
                                     class="flex flex-wrap items-center justify-end gap-2"
                                 >
-                                    <button
+                                    <AppButton
                                         v-if="!isActiveAnalysisTaskStatus(task.status)"
-                                        class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink transition hover:border-brand/40 hover:bg-brand/5"
+                                        variant="primary"
+                                        size="md"
+                                        icon="sparkles"
                                         type="button"
                                         @click="openComposer"
                                     >
                                         {{ t('workspace.newTask') }}
-                                    </button>
-                                    <button
+                                    </AppButton>
+                                    <AppButton
                                         v-if="isTaskSavedLocally(task.id)"
-                                        class="rounded-lg border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-400/10"
+                                        variant="danger"
+                                        size="md"
+                                        icon="trash"
                                         type="button"
                                         :disabled="
                                             currentLocalHistoryDeleteBlocked ||
@@ -913,9 +910,14 @@ onBeforeUnmount(() => {
                                                     ? t('workspace.localHistory.deleting')
                                                     : t('workspace.localHistory.delete')
                                         }}
-                                    </button>
+                                    </AppButton>
                                 </div>
                             </div>
+                        </div>
+
+                        <div v-if="activeView === 'custom'" class="art-workspace-note">
+                            <ArtNote message="workspace" />
+                            <ArtScene variant="report" />
                         </div>
 
                         <InlineFeedback
@@ -953,7 +955,14 @@ onBeforeUnmount(() => {
                         />
 
                         <template v-else>
-                            <AnalysisComposerMain :active-view="activeView" />
+                            <AnalysisComposerMain :active-view="activeView">
+                                <template #actions>
+                                    <AnalysisTemplateActions
+                                        :has-draft-content="draftSessionHasContent"
+                                        @clear-draft="taskComposer?.requestClearDraft()"
+                                    />
+                                </template>
+                            </AnalysisComposerMain>
 
                             <div v-if="activeView === 'result'">
                                 <div
@@ -1002,7 +1011,9 @@ onBeforeUnmount(() => {
                                     <AnalysisTaskStatus
                                         v-if="task.status !== 'succeeded'"
                                         :task="task"
-                                        :busy="lifecycleBusy"
+                                        :busy="
+                                            lifecycleBusy || Boolean(taskComposer?.operationsLocked)
+                                        "
                                         :clock="clock"
                                         :action-error="workspaceError"
                                         @abandon="requestAbandon"
@@ -1014,8 +1025,10 @@ onBeforeUnmount(() => {
                                         :task="task"
                                         :result-fields="resultFields"
                                         :tracks="taskConfig?.tracks ?? []"
-                                        :can-reanalyze="canReanalyze"
-                                        :busy="lifecycleBusy"
+                                        :can-edit="canEdit"
+                                        :busy="
+                                            lifecycleBusy || Boolean(taskComposer?.operationsLocked)
+                                        "
                                         :clock="clock"
                                         :action-error="
                                             task.status === 'succeeded' ? workspaceError : ''
@@ -1023,7 +1036,7 @@ onBeforeUnmount(() => {
                                         :view-context="resultViewContext"
                                         :history-record="selectedLocalHistoryRecord"
                                         :load-original-image="analysisLocalHistory.getOriginalImage"
-                                        @reanalyze="resultActions.reanalyze"
+                                        @edit="editCurrentReport"
                                         @dismiss-error="dismissWorkspaceError"
                                     />
                                 </template>
@@ -1031,8 +1044,6 @@ onBeforeUnmount(() => {
                         </template>
                     </div>
                 </main>
-
-                <AnalysisAgentComposer :visible="mode === 'agent' && activeView !== 'result'" />
             </div>
         </AnalysisTaskComposer>
     </section>

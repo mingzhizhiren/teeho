@@ -1,28 +1,38 @@
 import { inject, type InjectionKey } from 'vue'
 
-import { useUserStorage } from '@/composables/useUserStorage'
+import { useAuthStore } from '@/stores/auth'
+import {
+    getUserLocalValue,
+    removeUserLocalValue,
+    setUserLocalValue,
+} from '@/utils/userLocalStorage'
 import {
     analysisSubmissionIntentsSchema,
+    ANALYSIS_SUBMISSION_INTENT_STORAGE_KEY,
     createAnalysisSubmissionIntentRegistry,
     type AnalysisSubmissionIntentRegistry,
 } from './analysisSubmissionIntents'
 
-const submissionIntentStorageKey = 'analysis.submission-intents.v1'
-
 /** 创建当前账号使用的加密 localStorage 提交意图注册表。 */
 export function useAnalysisSubmissionIntents() {
-    const userStorage = useUserStorage()
+    const ownerUserId = useAuthStore().user?.id
+    function requireOwner(): string {
+        if (!ownerUserId) throw new Error('analysis_submission_owner_unavailable')
+        return ownerUserId
+    }
     return createAnalysisSubmissionIntentRegistry({
         async load() {
             return (
-                (await userStorage.getValue(
-                    submissionIntentStorageKey,
+                (await getUserLocalValue(
+                    requireOwner(),
+                    ANALYSIS_SUBMISSION_INTENT_STORAGE_KEY,
                     analysisSubmissionIntentsSchema,
                 )) ?? []
             )
         },
-        save: (intents) => userStorage.setValue(submissionIntentStorageKey, intents),
-        clear: () => userStorage.removeValue(submissionIntentStorageKey),
+        save: (intents) =>
+            setUserLocalValue(requireOwner(), ANALYSIS_SUBMISSION_INTENT_STORAGE_KEY, intents),
+        clear: () => removeUserLocalValue(requireOwner(), ANALYSIS_SUBMISSION_INTENT_STORAGE_KEY),
     })
 }
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { ref, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -81,17 +82,19 @@ async function approve(): Promise<void> {
             <p v-if="error" role="alert" class="text-sm text-red-700 dark:text-red-200">
                 {{ t(error === 'unknown' ? 'skillAuth.unknown' : 'skillAuth.error') }}
             </p>
-            <button
+            <AppButton
+                variant="primary"
+                size="md"
                 :disabled="isPending"
                 type="submit"
-                class="w-full rounded-xl bg-brand p-3 font-semibold text-on-brand disabled:opacity-50"
+                class="w-full"
             >
                 {{
                     isPending
                         ? t('skillAuth.pending')
                         : t(error === 'unknown' ? 'skillAuth.retry' : 'skillAuth.approve')
                 }}
-            </button>
+            </AppButton>
         </form>
     </section>
 </template>

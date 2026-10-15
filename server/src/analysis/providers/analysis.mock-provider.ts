@@ -116,6 +116,7 @@ export class MockAgentProvider implements AgentProvider {
                 weaknesses: [],
                 matchedTopicIds: [],
                 dismissedRiskIds: [],
+                advice: { evidenceAvailability: 'sufficient', items: [] },
             }
         }
         return agentGeneratedResultSchema.parse({

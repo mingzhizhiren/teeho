@@ -63,7 +63,8 @@ export function createDraftImageUpload(
             merge([
                 {
                     ...image,
-                    status: image.failureStage === 'processing' ? 'processing' : 'uploading',
+                    // 重试准入也要等后端确认，不能提前开放正式提交。
+                    status: 'uploading',
                     errorCode: null,
                     failureStage: null,
                 },

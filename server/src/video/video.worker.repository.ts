@@ -12,6 +12,7 @@ import type {
     VideoWorkerPersistence,
 } from './video.contract'
 import type { VideoRuntimeDescriptor } from './video.runtime'
+import { activeVideoTaskExistsSql } from './video.task-protection'
 
 /** Worker 只有通过本机媒体能力预检后，才会登记为健康。 */
 export async function registerVideoWorker(
@@ -100,7 +101,8 @@ export async function heartbeatVideoLease(
 export async function recoverExpiredVideoLeases(executor: DatabaseExecutor = db) {
     const rows = await executor.execute<Record<string, unknown>>(sql`
         WITH expired AS (
-            SELECT attempt.id, attempt.asset_id, attempt.attempt_number
+            SELECT attempt.id, attempt.asset_id, attempt.attempt_number,
+                asset.processing_cycle_start_attempt
             FROM public.analysis_video_processing_attempts attempt
             INNER JOIN public.analysis_video_assets asset
                 ON asset.id = attempt.asset_id
@@ -119,7 +121,7 @@ export async function recoverExpiredVideoLeases(executor: DatabaseExecutor = db)
                 updated_at = now()
             FROM expired
             WHERE attempt.id = expired.id
-            RETURNING expired.asset_id, expired.attempt_number
+            RETURNING expired.asset_id, expired.attempt_number, expired.processing_cycle_start_attempt
         ), released_events AS (
             UPDATE public.analysis_video_start_events event
             SET state = 'released',
@@ -129,18 +131,18 @@ export async function recoverExpiredVideoLeases(executor: DatabaseExecutor = db)
             FROM closed_attempts closed
             WHERE event.asset_id = closed.asset_id
               AND event.state = 'counted'
-              AND closed.attempt_number >=
+              AND closed.attempt_number - closed.processing_cycle_start_attempt >=
                   ${VIDEO_RULES.maximumProcessingAttempts}
             RETURNING event.id
         )
         UPDATE public.analysis_video_assets asset
         SET state = CASE
-                WHEN closed.attempt_number < ${VIDEO_RULES.maximumProcessingAttempts}
+                WHEN closed.attempt_number - closed.processing_cycle_start_attempt < ${VIDEO_RULES.maximumProcessingAttempts}
                     THEN 'queued'
                 ELSE 'technical_failed'
             END,
             next_attempt_at = CASE
-                WHEN closed.attempt_number < ${VIDEO_RULES.maximumProcessingAttempts}
+                WHEN closed.attempt_number - closed.processing_cycle_start_attempt < ${VIDEO_RULES.maximumProcessingAttempts}
                     THEN now()
                 ELSE NULL
             END,
@@ -161,6 +163,7 @@ export async function claimNextVideoAsset(workerId: string, leaseMs: number) {
                 SELECT id
                 FROM public.analysis_video_assets
                 WHERE state = 'queued'
+                  AND processing_attempt_count - processing_cycle_start_attempt < ${VIDEO_RULES.maximumProcessingAttempts}
                   AND ${maintenanceClaimAllowedSql()}
                   AND (next_attempt_at IS NULL OR next_attempt_at <= now())
                 ORDER BY queued_at, id
@@ -227,6 +230,11 @@ export async function markVideoReady(
     evidence: ReadyVideoEvidence,
 ) {
     return withTransaction(async (transaction) => {
+        await transaction.execute(sql`
+            SELECT id FROM public.analysis_video_assets
+            WHERE id = ${assetId}::uuid
+            FOR UPDATE
+        `)
         const attempts = await transaction.execute<Record<string, unknown>>(sql`
             UPDATE public.analysis_video_processing_attempts attempt
             SET state = 'succeeded',
@@ -335,7 +343,7 @@ export async function markVideoReady(
     })
 }
 
-/** 仅由有效租约持有者结束尝试；首次技术失败立即重排，确定性失败不重试。 */
+/** 仅由有效租约持有者结束尝试；首次失败重排一次，第二次进入相应失败终态。 */
 export async function markVideoFailed(
     assetId: string,
     workerId: string,
@@ -344,8 +352,14 @@ export async function markVideoFailed(
     const attemptState =
         failure.kind === 'deterministic' ? 'deterministic_failed' : 'technical_failed'
     return withTransaction(async (transaction) => {
+        await transaction.execute(sql`
+            SELECT id FROM public.analysis_video_assets
+            WHERE id = ${assetId}::uuid
+            FOR UPDATE
+        `)
         const attempts = await transaction.execute<{
             attemptNumber: number | string
+            cycleStartAttempt: number | string
         }>(sql`
             UPDATE public.analysis_video_processing_attempts attempt
             SET state = ${attemptState},
@@ -361,15 +375,16 @@ export async function markVideoFailed(
               AND attempt.lease_expires_at > now()
               AND asset.id = ${assetId}::uuid
               AND asset.state = 'processing'
-            RETURNING attempt.attempt_number AS "attemptNumber"
+            RETURNING attempt.attempt_number AS "attemptNumber",
+                asset.processing_cycle_start_attempt AS "cycleStartAttempt"
         `)
         const attempt = attempts[0]
         if (!attempt) {
             return 'stale'
         }
         const shouldRetry =
-            failure.kind === 'technical' &&
-            Number(attempt.attemptNumber) < VIDEO_RULES.maximumProcessingAttempts
+            Number(attempt.attemptNumber) - Number(attempt.cycleStartAttempt) <
+            VIDEO_RULES.maximumProcessingAttempts
         const assetState = shouldRetry ? 'queued' : attemptState
         await transaction.execute(sql`
             UPDATE public.analysis_video_assets
@@ -423,6 +438,7 @@ export async function claimVideoOriginalCleanup(
                     'expired'
                 )
                   AND ${maintenanceClaimAllowedSql()}
+                  AND NOT ${activeVideoTaskExistsSql(sql`asset.id`, sql`asset.user_id`)}
                   AND asset.original_cleanup_attempt_count <
                       ${VIDEO_RULES.maximumOriginalCleanupAttempts}
                   AND (
@@ -529,6 +545,11 @@ export function claimVideoEvidenceCleanup(
                 FROM public.analysis_video_evidence_packages AS evidence
                 WHERE evidence.expires_at <= now()
                   AND ${maintenanceClaimAllowedSql()}
+                  AND NOT EXISTS (
+                      SELECT 1 FROM public.analysis_video_assets AS asset
+                      WHERE asset.id = evidence.asset_id
+                        AND ${activeVideoTaskExistsSql(sql`asset.id`, sql`asset.user_id`)}
+                  )
                   AND evidence.cleanup_attempt_count < ${VIDEO_RULES.maximumEvidenceCleanupAttempts}
                   AND evidence.cleanup_state IN ('retained', 'deleting', 'cleanup_failed')
                   AND (
@@ -593,6 +614,12 @@ export function completeVideoEvidenceCleanup(
     workerId: string,
 ): Promise<boolean> {
     return withTransaction(async (transaction) => {
+        await transaction.execute(sql`
+            SELECT asset.id FROM public.analysis_video_assets AS asset
+            JOIN public.analysis_video_evidence_packages AS evidence ON evidence.asset_id = asset.id
+            WHERE evidence.id = ${evidenceId}::uuid
+            FOR UPDATE OF asset
+        `)
         const rows = await transaction.execute<
             {
                 assetId: string

@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+/** 四方面内容一致性评价的报告语义版本，与评分倍率分别演进。 */
+export const CONTENT_EVALUATION_VERSION = 'content-evaluation.v2'
+
 export const CONTENT_ANALYSIS_LIMITS = {
     stars: 5,
     fallbackStars: 3,
@@ -12,6 +15,67 @@ export const CONTENT_ANALYSIS_LIMITS = {
     maximumScore: 10,
 } as const
 export const contentLocationSchema = z.enum(['title', 'body', 'topics', 'cover', 'content'])
+
+/** 独立建议的公开边界，三个报告出口使用相同上限。 */
+export const CONTENT_ADVICE_LIMITS = {
+    items: 5,
+    sourceId: 80,
+    evidence: 500,
+    problem: 800,
+    suggestion: 800,
+} as const
+export const adviceSourceIdPattern =
+    /^(?:title|body:p[1-9][0-9]*|topic:[1-9][0-9]*|material:(?:cover|content))$/u
+export const contentAdviceItemSchema = z
+    .object({
+        priority: z.enum(['high', 'medium', 'low']),
+        location: contentLocationSchema,
+        sourceId: z.string().max(CONTENT_ADVICE_LIMITS.sourceId).regex(adviceSourceIdPattern),
+        evidence: z.string().trim().min(1).max(CONTENT_ADVICE_LIMITS.evidence),
+        problem: z.string().trim().min(1).max(CONTENT_ADVICE_LIMITS.problem),
+        suggestion: z.string().trim().min(1).max(CONTENT_ADVICE_LIMITS.suggestion),
+    })
+    .strict()
+    .superRefine((item, context) => {
+        const expectedLocation =
+            item.sourceId === 'title'
+                ? 'title'
+                : item.sourceId.startsWith('body:p')
+                  ? 'body'
+                  : item.sourceId.startsWith('topic:')
+                    ? 'topics'
+                    : item.sourceId === 'material:cover'
+                      ? 'cover'
+                      : 'content'
+        const number = /^(?:body:p|topic:)([0-9]+)$/u.exec(item.sourceId)?.[1]
+        if (
+            item.location !== expectedLocation ||
+            (number !== undefined && !Number.isSafeInteger(Number(number)))
+        ) {
+            context.addIssue({
+                code: 'custom',
+                path: ['sourceId'],
+                message: 'Invalid advice source location',
+            })
+        }
+    })
+export const contentAdvicePayloadSchema = z
+    .object({
+        evidenceAvailability: z.enum(['sufficient', 'limited']),
+        items: z.array(contentAdviceItemSchema).max(CONTENT_ADVICE_LIMITS.items),
+    })
+    .strict()
+export const contentAdviceSchema = z.discriminatedUnion('status', [
+    contentAdvicePayloadSchema.extend({ status: z.literal('completed') }).strict(),
+    z
+        .object({
+            status: z.literal('unavailable'),
+            items: z.array(contentAdviceItemSchema).length(0),
+        })
+        .strict(),
+])
+export type ContentAdvice = z.infer<typeof contentAdviceSchema>
+export type ContentAdviceItem = z.infer<typeof contentAdviceItemSchema>
 export const contentFindingSchema = z
     .object({
         location: contentLocationSchema,
@@ -44,6 +108,10 @@ export const contentRiskSchema = contentFindingSchema
     .strict()
 export const contentAnalysisSchema = z
     .object({
+        evaluationVersion: z.literal(CONTENT_EVALUATION_VERSION).optional(),
+        advice: contentAdviceSchema
+            .optional()
+            .catch(() => ({ status: 'unavailable' as const, items: [] })),
         scorePolicy: z.enum(['consistency-weighted.v1', 'consistency-weighted.v2']).optional(),
         status: z.enum(['completed', 'fallback']),
         consistency: contentConsistencySchema,

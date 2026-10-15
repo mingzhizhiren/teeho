@@ -33,7 +33,7 @@ async function signOut(): Promise<void> {
 <template>
     <div class="relative inline-flex">
         <button
-            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface text-ink shadow-sm transition hover:border-brand/40 hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
+            class="app-button app-button--secondary app-button--icon-only app-button--sm "
             type="button"
             :aria-label="t('auth.logout')"
             :title="t('auth.logout')"

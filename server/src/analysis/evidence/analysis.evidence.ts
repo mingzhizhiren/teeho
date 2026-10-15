@@ -73,6 +73,8 @@ export const analysisEvidenceNoteSchema = z
         noteUrl: z.string().nullable().optional(),
         authorId: z.string().max(analysisEvidenceConstraints.noteIdMaxLength),
         noteType: z.enum(['normal', 'video']).optional(),
+        imageCount: z.number().int().nonnegative().nullable().optional(),
+        videoDurationSeconds: z.number().finite().nonnegative().nullable().optional(),
         fans: z.number().int().nonnegative().nullable().optional(),
         follows: z.number().int().nonnegative().nullable().optional(),
         interactions: z.number().int().nonnegative().nullable().optional(),

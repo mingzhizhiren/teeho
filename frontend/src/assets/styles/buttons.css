@@ -1,0 +1,138 @@
+/* 操作按钮共用组件；语义链接及必须保留原生 DOM ref 的控件复用同一配方。 */
+:root {
+    --button-neutral-bg: 239 235 227;
+    --button-neutral-hover: 228 222 211;
+    --button-neutral-border: 174 166 153;
+    --button-danger-bg: 254 238 236;
+    --button-danger-hover: 252 221 216;
+    --button-danger-border: 220 150 142;
+    --button-danger-text: 162 37 29;
+    --button-danger-solid: 190 43 36;
+    --button-danger-on-solid: 255 255 255;
+    --button-disabled-bg: 241 239 234;
+    --button-disabled-border: 211 206 197;
+    --button-disabled-text: 143 136 126;
+}
+.dark {
+    --button-neutral-bg: 63 60 55;
+    --button-neutral-hover: 79 75 68;
+    --button-neutral-border: 117 110 99;
+    --button-danger-bg: 75 40 36;
+    --button-danger-hover: 98 46 40;
+    --button-danger-border: 163 83 74;
+    --button-danger-text: 255 188 179;
+    --button-danger-solid: 202 51 45;
+    --button-disabled-bg: 44 43 40;
+    --button-disabled-border: 69 66 60;
+    --button-disabled-text: 145 140 132;
+}
+.app-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    position: relative;
+    flex-shrink: 0;
+    min-height: 44px;
+    gap: 0.5rem;
+    padding: 0.625rem 1.125rem;
+    border: 1px solid rgb(var(--button-neutral-border));
+    border-radius: 10px;
+    background: rgb(var(--button-neutral-bg));
+    color: rgb(var(--color-text));
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgb(var(--color-text) / 0.04);
+    transition:
+        background-color 160ms,
+        border-color 160ms,
+        color 160ms,
+        box-shadow 160ms;
+}
+.app-button:hover:not(:disabled):not([aria-disabled='true']) {
+    background: rgb(var(--button-neutral-hover));
+    border-color: rgb(var(--color-text-muted));
+}
+.app-button.app-button--primary {
+    background: rgb(var(--color-brand));
+    border-color: rgb(var(--color-brand));
+    color: rgb(var(--color-on-brand));
+}
+.app-button.app-button--primary:hover:not(:disabled):not([aria-disabled='true']) {
+    background: rgb(var(--color-brand-hover));
+    border-color: rgb(var(--color-brand-hover));
+}
+.app-button.app-button--danger {
+    background: rgb(var(--button-danger-bg));
+    border-color: rgb(var(--button-danger-border));
+    color: rgb(var(--button-danger-text));
+}
+.app-button.app-button--danger:hover:not(:disabled):not([aria-disabled='true']) {
+    background: rgb(var(--button-danger-hover));
+    border-color: rgb(var(--button-danger-text));
+}
+.app-button.app-button--danger-solid {
+    background: rgb(var(--button-danger-solid));
+    border-color: rgb(var(--button-danger-solid));
+    color: rgb(var(--button-danger-on-solid));
+}
+.app-button.app-button--danger-solid:hover:not(:disabled):not([aria-disabled='true']) {
+    background: rgb(var(--button-danger-solid) / 0.9);
+    border-color: rgb(var(--button-danger-solid));
+}
+.app-button.app-button--sm {
+    min-height: 36px;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8125rem;
+}
+.app-button.app-button--icon-only {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+}
+.app-button--sm.app-button--icon-only {
+    width: 36px;
+    height: 36px;
+}
+.app-button:focus-visible,
+label.app-button:focus-within {
+    outline: 3px solid rgb(var(--color-brand) / 0.55);
+    outline-offset: 3px;
+}
+.app-button:disabled,
+.app-button[aria-disabled='true'] {
+    background: rgb(var(--button-disabled-bg));
+    border-color: rgb(var(--button-disabled-border));
+    color: rgb(var(--button-disabled-text));
+    opacity: 1;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+.app-button > svg[data-app-icon] {
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+}
+.app-button-spinner {
+    flex: 0 0 1rem;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: app-button-spin 800ms linear infinite;
+}
+@keyframes app-button-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .app-button-spinner {
+        animation: none;
+    }
+}

@@ -71,6 +71,11 @@ export async function admitAnalysisMediaUpload(
           AND task_id IS NULL
           AND state NOT IN ('deleted', 'deleting')
     `)
+    await executor.execute(sql`
+        SELECT id FROM public.analysis_video_assets
+        WHERE user_id = ${userId}::uuid
+        ORDER BY id FOR UPDATE
+    `)
     const cancelledVideos = await executor.execute<CancelledVideoRow>(sql`
         UPDATE public.analysis_video_assets AS asset
         SET state = 'cancelled',
@@ -93,7 +98,10 @@ export async function admitAnalysisMediaUpload(
               SELECT 1
               FROM public.analysis_tasks AS task
               WHERE task.user_id = asset.user_id
-                AND task.standard_task_snapshot -> 'videoEvidence' ->> 'assetId' = asset.id::text
+                AND (
+                    task.standard_task_snapshot -> 'videoEvidence' ->> 'assetId' = asset.id::text
+                    OR task.standard_task_snapshot #>> '{mediaPreparation,videoReference}' = asset.id::text
+                )
           )
         RETURNING
             asset.id::text AS id,

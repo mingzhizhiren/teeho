@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -217,14 +218,16 @@ async function submit() {
 
         <InlineFeedback v-if="noticeFeedback" :feedback="noticeFeedback" />
 
-        <button
-            class="flex h-12 w-full items-center justify-center rounded-xl bg-ink px-4 text-sm font-semibold text-surface transition hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-brand/15 disabled:cursor-not-allowed disabled:opacity-60"
+        <AppButton
+            variant="primary"
+            size="md"
+            class="w-full"
             type="submit"
             :disabled="submitting || completed || !agreementAccepted"
         >
             <AppSpinner v-if="submitting" class="mr-2" />
             {{ submitting ? t('auth.registering') : t('auth.register') }}
-        </button>
+        </AppButton>
     </form>
 
     <p class="mt-7 text-center text-sm text-muted">

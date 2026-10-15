@@ -1,0 +1,43 @@
+{
+    "input": {
+        "title": "三步做好通勤防晒",
+        "body": "第一步，出门前涂抹防晒霜。\n第二步，中午按需补涂。\n以上是我最近记录的两项通勤习惯。",
+        "topics": ["通勤防晒", "护肤"]
+    },
+    "contentAnalysis": {
+        "evaluationVersion": "content-evaluation.v2",
+        "status": "completed",
+        "scorePolicy": "consistency-weighted.v2",
+        "originalScore": 7,
+        "consistency": {
+            "stars": 2,
+            "summary": "标题承诺三步，正文目前只交付两项操作。",
+            "issues": [
+                {
+                    "location": "title",
+                    "evidence": "三步做好通勤防晒",
+                    "description": "正文末段明确总结为两项习惯，与标题承诺的步骤数量不一致。"
+                }
+            ]
+        },
+        "advice": {
+            "status": "completed",
+            "evidenceAvailability": "sufficient",
+            "items": [
+                {
+                    "priority": "high",
+                    "location": "body",
+                    "sourceId": "body:p3",
+                    "evidence": "以上是我最近记录的两项通勤习惯。",
+                    "problem": "结尾只总结两项习惯，没有提供可执行的第三步。",
+                    "suggestion": "补充一项真实的第三步及执行条件，或将标题承诺调整为两步。"
+                }
+            ]
+        },
+        "weaknesses": [],
+        "termRisks": []
+    },
+    "primaryScore": 4.2,
+    "riskMatches": [],
+    "riskReviewStatus": "completed"
+}

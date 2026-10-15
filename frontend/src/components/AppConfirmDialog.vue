@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
 
@@ -40,11 +41,6 @@ const iconClass = computed(() =>
     props.tone === 'danger'
         ? 'bg-red-50 text-red-600 dark:bg-red-400/10 dark:text-red-300'
         : 'bg-brand/10 text-brand',
-)
-const confirmButtonClass = computed(() =>
-    props.tone === 'danger'
-        ? 'bg-red-600 text-white hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600'
-        : 'bg-brand text-on-brand hover:bg-brand-hover',
 )
 
 let previouslyFocused: HTMLElement | null = null
@@ -142,7 +138,7 @@ onBeforeUnmount(restorePage)
             >
                 <section
                     ref="dialog"
-                    class="w-full max-w-md rounded-3xl border border-line bg-surface p-6 shadow-2xl sm:p-7"
+                    class="ui-dialog-surface w-full max-w-md rounded-3xl border border-line bg-surface p-6 shadow-2xl sm:p-7"
                     role="dialog"
                     aria-modal="true"
                     :aria-labelledby="titleId"
@@ -177,22 +173,24 @@ onBeforeUnmount(restorePage)
                     <div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         <button
                             ref="cancelButton"
-                            class="rounded-xl border border-line bg-surface px-5 py-3 text-sm font-semibold text-ink transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+                            class="app-button app-button--secondary app-button--md"
                             type="button"
                             :disabled="busy"
                             @click="cancel"
                         >
                             {{ cancelLabel }}
                         </button>
-                        <button
-                            class="rounded-xl px-5 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-                            :class="confirmButtonClass"
+                        <AppButton
+                            :variant="tone === 'danger' ? 'danger' : 'primary'"
+                            danger-solid
+                            size="md"
+                            :loading="busy"
                             type="button"
                             :disabled="busy"
                             @click="$emit('confirm')"
                         >
                             {{ confirmLabel }}
-                        </button>
+                        </AppButton>
                     </div>
                 </section>
             </div>

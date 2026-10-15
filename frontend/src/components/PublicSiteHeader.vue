@@ -7,7 +7,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-    <header class="border-b border-line bg-canvas">
+    <header class="ui-public-header border-b border-line bg-canvas">
         <nav
             class="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8"
             :aria-label="t('common.navigation')"

@@ -8,19 +8,39 @@ import type {
     TaskFieldDefinition,
     TaskFieldValue,
 } from './analysis.contract'
+import { normalizeTopicList } from './analysis.topic-input'
 
 /** Agent 与定制模式共用的唯一草稿状态 */
 export type SharedTaskImageStatus = 'uploading' | 'processing' | 'ready' | 'failed'
 
 export interface SharedTaskImage {
     localId: string
-    file: File
+    file: File | null
+    reusable?: ReusableImageMetadata
     assetId: string | null
     status: SharedTaskImageStatus
     uploadProgress: number
     contentHash: string | null
     errorCode: string | null
     failureStage: 'upload' | 'processing' | null
+}
+
+/** 已验证仍有效的资产元数据；处理后预览链接不进入持久化。 */
+export interface ReusableImageMetadata {
+    fileName: string
+    declaredMediaType: 'image/jpeg' | 'image/png' | 'image/webp'
+    declaredByteSize: number
+    expiresAt: string
+}
+
+/** 原片缺失时仍展示经服务端校验的原始文件名。 */
+export function draftImageName(image: SharedTaskImage): string {
+    return image.file?.name ?? image.reusable?.fileName ?? ''
+}
+
+/** 容量按原始声明大小计算，不用处理后预览图大小代替。 */
+export function draftImageBytes(image: SharedTaskImage): number {
+    return image.file?.size ?? image.reusable?.declaredByteSize ?? 0
 }
 
 /** 分析任务支持的内容形态。 */
@@ -48,6 +68,7 @@ export interface SharedTaskVideo {
     evidenceId: string | null
     errorCode: string | null
     remoteUpdatedAt: string | null
+    origin?: 'report'
 }
 
 export interface SharedTaskDraft {
@@ -59,7 +80,16 @@ export interface SharedTaskDraft {
     fields: Partial<Record<TaskFieldName, TaskFieldValue>>
 }
 
-/** 图片仍在上传/处理或已经失败时，禁止把不完整草稿静默提交。 */
+/** 旧封面缺失时保留明确空位，不能把下一张静默当成原封面。 */
+export const MISSING_COVER_PREFIX = 'missing-cover:'
+
+/** 与展示和提交共用的当前封面选择。 */
+export function draftCoverImage(draft: SharedTaskDraft): SharedTaskImage | undefined {
+    if (draft.contentKind === 'video' || !draft.coverLocalId) return draft.images[0]
+    return draft.images.find((image) => image.localId === draft.coverLocalId)
+}
+
+/** 图片未达到当前操作所需状态时，禁止静默提交不完整草稿。 */
 export class AnalysisImagesNotReadyError extends Error {
     constructor() {
         super('图片尚未准备完成')
@@ -67,7 +97,7 @@ export class AnalysisImagesNotReadyError extends Error {
     }
 }
 
-/** 视频尚未完成预处理时禁止创建正式分析任务。 */
+/** 视频未达到当前操作所需状态时禁止提交。 */
 export class AnalysisVideoNotReadyError extends Error {
     constructor() {
         super('视频尚未准备完成')
@@ -112,7 +142,7 @@ function normalizeFieldValue(value: TaskFieldValue | undefined) {
 /** 仅整理用户已有话题，去展示前缀及完全重复项，不补写新话题。 */
 export function normalizeDraftTopics(value: TaskFieldValue | undefined): string[] {
     if (!Array.isArray(value)) return []
-    return [...new Set(value.map((item) => item.trim().replace(/^#/u, '').trim()).filter(Boolean))]
+    return normalizeTopicList(value)
 }
 
 /** 完整笔记准入校验发现的首个字段问题。 */
@@ -126,6 +156,7 @@ export interface DraftFieldIssue {
 export function getDraftFieldIssue(
     draft: SharedTaskDraft,
     config: AnalysisTaskConfig,
+    options: { allowIncomplete?: boolean } = {},
 ): DraftFieldIssue | null {
     for (const field of config.fields) {
         if (field.name !== 'title' && field.name !== 'body' && field.name !== 'topics') continue
@@ -134,7 +165,7 @@ export function getDraftFieldIssue(
                 ? normalizeDraftTopics(draft.fields[field.name])
                 : normalizeFieldValue(draft.fields[field.name])
         if (value === undefined || (Array.isArray(value) && value.length === 0)) {
-            if (field.name === 'body') continue
+            if (field.name === 'body' || options.allowIncomplete) continue
             return { field, reason: 'required' }
         }
         const limits = field.validation
@@ -198,15 +229,21 @@ export function isDraftMediaPreparing(draft: SharedTaskDraft): boolean {
 export function createDraftPayload(
     draft: SharedTaskDraft,
     inputMode: AnalysisInputMode,
+    options: { deferMediaPreparation?: boolean } = {},
 ): AnalysisDraftPayload {
     const images = activeDraftImages(draft)
-    if (!areDraftImagesReady(images)) {
+    const imagesReady = options.deferMediaPreparation
+        ? areDraftImagesUploaded(images)
+        : areDraftImagesReady(images)
+    if (!imagesReady) {
         throw new AnalysisImagesNotReadyError()
     }
     if (
         draft.contentKind === 'video' &&
         draft.video &&
-        (draft.video.status !== 'ready' || !draft.video.videoId)
+        !(options.deferMediaPreparation
+            ? isDraftVideoUploaded(draft.video)
+            : isDraftVideoReady(draft.video))
     ) {
         throw new AnalysisVideoNotReadyError()
     }
@@ -221,10 +258,7 @@ export function createDraftPayload(
             ])
             .filter((entry) => entry[1] !== undefined),
     )
-    const cover =
-        draft.contentKind === 'video'
-            ? images[0]
-            : (images.find((image) => image.localId === draft.coverLocalId) ?? images[0])
+    const cover = draftCoverImage(draft)
 
     return {
         inputMode,
@@ -246,6 +280,22 @@ export function createDraftPayload(
 export function areDraftImagesReady(images: SharedTaskImage[]) {
     return images.every(
         (image) => image.status === 'ready' && image.assetId !== null && image.contentHash !== null,
+    )
+}
+
+/** processing 只在后端确认上传后设置；传输进度到 100% 不能代替确认。 */
+export function areDraftImagesUploaded(images: readonly SharedTaskImage[]): boolean {
+    return images.every(
+        (image) =>
+            (image.status === 'processing' || image.status === 'ready') && Boolean(image.assetId),
+    )
+}
+
+/** 视频上传被后端确认后即可由正式任务等待预处理，无需提前取得证据。 */
+export function isDraftVideoUploaded(video: SharedTaskVideo | null): boolean {
+    return Boolean(
+        video?.videoId &&
+        (video.status === 'queued' || video.status === 'processing' || video.status === 'ready'),
     )
 }
 

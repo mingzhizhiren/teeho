@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -101,7 +102,7 @@ onBeforeUnmount(() => {
 <template>
     <div ref="notificationCenter" class="relative">
         <button
-            class="relative flex h-10 w-10 items-center justify-center rounded-xl border border-line text-muted transition hover:border-brand/40 hover:bg-brand/5 hover:text-ink"
+            class="app-button app-button--secondary app-button--icon-only app-button--sm relative"
             type="button"
             :aria-label="t('notifications.centerLabel')"
             :aria-expanded="panelOpen"
@@ -131,16 +132,18 @@ onBeforeUnmount(() => {
                         </p>
                     </div>
                     <div class="flex shrink-0 flex-col items-stretch gap-2">
-                        <button
-                            class="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-muted transition hover:border-brand/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                        <AppButton
+                            variant="secondary"
+                            size="sm"
                             type="button"
                             :disabled="!browserSupported"
                             @click="toggleBrowserNotifications"
                         >
                             {{ browserButtonLabel }}
-                        </button>
-                        <button
-                            class="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-muted transition hover:border-brand/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                        </AppButton>
+                        <AppButton
+                            variant="secondary"
+                            size="sm"
                             type="button"
                             :disabled="unreadCount === 0 || markingAllRead"
                             @click="markAllRead"
@@ -150,7 +153,7 @@ onBeforeUnmount(() => {
                                     ? t('notifications.markingAllRead')
                                     : t('notifications.markAllRead')
                             }}
-                        </button>
+                        </AppButton>
                     </div>
                 </div>
                 <p
@@ -209,15 +212,17 @@ onBeforeUnmount(() => {
                 >
                     {{ t('notifications.empty') }}
                 </p>
-                <button
+                <AppButton
                     v-if="nextCursor"
-                    class="mx-2 mb-2 w-[calc(100%-1rem)] rounded-xl border border-line px-3 py-2 text-xs font-semibold text-muted transition hover:border-brand/40 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                    variant="secondary"
+                    size="sm"
+                    class="mx-2 mb-2 w-[calc(100%-1rem)]"
                     type="button"
                     :disabled="loadingMore"
                     @click="loadMore"
                 >
                     {{ loadingMore ? t('notifications.loadingMore') : t('notifications.loadMore') }}
-                </button>
+                </AppButton>
             </div>
         </div>
 

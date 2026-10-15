@@ -5,10 +5,13 @@ export interface InsightNote {
     topics: readonly string[]
     cover: string | null
     contentType: 'image' | 'video'
+    imageCount?: number | null
+    videoDurationSeconds?: number | null
     publishedAt: string
 }
 
 interface ScoreReference {
+    contentType?: 'image' | 'video'
     trackCode: number
     sampleCount: number
     mean: number

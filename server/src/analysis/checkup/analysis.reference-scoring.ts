@@ -42,6 +42,9 @@ function predictReference(
             topics: note.topics,
             cover: note.coverDescription ?? null,
             contentType: note.noteType === 'video' ? 'video' : 'image',
+            imageCount: note.noteType === 'normal' ? (note.imageCount ?? null) : null,
+            videoDurationSeconds:
+                note.noteType === 'video' ? (note.videoDurationSeconds ?? null) : null,
             publishedAt: REFERENCE_MODEL_DATE.format(new Date(note.publishedAt)),
         },
         input.evidence.selectedAt,

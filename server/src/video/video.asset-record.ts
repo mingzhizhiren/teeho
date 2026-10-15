@@ -13,6 +13,7 @@ export interface VideoAssetRow extends Record<string, unknown> {
     declaredByteSize: number | string
     originalObjectPath: string
     uploadExpiresAt: Date | string
+    expiresAt?: Date | string | null
     processingAttemptCount: number | string
     failureCode: string | null
     evidenceId: string | null
@@ -35,6 +36,12 @@ export const videoAssetSelection = sql`
     asset.processing_attempt_count AS "processingAttemptCount",
     asset.failure_code AS "failureCode",
     asset.evidence_id::text AS "evidenceId",
+    (
+        SELECT evidence.expires_at
+        FROM public.analysis_video_evidence_packages AS evidence
+        WHERE evidence.id = asset.evidence_id AND evidence.asset_id = asset.id
+            AND evidence.cleanup_state = 'retained'
+    ) AS "expiresAt",
     CASE
         WHEN asset.state = 'queued' THEN (
             SELECT count(*)
@@ -60,6 +67,7 @@ export function mapVideoAsset(row: VideoAssetRow): VideoAssetRecord {
         processingAttemptCount: Number(row.processingAttemptCount),
         queuePosition: row.queuePosition === null ? null : Number(row.queuePosition),
         uploadExpiresAt: iso(row.uploadExpiresAt),
+        expiresAt: row.expiresAt ? iso(row.expiresAt) : null,
         createdAt: iso(row.createdAt),
         updatedAt: iso(row.updatedAt),
     }

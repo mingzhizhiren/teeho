@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import { advanceAnalysisMediaPreparations } from './analysis/tasks/analysis.media-preparation.service'
 import { resolve } from 'node:path'
 import { createSkillDistributionRoutes } from '@teeho/community-server/skill-distribution/skill-distribution.routes'
 import { createSkillDistributionController } from '@teeho/community-server/skill-distribution/skill-distribution.controller'
@@ -85,6 +86,7 @@ export async function createApplication() {
         log: logger,
     })
     const worker = new AnalysisTaskWorker({
+        advanceMediaPreparations: advanceAnalysisMediaPreparations,
         executor,
         claimNextTask: claimNextAnalysisTask,
         recoverExpiredTaskLeases: recoverExpiredAnalysisTaskLeases,

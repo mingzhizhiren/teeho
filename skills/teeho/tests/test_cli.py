@@ -71,6 +71,7 @@ def is_stdlib_import(name: str) -> bool:
 class ApiFixture:
     def __init__(self) -> None:
         self.calls = []
+        self.observation_calls = []
         self.submissions = []
         self.tasks = {}
         self.mode = "normal"
@@ -80,6 +81,8 @@ class ApiFixture:
         self.releases = []
 
     def respond(self, path: str, body: dict) -> tuple[int, object]:
+        if path == "/api/skill/observations":
+            return 200, {"accepted": True}
         if self.mode == "upgrade" or (
             self.mode == "upgrade_points" and path == "/api/points/summary"
         ):
@@ -172,7 +175,11 @@ class ApiFixture:
             def handle_request(self) -> None:
                 length = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(length)) if length else {}
-                fixture.calls = fixture.calls + [self.path]
+                # 可选观测单独记录，业务测试仍验证授权/提交没有额外重试。
+                if self.path == "/api/skill/observations":
+                    fixture.observation_calls = fixture.observation_calls + [body]
+                else:
+                    fixture.calls = fixture.calls + [self.path]
                 status, data = fixture.respond(self.path, body)
                 if self.path == "/api/analysis/tasks" and fixture.lose_submission:
                     fixture.lose_submission = False
@@ -447,7 +454,7 @@ class CliTests(unittest.TestCase):
             },
         )
 
-    def test_help_installation_are_offline_and_do_not_read_credentials(self) -> None:
+    def test_help_installation_do_not_require_business_api_or_credentials(self) -> None:
         self.data_root.mkdir(parents=True)
         (self.data_root / "identity.json").write_text("broken identity", encoding="utf-8")
         code, lines, logs = self.run_cli("help")

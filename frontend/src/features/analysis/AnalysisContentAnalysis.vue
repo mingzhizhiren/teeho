@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import type { AnalysisResult } from './analysis.contract'
+import AnalysisOptimizationAdvice from './AnalysisOptimizationAdvice.vue'
 
 const props = defineProps<{ result: AnalysisResult }>()
 const { t } = useI18n()
@@ -16,37 +17,49 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
         class="rounded-3xl border border-line bg-surface p-5 sm:p-6"
         data-testid="analysis-content-analysis"
     >
-        <h2 class="flex items-center gap-2 text-lg font-semibold text-ink">
-            <AppIcon name="robot" />
-            {{ t('workspace.checkup.contentAnalysis.title') }}
+        <h2
+            class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-lg font-semibold text-ink"
+        >
+            <span class="inline-flex min-w-0 items-center gap-2">
+                <AppIcon name="robot" class="shrink-0" />
+                <span class="break-words">{{ t('workspace.checkup.contentAnalysis.title') }}</span>
+            </span>
+            <span
+                v-if="analysis"
+                class="inline-flex min-w-0 flex-wrap items-center gap-2"
+                role="img"
+                :aria-label="
+                    t('workspace.checkup.contentAnalysis.consistencyRating', {
+                        count: analysis.consistency.stars,
+                    })
+                "
+                data-testid="analysis-consistency-stars"
+            >
+                <span class="flex gap-1" aria-hidden="true">
+                    <AppIcon
+                        v-for="position in starPositions"
+                        :key="position"
+                        name="star"
+                        size="sm"
+                        :class="
+                            position <= analysis.consistency.stars
+                                ? 'fill-current text-brand'
+                                : 'text-muted'
+                        "
+                    />
+                </span>
+                <span class="text-sm font-semibold text-ink" aria-hidden="true">{{
+                    t('workspace.checkup.contentAnalysis.stars', {
+                        count: analysis.consistency.stars,
+                    })
+                }}</span>
+            </span>
         </h2>
         <template v-if="analysis">
             <div class="mt-5">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <h3 class="text-sm font-semibold text-ink">
-                        {{ t('workspace.checkup.contentAnalysis.consistency') }}
-                    </h3>
-                    <div class="flex items-center gap-2" data-testid="analysis-consistency-stars">
-                        <span class="flex gap-1" aria-hidden="true">
-                            <AppIcon
-                                v-for="position in starPositions"
-                                :key="position"
-                                name="star"
-                                size="sm"
-                                :class="
-                                    position <= analysis.consistency.stars
-                                        ? 'fill-current text-brand'
-                                        : 'text-muted'
-                                "
-                            />
-                        </span>
-                        <span class="text-sm font-semibold text-ink">{{
-                            t('workspace.checkup.contentAnalysis.stars', {
-                                count: analysis.consistency.stars,
-                            })
-                        }}</span>
-                    </div>
-                </div>
+                <h3 class="text-sm font-semibold text-ink">
+                    {{ t('workspace.checkup.contentAnalysis.consistency') }}
+                </h3>
                 <p
                     v-if="analysis.status === 'fallback'"
                     class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100"
@@ -78,6 +91,7 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                 </ul>
             </div>
             <template v-if="analysis.status === 'completed'">
+                <AnalysisOptimizationAdvice v-if="analysis.advice" :advice="analysis.advice" />
                 <div
                     class="mt-5 border-t border-line pt-5"
                     data-testid="analysis-reference-weaknesses"
@@ -139,7 +153,13 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                         </li>
                     </ul>
                     <p v-else class="mt-2 text-sm leading-6 text-muted">
-                        {{ t('workspace.checkup.contentAnalysis.noWeaknesses') }}
+                        {{
+                            t(
+                                analysis.evaluationVersion === 'content-evaluation.v2'
+                                    ? 'workspace.checkup.contentAnalysis.noObviousWeaknesses'
+                                    : 'workspace.checkup.contentAnalysis.noWeaknesses',
+                            )
+                        }}
                     </p>
                 </div>
             </template>

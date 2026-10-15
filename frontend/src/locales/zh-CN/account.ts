@@ -64,9 +64,7 @@ export default {
             replayUnavailable: '当前真实目标已经变化，请回到对应功能后重试。',
             chapters: {
                 workspace_foundation: '工作台基础',
-                agent_reply: 'Agent 回复',
-                task_confirmation: '任务确认',
-                expert_mode: '专家模式',
+                expert_mode: '填写笔记',
                 analysis_result: '分析结果',
             },
         },

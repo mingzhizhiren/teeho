@@ -3,22 +3,18 @@ import { useI18n } from 'vue-i18n'
 
 import AppIcon from '@/components/icons/AppIcon.vue'
 import AnalysisHistoryList from './AnalysisHistoryList.vue'
-import type { AnalysisInputMode, AnalysisTask } from './analysis.contract'
+import type { AnalysisTask } from './analysis.contract'
 
 defineProps<{
-    mode: AnalysisInputMode
     tasks: AnalysisTask[]
     displayNames: ReadonlyMap<string, string>
     selectedTaskId: string | null
     loading: boolean
     error: string
     query: string
-    draftSessionHasContent: boolean
-    draftSessionLocked?: boolean
 }>()
 const emit = defineEmits<{
     compose: []
-    'clear-draft': []
     select: [task: AnalysisTask]
     'update:query': [value: string]
 }>()
@@ -27,7 +23,7 @@ const { t } = useI18n()
 
 <template>
     <aside
-        class="flex flex-col rounded-3xl border border-line bg-surface p-4 shadow-sm lg:min-h-0 lg:overflow-y-auto"
+        class="ui-workspace-sidebar flex min-w-0 flex-col rounded-3xl border border-line bg-surface p-4 shadow-sm lg:min-h-0 lg:overflow-y-auto"
     >
         <div class="w-full">
             <p class="px-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
@@ -50,24 +46,13 @@ const { t } = useI18n()
                         <AppIcon name="workspace" />
                     </span>
                     <span class="min-w-0">
-                        <span class="block text-sm font-semibold">
+                        <span class="block break-words text-sm font-semibold">
                             {{ t('workspace.analysisFeature') }}
                         </span>
                         <span class="mt-0.5 block truncate text-xs text-muted">
-                            {{ t(`workspace.modeLabels.${mode}`) }}
+                            {{ t('workspace.formDraft.navigation') }}
                         </span>
                     </span>
-                </button>
-                <button
-                    v-if="draftSessionHasContent"
-                    class="shrink-0 rounded-2xl border border-line bg-surface-muted px-3 text-xs font-semibold text-muted transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-400/30 dark:hover:bg-red-400/10 dark:hover:text-red-300"
-                    type="button"
-                    data-testid="clear-analysis-conversation"
-                    :disabled="draftSessionLocked"
-                    :aria-label="t('workspace.agentChat.clear')"
-                    @click="emit('clear-draft')"
-                >
-                    {{ t('workspace.agentChat.clear') }}
                 </button>
             </nav>
         </div>

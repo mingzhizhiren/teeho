@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppListbox from '@/components/AppListbox.vue'
-import { parseTopicInput } from './analysis.topic-input'
+import { formatTopicInput, parseTopicInput } from './analysis.topic-input'
 import type { ResolvedTaskField, TaskFieldDefinition, TaskFieldValue } from './analysis.contract'
 
 const props = defineProps<{
@@ -14,7 +14,9 @@ const emit = defineEmits<{
     'update:modelValue': [value: TaskFieldValue | undefined]
 }>()
 const { t } = useI18n()
-const tagInput = ref(Array.isArray(props.modelValue) ? props.modelValue.join(', ') : '')
+const tagInput = ref(Array.isArray(props.modelValue) ? formatTopicInput(props.modelValue) : '')
+const isComposing = ref(false)
+const isEditingTags = ref(false)
 
 const fieldId = computed(() => `analysis-field-${props.field.name}`)
 const isRequired = computed(() => ['title', 'topics'].includes(props.field.name))
@@ -61,10 +63,13 @@ const inheritedPlaceholder = computed(() =>
 watch(
     () => props.modelValue,
     (value) => {
-        if (props.field.kind !== 'tags') return
+        if (props.field.kind !== 'tags' || isComposing.value) return
         const topics = Array.isArray(value) ? value : []
-        if (JSON.stringify(topics) !== JSON.stringify(parseTopicInput(tagInput.value))) {
-            tagInput.value = topics.join(', ')
+        if (
+            !isEditingTags.value ||
+            JSON.stringify(topics) !== JSON.stringify(parseTopicInput(tagInput.value))
+        ) {
+            tagInput.value = formatTopicInput(topics)
         }
     },
 )
@@ -77,15 +82,35 @@ function updateSelectValue(value: string) {
 function updateFromElement(event: Event) {
     const value = (event.target as HTMLInputElement | HTMLTextAreaElement).value
     if (props.field.kind === 'tags') tagInput.value = value
+    if (isComposing.value) return
     if (!value.trim()) {
         emit('update:modelValue', undefined)
         return
     }
     if (props.field.kind === 'tags') {
-        emit('update:modelValue', parseTopicInput(value))
+        const topics = parseTopicInput(value)
+        if ('inputType' in event && event.inputType === 'insertFromPaste') {
+            tagInput.value = formatTopicInput(topics)
+        }
+        emit('update:modelValue', topics)
         return
     }
     emit('update:modelValue', value)
+}
+
+/** 只在用户离开话题字段后整理显示，避免逐键移动光标。 */
+function normalizeTagInput(): void {
+    isEditingTags.value = false
+    if (props.field.kind !== 'tags' || isComposing.value) return
+    const topics = parseTopicInput(tagInput.value)
+    tagInput.value = formatTopicInput(topics)
+    emit('update:modelValue', topics.length ? topics : undefined)
+}
+
+function finishComposition(event: CompositionEvent): void {
+    isComposing.value = false
+    updateFromElement(event)
+    if (!isEditingTags.value) normalizeTagInput()
 }
 </script>
 
@@ -94,12 +119,15 @@ function updateFromElement(event: Event) {
         <div class="flex items-center justify-between gap-3">
             <label class="text-xs font-semibold text-ink" :for="fieldId">
                 {{ t(field.labelKey) }}
-                <span v-if="isRequired" class="ml-1 text-muted">
-                    {{ t('workspace.checkupInput.requiredLabel') }}
-                </span>
+                <span
+                    v-if="isRequired"
+                    class="ml-1 text-red-600 dark:text-red-400"
+                    aria-hidden="true"
+                >*</span
+                >
             </label>
             <span
-                v-if="visibleSource"
+                v-if="visibleSource && visibleSource !== 'user_input'"
                 class="rounded-full bg-surface px-2 py-1 text-[11px] font-medium text-muted ring-1 ring-line"
             >
                 {{ t(`workspace.sources.${visibleSource}`) }}
@@ -121,12 +149,20 @@ function updateFromElement(event: Event) {
             v-else-if="field.kind === 'textarea' || field.kind === 'tags'"
             :id="fieldId"
             :value="displayValue"
-            class="mt-2 min-h-24 w-full resize-y rounded-xl border border-line bg-surface px-3 py-3 text-sm leading-6 text-ink outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/15"
+            class="mt-2 w-full rounded-xl border border-line bg-surface px-3 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/15"
+            :class="field.kind === 'tags' ? 'topic-input' : 'min-h-[7.5rem] resize-y leading-6'"
+            :rows="field.kind === 'tags' ? 1 : undefined"
+            :wrap="field.kind === 'tags' ? 'off' : undefined"
             :maxlength="field.kind === 'tags' ? undefined : field.validation?.maxLength"
             :aria-required="isRequired"
             :aria-describedby="`${fieldId}-help`"
             :placeholder="inheritedPlaceholder"
             @input="updateFromElement"
+            @focus="isEditingTags = true"
+            @blur="normalizeTagInput"
+            @compositionstart="isComposing = true"
+            @compositionend="finishComposition"
+            @keydown.enter="field.kind === 'tags' && !$event.isComposing && $event.preventDefault()"
         ></textarea>
 
         <input
@@ -146,3 +182,13 @@ function updateFromElement(event: Event) {
         </p>
     </div>
 </template>
+
+<style scoped>
+.topic-input {
+    height: calc(1.25rem + 1.5rem + 2px);
+    min-height: 0;
+    line-height: 1.25rem;
+    resize: none;
+    overflow: hidden;
+}
+</style>

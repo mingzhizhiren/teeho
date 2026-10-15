@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
 import {
-    structureMetricNames,
+    visibleStructureMetricNames,
     structureDifferenceState,
     type StructureMetrics,
     type StructureReferences,
@@ -18,7 +18,7 @@ interface Props {
 const props = defineProps<Props>()
 const { t, n } = useI18n()
 const metricNames = computed(() =>
-    structureMetricNames.filter((name) => props.metrics[name] !== undefined),
+    visibleStructureMetricNames(props.metrics, props.references),
 )
 const statusColors = {
     aligned: 'text-emerald-700 dark:text-emerald-300',
@@ -60,12 +60,7 @@ function differenceText(metric: keyof StructureMetrics): string {
         <h2 class="text-lg font-semibold text-ink">
             {{ t('workspace.checkup.structureMetrics.title') }}
         </h2>
-        <div
-            class="mt-4 max-h-64 overflow-y-auto rounded-lg pr-3"
-            role="region"
-            :aria-label="t('workspace.checkup.structureMetrics.title')"
-            tabindex="0"
-        >
+        <div class="mt-4" role="region" :aria-label="t('workspace.checkup.structureMetrics.title')">
             <dl class="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
                 <div
                     v-for="metric in metricNames"
@@ -115,7 +110,11 @@ function differenceText(metric: keyof StructureMetrics): string {
                         >{{ differenceText(metric) }}</span
                         >
                     </dd>
-                    <dd class="w-full text-sm leading-6 text-muted" :data-reference="metric">
+                    <dd
+                        v-if="references[metric]"
+                        class="w-full text-sm leading-6 text-muted"
+                        :data-reference="metric"
+                    >
                         {{
                             references[metric]
                                 ? t('workspace.checkup.structureMetrics.range', {

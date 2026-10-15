@@ -10,7 +10,7 @@ import { presentReference, type SelectionReason } from './analysis.selection-rea
 import { contentAnalysisCopyLines, type ContentAnalysisLabels } from './analysis.content-analysis'
 import type { RiskMatch } from './analysis.risk-matches'
 import {
-    structureMetricNames,
+    visibleStructureMetricNames,
     type StructureMetrics,
     type StructureReferences,
 } from './analysis.structure-metrics'
@@ -32,6 +32,10 @@ export interface ResultCopyLabels {
     referenceMax: string
     referenceMin: string
     referenceUnavailable: string
+    referenceWeightedMedian?: string
+    referenceWeightedRange?: string
+    referenceWeightedMax?: string
+    referenceWeightedMin?: string
     selectionReasons?: Record<SelectionReason, string>
     referenceModelScore?: string
     semanticReference?: string
@@ -77,13 +81,21 @@ export function buildResultCopyText(
             ? savedReference
             : null
     const primaryScore = readPrimaryScore(result)
+    const weighted = reference?.contentType && reference.aggregation === 'weighted_tracks'
+    const referenceLabel = (kind: 'Median' | 'Range' | 'Max' | 'Min'): string =>
+        (weighted ? labels[`referenceWeighted${kind}`] : undefined) ?? labels[`reference${kind}`]
     return [
         `${primaryScore.source === 'radar_average' ? labels.average : labels.insight}: ${primaryScore.value.toFixed(decimals)} / 10`,
         ...(primaryScore.source === 'insight'
             ? [
-                  `${labels.referenceMedian}: ${reference?.median.toFixed(decimals) ?? labels.referenceUnavailable}`,
-                  `${labels.referenceMax}: ${reference?.max?.toFixed(decimals) ?? labels.referenceUnavailable}`,
-                  `${labels.referenceMin}: ${reference?.min?.toFixed(decimals) ?? labels.referenceUnavailable}`,
+                  `${referenceLabel('Median')}: ${reference?.median.toFixed(decimals) ?? labels.referenceUnavailable}`,
+                  ...(reference?.contentType
+                      ? [
+                            `${referenceLabel('Range')}: ${reference.p10.toFixed(decimals)} ~ ${reference.p90.toFixed(decimals)}`,
+                        ]
+                      : []),
+                  `${referenceLabel('Max')}: ${reference?.max?.toFixed(decimals) ?? labels.referenceUnavailable}`,
+                  `${referenceLabel('Min')}: ${reference?.min?.toFixed(decimals) ?? labels.referenceUnavailable}`,
               ]
             : []),
         ...(SHOW_RADAR_REPORT && visibleRadar(result)
@@ -114,9 +126,8 @@ export function buildResultCopyText(
             : result.riskReviewStatus === 'unavailable'
               ? []
               : [labels.contentAnalysis.noRisks]),
-        ...structureMetricNames
-            .filter((name) => result.structureMetrics[name] !== undefined)
-            .map((name) =>
+        ...visibleStructureMetricNames(result.structureMetrics, result.structureReferences).map(
+            (name) =>
                 [
                     labels.structureMetric(
                         name,
@@ -134,7 +145,7 @@ export function buildResultCopyText(
                           )
                         : []),
                 ].join('\n'),
-            ),
+        ),
         ...result.comparisonNotes.map((note) => {
             const presentation = presentReference(note, labels)
             return [

@@ -121,6 +121,8 @@ export const analysisMediaStateSchema = z.enum([
 export const analysisMediaAssetSchema = z.object({
     id: z.string().uuid(),
     fileName: z.string(),
+    declaredMediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']).optional(),
+    declaredByteSize: z.number().int().positive().optional(),
     state: analysisMediaStateSchema,
     mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']).nullable(),
     byteSize: z.number().int().positive().nullable(),
@@ -132,6 +134,18 @@ export const analysisMediaAssetSchema = z.object({
         .nullable(),
     errorCode: z.string().nullable(),
     expiresAt: z.string(),
+})
+
+/** 处理后图片只用于短时预览，不作为原文件下载或本地历史。 */
+export const analysisMediaPreviewDataSchema = z.object({
+    preview: z.object({
+        assetId: z.string().uuid(),
+        previewUrl: z
+            .string()
+            .url()
+            .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol)),
+        previewExpiresAt: z.string().datetime(),
+    }),
 })
 
 export const analysisMediaUploadSessionSchema = z.object({
@@ -180,6 +194,9 @@ export const analysisVideoStateSchema = z.enum([
 export const analysisVideoSchema = z.object({
     id: z.string().uuid(),
     fileName: z.string(),
+    declaredMediaType: z.enum(['video/mp4', 'video/quicktime']).optional(),
+    declaredByteSize: z.number().int().positive().optional(),
+    expiresAt: z.string().nullable().optional(),
     state: analysisVideoStateSchema,
     queuePosition: z.number().int().positive().nullable(),
     processingAttemptCount: z.number().int().nonnegative(),
@@ -274,6 +291,8 @@ const analysisFailureSchema = z.object({
         'agent_failure',
         'image_expired',
         'video_evidence_expired',
+        'media_preparation_failed',
+        'media_preparation_timeout',
         'insufficient_points',
     ]),
     message: z.string(),
@@ -296,6 +315,7 @@ export const analysisTaskSchema = z.object({
         'cancelled',
     ]),
     structureConfigVersion: z.string().min(1),
+    preparationStatus: z.enum(['waiting', 'ready']).optional(),
     standardTask: standardAnalysisTaskSchema,
     result: analysisResultSchema.nullable(),
     resultVersion: z.number().int().positive().nullable(),
@@ -417,6 +437,7 @@ export type AnalysisAssetCleanupOutcome = z.infer<typeof analysisAssetCleanupOut
 
 /** 创建任务请求的幂等凭据与后端公开等待边界。 */
 export interface AnalysisSubmissionRequestOptions {
+    deferMediaPreparation?: boolean
     preparationId?: string
     submissionId: string
     confirmationRevision: number

@@ -10,82 +10,47 @@ export default {
             anchor_missing: '页面目标暂时不可用，你可以跳过此步骤。',
         },
         onboarding: {
+            template: {
+                copy: { title: '复制模板', content: '复制笔记模板，按格式填写标题、正文和话题。' },
+                paste: { title: '粘贴内容', content: '复制填好的模板，点击这里自动填入表单。' },
+            },
             workspaceFoundation: {
                 steps: {
                     welcome: {
                         title: '欢迎来到题火工作台',
-                        content:
-                            '这里围绕一篇完整笔记录入草稿、开展体检并查看报告。引导只介绍操作位置，不会替你填写或提交。',
+                        content: '填入笔记、上传素材，开始分析后查看报告。',
                     },
                     modeChoice: {
-                        title: '先选择适合的工作方式',
-                        content:
-                            'Agent 模式通过回复逐步形成共享草稿；定制模式让你直接填写完整任务字段。切换只改变编辑方式，不会自动开始分析。',
+                        title: '选择笔记内容形态',
+                        content: '选择图片或视频，切换时保留草稿。',
                     },
                     taskOptions: {
-                        title: '确定赛道和内容形态',
-                        content:
-                            '赛道决定分析语境。图文需要图片和封面；视频需要完整视频，封面可选。',
+                        title: '准备图片或视频素材',
+                        content: '图片默认首张为封面；视频封面可选。',
                     },
                     agentInput: {
                         title: '从已完成的笔记开始',
-                        content:
-                            '粘贴你已写好的标题、正文和话题，并添加素材。Agent 会整理原文、询问缺项，确认后才开始体检。',
-                    },
-                },
-            },
-            agentReply: {
-                steps: {
-                    replyRegion: {
-                        title: '这是 Agent 的真实回复区域',
-                        content:
-                            'Agent 会在这里说明共享草稿的当前状态、需要确认的问题或下一步建议。历史回复只用于继续当前任务，不会变成普通聊天。',
-                    },
-                    freeInput: {
-                        title: '你始终可以自由回复',
-                        content:
-                            '用自然语言补充缺少的原文，或纠正录入内容。发送会更新共享草稿，正式体检需要你确认。',
-                    },
-                },
-            },
-            taskConfirmation: {
-                steps: {
-                    card: {
-                        title: '任务确认卡还不是分析结果',
-                        content:
-                            '这是已经持久成立的任务草稿。请亲自点击卡片展开并检查内容；引导不会替你展开或提交。',
-                    },
-                    keyFields: {
-                        title: '先检查关键字段',
-                        content:
-                            '检查标题、正文、话题是否保留原意，赛道和素材是否正确；来源提示说明字段如何录入。',
-                    },
-                    startAnalysis: {
-                        title: '确认后才正式开始分析',
-                        content:
-                            '点击这个按钮才会创建分析任务。若内容不对，请先继续回复 Agent 调整。',
+                        content: '填入已写好的笔记，标题和话题必填。',
                     },
                 },
             },
             expertMode: {
                 steps: {
                     taskOptions: {
-                        title: '专家模式先确定基础选项',
-                        content: '选择内容赛道和图文或视频形态，然后直接填写笔记原文。',
+                        title: '先确定笔记形态',
+                        content: '选择图文或视频，然后直接填写笔记原文。',
                     },
                     coreFields: {
                         title: '填写标题、正文和话题',
-                        content:
-                            '标题最多 200 字符，正文最多 1000 字符，话题最多 25 个。标题和话题必填，正文可留空。',
+                        content: '标题和话题必填，正文可留空。',
                     },
                     startAnalysis: {
                         title: '检查完成后再开始分析',
-                        content: '这个按钮才会创建任务。专家模式仍会检查笔记内容、素材和存储状态。',
+                        content: '点击开始分析；缺少内容时会提示补齐。',
                     },
                     media: {
                         title: '上传素材并检查封面',
-                        content:
-                            '图文最多 18 张，第一张默认为封面，也可选择其他图片。视频需要一个完整视频，封面可选。',
+                        content: '上传图片或完整视频，按需设置封面。',
                     },
                 },
             },
@@ -93,24 +58,29 @@ export default {
                 steps: {
                     metrics: {
                         title: '查看笔记关键指标',
-                        content:
-                            '先阅读主分和内容结论，再结合同类差异与参考笔记判断。洞察引擎评分参照在数据充足时展示；雷达图及六维分数暂不展示。',
+                        content: '查看评分和指标，再对照参考笔记。',
                     },
                     actions: {
                         title: '复制报告或再次体检',
-                        content:
-                            '复制完整报告，或者再次体检并创建独立报告。原报告仍会保留；过期素材需要重新上传。',
+                        content: '复制报告，或再次编辑笔记后重新分析。',
                     },
                     report: {
                         title: '查看差异与参考笔记',
-                        content:
-                            '报告展示标题长度、标题 Emoji 比例、正文长度、每一段文字数量、列表／步骤项数量和话题数量六项笔记关键指标，并提供参考笔记及可用原文链接。',
+                        content: '查看内容建议、关键指标和参考笔记。',
                     },
                 },
             },
         },
     },
     common: {
+        art: {
+            perspective: '换个角度，读懂你的笔记',
+            nextPost: '下一篇，带着洞察出发。',
+            workspace: '笔记写好了？一起看看',
+            report: '看清细节，找到改进方向',
+            skill: '一句话安装题火Skill',
+            signature: '题火',
+        },
         appName: '题火',
         home: '题火首页',
         close: '关闭',
@@ -177,6 +147,7 @@ export default {
     },
     auth: {
         heroEyebrow: '小红书笔记，发布前先检查',
+        xhsLogoAlt: '小红书',
         heroTitleLine1: '检查你的笔记，',
         heroTitleLine2: '带着依据决定是否发布。',
         heroDescription: '专注于完整小红书笔记发布前体检的 AI 工作台。',
@@ -214,12 +185,12 @@ export default {
         clearLocalData: '清理本地数据',
         clearLocalDataOnlyConfirmTitle: '确认清理本地数据',
         clearLocalDataOnlyConfirm:
-            '将永久删除当前账号在这台浏览器中的本地任务、素材和分析结果，并异步清理临时云端素材。不会退出登录，也不会删除账号或云端业务记录。此操作无法撤销，是否继续？',
+            '将永久删除当前账号在这台浏览器中的本地历史、素材和分析结果，并清理未被活动任务使用的临时云端素材。已提交任务及其必需素材继续保留，恢复记录会保留至任务结束。不会退出登录或删除账号。是否继续？',
         clearLocalDataOnlyConfirmAction: '清理并保持登录',
         clearLocalDataAndLogout: '退出并清除本机数据',
         clearLocalDataConfirmTitle: '确认清除本机数据',
         clearLocalDataConfirm:
-            '将删除当前账号在这台浏览器中的任务、原始素材和结果，并异步清理临时云端素材，然后退出登录。不会删除账号或云端业务记录。此操作无法撤销，是否继续？',
+            '将永久删除当前账号在这台浏览器中的本地历史、素材和结果，并清理未被活动任务使用的临时云端素材，然后退出登录。已提交任务及其必需素材继续保留，重新登录后可查看。不会删除账号。是否继续？',
         clearLocalDataConfirmAction: '清除并退出',
         clearLocalDataFailed:
             '未能安全清除当前账号的全部本机数据。为避免遗漏，账号仍保持登录，请重试。',

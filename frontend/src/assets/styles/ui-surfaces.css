@@ -1,0 +1,321 @@
+/* 页面分区：公开介绍、任务工作区和后台共用色彩，分别控制密度。 */
+.ui-public-shell,
+.ui-product-shell,
+.ui-admin-shell {
+    --ui-panel-shadow: 0 8px 28px -22px rgb(var(--color-text) / 0.2);
+    background-color: rgb(var(--color-canvas));
+    background-image: radial-gradient(
+        ellipse at 90% 0,
+        rgb(var(--color-accent) / 0.045),
+        transparent 36rem
+    );
+}
+.ui-public-shell .ui-public-header,
+.ui-workspace-header {
+    background: rgb(var(--color-canvas) / 0.94);
+    border-color: rgb(var(--color-border) / 0.7);
+    box-shadow: 0 4px 20px -18px rgb(var(--color-text) / 0.18);
+}
+.ui-public-shell .ui-public-footer {
+    background: rgb(var(--color-surface) / 0.65);
+    border-color: rgb(var(--color-border) / 0.7);
+}
+.ui-public-footer a {
+    transition: color 160ms;
+}
+.ui-public-footer a:hover {
+    color: rgb(var(--color-brand));
+}
+.ui-page-shell {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 76rem;
+    min-width: 0;
+    margin-inline: auto;
+    padding: clamp(2.5rem, 5vw, 4.5rem) clamp(1.25rem, 4vw, 2.5rem);
+}
+:is(.ui-public-shell, .ui-product-shell) .art-page-heading {
+    gap: clamp(1.25rem, 4vw, 3rem);
+    padding-bottom: 2rem;
+    border-color: rgb(var(--color-border) / 0.65);
+}
+:is(.ui-public-shell, .ui-product-shell) .art-page-heading h1 {
+    font-size: clamp(1.875rem, 3.4vw, 2.75rem);
+    font-weight: 650;
+    line-height: 1.25;
+    letter-spacing: -0.035em;
+}
+:is(.ui-public-shell, .ui-product-shell) .art-page-heading > .art-scene {
+    flex-basis: 8rem;
+    max-width: 22%;
+}
+:is(.ui-public-shell, .ui-product-shell) :is(.ui-panel, .ui-plan-card),
+.ui-admin-shell .ui-admin-panel {
+    border-radius: 1rem;
+    background-color: rgb(var(--color-surface));
+    box-shadow: var(--ui-panel-shadow);
+}
+/* 账号页：插画是叙事背景，表单作为一个清晰、稳定的操作面。 */
+.ui-public-shell .ui-auth-layout {
+    width: 100%;
+    max-width: 90rem;
+    margin-inline: auto;
+    background: transparent;
+}
+.ui-auth-layout .ui-auth-story {
+    border-color: transparent;
+    background: transparent;
+    padding: 3rem clamp(2rem, 4vw, 4.5rem);
+}
+.ui-auth-story h1 {
+    font-size: clamp(2rem, 3.2vw, 2.8rem);
+    line-height: 1.25;
+    letter-spacing: -0.035em;
+}
+.ui-auth-story .auth-library-scene {
+    max-width: 28rem;
+}
+.ui-auth-layout .ui-auth-form {
+    padding: 3rem clamp(1.25rem, 3vw, 3rem);
+}
+.ui-auth-form .ui-auth-card {
+    max-width: 29rem;
+    padding: clamp(1.5rem, 3vw, 2.5rem);
+    border: 1px solid rgb(var(--color-border) / 0.75);
+    border-radius: 1.25rem;
+    background: rgb(var(--color-surface));
+    box-shadow: var(--ui-panel-shadow);
+}
+.ui-auth-card :is(h1, h2) {
+    letter-spacing: -0.025em;
+    line-height: 1.35;
+}
+.ui-auth-card .ui-device-card {
+    background: rgb(var(--color-surface-muted) / 0.65);
+    border-color: rgb(var(--color-border) / 0.65);
+}
+
+/* 阅读页与安装说明：目录轻量，正文保持连续阅读节奏。 */
+.ui-document-shell .art-page-heading {
+    margin-top: 2.5rem;
+}
+.ui-document-shell .ui-reading-surface {
+    border-color: rgb(var(--color-border) / 0.65);
+    border-radius: 1rem;
+    padding: clamp(1.5rem, 4vw, 3rem);
+    box-shadow: var(--ui-panel-shadow);
+}
+.ui-document-shell .ui-document-toc {
+    padding: 1rem 1.25rem;
+    border: 1px solid rgb(var(--color-border) / 0.55);
+    border-radius: 0.875rem;
+    background: rgb(var(--color-surface) / 0.65);
+}
+.ui-skill-page .ui-feature-panel {
+    border-color: rgb(var(--color-brand) / 0.28);
+    background-image: linear-gradient(145deg, rgb(var(--color-brand) / 0.025), transparent 65%);
+}
+.ui-skill-page .ui-demo-prompt {
+    border: 1px solid rgb(var(--color-brand) / 0.18);
+    background: rgb(var(--color-brand) / 0.065);
+    color: rgb(var(--color-text));
+}
+.ui-contact-page .art-page-heading {
+    margin-top: 2.5rem;
+}
+.ui-public-shell .ui-not-found {
+    min-height: 36rem;
+}
+.ui-not-found .ui-empty-state {
+    padding: 2rem clamp(0rem, 3vw, 3rem);
+}
+.ui-empty-state > .art-scene {
+    max-width: 12rem;
+}
+
+/* 工作区：导航退到侧边，输入和报告占据主要视觉区域。 */
+.ui-product-shell .ui-workspace-layout {
+    gap: 1.5rem;
+    padding-top: 1.5rem;
+}
+.ui-workspace-layout .ui-workspace-sidebar {
+    padding-inline: 0.5rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+.ui-workspace-layout .ui-workspace-main {
+    border-color: rgb(var(--color-border) / 0.7);
+    border-radius: 1.25rem;
+    box-shadow: var(--ui-panel-shadow);
+}
+.ui-workspace-main h1 {
+    font-size: clamp(1.5rem, 2.5vw, 2rem);
+    letter-spacing: -0.03em;
+    line-height: 1.3;
+}
+.ui-workspace-main .art-workspace-note {
+    margin-top: 1.5rem;
+    padding: 0.25rem 0 1rem;
+    border-color: rgb(var(--color-border) / 0.55);
+}
+.ui-analysis-form .ui-form-options {
+    border-radius: 0.875rem;
+    background: rgb(var(--color-surface-muted) / 0.65);
+}
+.ui-analysis-form :is(textarea, input:not([type='file']):not([type='checkbox'])) {
+    transition:
+        border-color 160ms,
+        box-shadow 160ms,
+        background-color 160ms;
+}
+.ui-analysis-form textarea {
+    line-height: 1.8;
+}
+
+/* 套餐、账务与收银台：保留金额和状态色，使用同一组轻边框表面。 */
+.ui-pricing-page .ui-pricing-comparison {
+    margin-top: 2rem;
+    border-color: rgb(var(--color-border) / 0.75);
+    border-radius: 1rem;
+    box-shadow: var(--ui-panel-shadow);
+}
+.ui-pricing-page .ui-comparison-row {
+    border-color: rgb(var(--color-border) / 0.55);
+    transition: background-color 150ms;
+}
+.ui-pricing-page .ui-comparison-row:hover {
+    background: rgb(var(--color-surface-muted) / 0.65);
+}
+.ui-product-shell.ui-checkout-page,
+.ui-product-shell.ui-refund-page {
+    padding-top: clamp(2rem, 5vw, 4rem);
+}
+.ui-checkout-page > main > .art-panel {
+    border-color: rgb(var(--color-border) / 0.7);
+    border-radius: 1.25rem;
+    box-shadow: var(--ui-panel-shadow);
+}
+.ui-checkout-page .art-page-heading h1 {
+    font-size: 1.75rem;
+}
+.ui-checkout-page .art-page-heading > .art-scene {
+    flex-basis: 5.5rem;
+}
+
+/* 后台保持高密度：浅层导航、稳定表头和克制的数据卡片。 */
+.ui-workspace-main .ui-report > section {
+    border-color: rgb(var(--color-border) / 0.65);
+    border-radius: 0.875rem;
+}
+.ui-report :is(h2, h3) {
+    letter-spacing: -0.015em;
+}
+.ui-report > .ui-score-summary {
+    border-color: rgb(var(--color-brand) / 0.2);
+    background-image: linear-gradient(125deg, rgb(var(--color-brand) / 0.045), transparent 70%);
+}
+.ui-score-summary .ui-score-value {
+    font-size: clamp(2rem, 3vw, 2.5rem);
+    letter-spacing: -0.035em;
+    font-variant-numeric: tabular-nums;
+}
+.ui-account-dialog {
+    border-color: rgb(var(--color-border) / 0.75);
+    box-shadow: 0 24px 80px -30px rgb(0 0 0 / 0.4);
+}
+.ui-account-dialog > header {
+    background: rgb(var(--color-surface-muted) / 0.5);
+}
+.ui-dialog-surface {
+    border-color: rgb(var(--color-border) / 0.8);
+    box-shadow: 0 24px 80px -30px rgb(0 0 0 / 0.4);
+}
+.ui-public-shell .ui-home-section {
+    border-top: 0;
+    background: rgb(var(--color-surface) / 0.55);
+}
+.ui-public-shell .ui-workflow-step {
+    border-color: rgb(var(--color-border) / 0.55);
+    border-radius: 0.875rem;
+    background: rgb(var(--color-surface));
+}
+.ui-public-shell .ui-home-faq {
+    border-color: rgb(var(--color-border) / 0.55);
+    background: rgb(var(--color-surface-muted) / 0.4);
+}
+.ui-admin-shell .ui-admin-sidebar {
+    background: rgb(var(--color-surface) / 0.6);
+    border-color: rgb(var(--color-border) / 0.7);
+}
+.ui-admin-shell .ui-admin-main {
+    padding-top: 2.5rem;
+    padding-bottom: 3rem;
+}
+.ui-admin-main h1 {
+    letter-spacing: -0.03em;
+    line-height: 1.3;
+}
+.ui-admin-main :is(th, td) {
+    line-height: 1.6;
+}
+.ui-admin-main tbody tr:hover {
+    background: rgb(var(--color-surface-muted) / 0.6);
+}
+.ui-admin-main thead th {
+    font-weight: 500;
+    color: rgb(var(--color-text-muted));
+}
+.ui-admin-main input,
+.ui-admin-main select {
+    border-radius: 0.625rem;
+}
+@media (min-width: 1024px) {
+    .ui-product-shell .ui-workspace-layout {
+        grid-template-columns: 15rem minmax(0, 1fr);
+    }
+    .ui-admin-shell .ui-admin-sidebar {
+        position: sticky;
+        top: 0;
+        align-self: start;
+        height: 100dvh;
+        overflow-y: auto;
+    }
+}
+@media (max-width: 639px) {
+    :is(.ui-public-shell, .ui-product-shell) .art-page-heading {
+        gap: 1rem;
+        padding-bottom: 1.5rem;
+    }
+    :is(.ui-public-shell, .ui-product-shell) .art-page-heading > .art-scene {
+        flex-basis: 4.5rem;
+    }
+    .ui-auth-form .ui-auth-card {
+        padding: 1.5rem;
+        border-radius: 1rem;
+    }
+    .ui-auth-layout .ui-auth-form {
+        padding: 2rem 1rem;
+    }
+    .ui-product-shell .ui-workspace-layout {
+        padding-inline: 1rem;
+        gap: 1rem;
+    }
+    .ui-workspace-layout .ui-workspace-sidebar {
+        padding: 0;
+    }
+    .ui-workspace-layout .ui-workspace-main {
+        border-radius: 1rem;
+    }
+    .ui-admin-sidebar nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+    }
+    .ui-admin-sidebar nav a {
+        margin-top: 0;
+        padding: 0.75rem;
+    }
+}

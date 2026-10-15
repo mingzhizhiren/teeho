@@ -29,7 +29,7 @@ export type AppConfig = z.infer<typeof appConfigSchema>
 export const defaultAppConfig: Readonly<AppConfig> = Object.freeze({
     locale: 'zh-CN',
     theme: 'system',
-    analysisInputMode: 'agent',
+    analysisInputMode: 'custom',
 })
 
 /** 从 localStorage 读取配置，并用默认值补齐旧版本缺少的字段 */
@@ -49,7 +49,11 @@ export function getAppConfig(): AppConfig {
             return { ...defaultAppConfig }
         }
 
-        return appConfigSchema.parse({ ...defaultAppConfig, ...parsedConfig.data })
+        return appConfigSchema.parse({
+            ...defaultAppConfig,
+            ...parsedConfig.data,
+            analysisInputMode: 'custom',
+        })
     } catch {
         return { ...defaultAppConfig }
     }
@@ -57,7 +61,11 @@ export function getAppConfig(): AppConfig {
 
 /** 更新并持久化部分应用配置，返回合并后的完整配置 */
 export function updateAppConfig(config: Partial<AppConfig>): AppConfig {
-    const nextConfig = appConfigSchema.parse({ ...getAppConfig(), ...config })
+    const nextConfig = appConfigSchema.parse({
+        ...getAppConfig(),
+        ...config,
+        analysisInputMode: 'custom',
+    })
 
     if (supportsLocalStorage()) {
         try {

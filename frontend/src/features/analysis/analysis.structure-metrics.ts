@@ -28,6 +28,8 @@ const currentStructureMetricsSchema = z
         topicLength: z.number().finite().nonnegative().nullable(),
         maxTopicLength: structureCountSchema.optional(),
         maxParagraphLength: structureCountSchema.optional(),
+        imageCount: structureCountSchema.optional(),
+        videoDurationSeconds: z.number().finite().nonnegative().nullable().optional(),
     })
     .strict()
 
@@ -46,6 +48,8 @@ const savedLegacyMetricsSchema = currentStructureMetricsSchema
         topicLength: null,
         maxTopicLength: undefined,
         maxParagraphLength: undefined,
+        imageCount: undefined,
+        videoDurationSeconds: undefined,
     }))
 
 /** 旧报告只保留原有值，缺少的新指标不补算。 */
@@ -78,6 +82,8 @@ const currentStructureReferencesSchema = z
         topicLength: structureReferenceSchema,
         maxTopicLength: structureReferenceSchema.optional(),
         maxParagraphLength: structureReferenceSchema.optional(),
+        imageCount: structureReferenceSchema.optional(),
+        videoDurationSeconds: structureReferenceSchema.optional(),
     })
     .strict()
 
@@ -98,6 +104,8 @@ const savedLegacyReferencesSchema = currentStructureReferencesSchema
         topicLength: null,
         maxTopicLength: undefined,
         maxParagraphLength: undefined,
+        imageCount: undefined,
+        videoDurationSeconds: undefined,
     }))
 
 /** 已保存的历史范围只迁移形状，不用当前样本重建。 */
@@ -118,9 +126,23 @@ export const structureMetricNames = [
     'topicLength',
     'maxTopicLength',
     'maxParagraphLength',
+    'imageCount',
+    'videoDurationSeconds',
 ] as const
 
 export type StructureDifferenceState = 'within' | 'short' | 'long' | 'few' | 'many'
+
+/** 媒体指标只有保存值和参考范围同时存在时才展示。 */
+export function visibleStructureMetricNames(
+    metrics: StructureMetrics,
+    references: StructureReferences,
+): (keyof StructureMetrics)[] {
+    return structureMetricNames.filter(
+        (name) =>
+            metrics[name] != null &&
+            ((name !== 'imageCount' && name !== 'videoDurationSeconds') || references[name] != null),
+    )
+}
 
 /** 差异文字描述保存值相对范围的位置，严重度只用于原有配色。 */
 export function structureDifferenceState(
@@ -130,7 +152,8 @@ export function structureDifferenceState(
 ): StructureDifferenceState | null {
     if (value == null || reference == null) return null
     if (value >= reference.low && value <= reference.high) return 'within'
-    const isCount = metric === 'paragraphCount' || metric === 'topicCount'
+    const isCount =
+        metric === 'paragraphCount' || metric === 'topicCount' || metric === 'imageCount'
     if (value < reference.low) return isCount ? 'few' : 'short'
     return isCount ? 'many' : 'long'
 }

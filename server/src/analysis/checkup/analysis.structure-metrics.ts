@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import {
-    extractExtendedStructureFeatures,
     EXTENDED_STRUCTURE_KEYS,
     STRUCTURE_KEYS,
     type StructureFeatures,
     type ExtendedStructureFeatures,
+    MEDIA_STRUCTURE_KEYS,
+    type MediaStructureFeatures,
+    extractMediaStructureFeatures,
 } from '@teeho/content-metrics'
 import type { AnalysisEvidenceSet } from '../evidence/analysis.evidence'
 import type { StandardAnalysisTask } from '../analysis.schema'
@@ -36,6 +38,8 @@ const currentStructureMetricsSchema = z
         topicCount: countSchema,
         maxTopicLength: countSchema.optional(),
         maxParagraphLength: countSchema.optional(),
+        imageCount: countSchema.optional(),
+        videoDurationSeconds: z.number().finite().nonnegative().nullable().optional(),
     })
     .strict()
 
@@ -60,6 +64,8 @@ const currentStructureReferencesSchema = z
         topicCount: referenceSchema,
         maxTopicLength: referenceSchema.optional(),
         maxParagraphLength: referenceSchema.optional(),
+        imageCount: referenceSchema.optional(),
+        videoDurationSeconds: referenceSchema.optional(),
     })
     .strict()
 /** 旧报告只保留已保存的四项，新增指标为空，不重新计算历史。 */
@@ -79,6 +85,8 @@ const legacyMetricsSchema = currentStructureMetricsSchema
         topicLength: null,
         maxTopicLength: undefined,
         maxParagraphLength: undefined,
+        imageCount: undefined,
+        videoDurationSeconds: undefined,
     }))
 
 const legacyReferencesSchema = currentStructureReferencesSchema
@@ -97,6 +105,8 @@ const legacyReferencesSchema = currentStructureReferencesSchema
         topicLength: null,
         maxTopicLength: undefined,
         maxParagraphLength: undefined,
+        imageCount: undefined,
+        videoDurationSeconds: undefined,
     }))
 
 export const structureMetricsSchema = z.union([currentStructureMetricsSchema, legacyMetricsSchema])
@@ -142,10 +152,15 @@ function compare(
 
 /** 同一优秀样本群体的结构Q25～Q75；颜色表示差异，不是内容质量分。 */
 export function compareStructureMetrics(
-    current: StructureFeatures & Partial<ExtendedStructureFeatures>,
-    peers: readonly (StructureFeatures & Partial<ExtendedStructureFeatures>)[],
+    current: StructureFeatures & Partial<MediaStructureFeatures>,
+    peers: readonly (StructureFeatures & Partial<MediaStructureFeatures>)[],
 ): StructureReferences {
-    const keys = current.maxParagraphLength === undefined ? STRUCTURE_KEYS : EXTENDED_STRUCTURE_KEYS
+    const keys =
+        current.imageCount !== undefined
+            ? MEDIA_STRUCTURE_KEYS
+            : current.maxParagraphLength === undefined
+              ? STRUCTURE_KEYS
+              : EXTENDED_STRUCTURE_KEYS
     return structureReferencesSchema.parse(
         Object.fromEntries(
             keys.map((key) => {
@@ -172,15 +187,26 @@ export function compareStructureMetrics(
 export function calculateStructureReferences(
     evidence: AnalysisEvidenceSet,
     task: StandardAnalysisTask,
-): StructureReferences {
-    const metrics = extractExtendedStructureFeatures(
+    metrics: ExtendedStructureFeatures &
+        Partial<MediaStructureFeatures> = extractMediaStructureFeatures(
         task.fields.title.value,
         task.fields.body.value,
         task.fields.topics.value,
-    )
+        { contentType: task.contentKind, imageCount: task.imageReferences.length },
+    ),
+): StructureReferences {
     const { selected } = contextSamples(evidence, task)
     const peers = excellentCheckupSamples(selected).map(({ note }) =>
-        extractExtendedStructureFeatures(note.title, note.body, note.topics),
+        extractMediaStructureFeatures(note.title, note.body, note.topics, {
+            contentType:
+                note.noteType === 'normal'
+                    ? 'image'
+                    : note.noteType === 'video'
+                      ? 'video'
+                      : 'unknown',
+            imageCount: note.imageCount,
+            videoDurationSeconds: note.videoDurationSeconds,
+        }),
     )
     return compareStructureMetrics(metrics, peers)
 }

@@ -1,5 +1,11 @@
 import { lockAccountOperations } from '../../account/account-operation.lock'
 import { withTransaction, type DatabaseExecutor } from '../../db/database'
+import {
+    bindPreparingMedia,
+    requeueMediaPreparation,
+} from './analysis.media-preparation.repository'
+import { MEDIA_PREPARATION } from './analysis.media-preparation.service'
+import { resetFailedPreparationMedia } from '../media/analysis.preparation-retry.repository'
 import { getTaskPolicy } from '../../runtime/task-policy'
 import { assertVideoEvidenceSnapshotAvailable } from '../../video/video.analysis-evidence'
 import {
@@ -126,7 +132,12 @@ export function createResearchingAnalysisTask(param: CreateAnalysisTaskParam): P
             return existing.id
         }
 
-        await assertAnalysisVideoEvidenceAvailable(transaction, param.userId, param.standardTask)
+        if (!param.standardTask.mediaPreparation)
+            await assertAnalysisVideoEvidenceAvailable(
+                transaction,
+                param.userId,
+                param.standardTask,
+            )
 
         await assertAnalysisQueueCapacity(transaction, param.userId)
 
@@ -154,7 +165,9 @@ export function createResearchingAnalysisTask(param: CreateAnalysisTaskParam): P
             firstResultVersion,
             param.standardTask,
         )
-        await bindReadyMediaAssets(transaction, taskId, param.userId, param.assetIds)
+        if (param.standardTask.mediaPreparation)
+            await bindPreparingMedia(transaction, taskId, param.userId, param.standardTask)
+        else await bindReadyMediaAssets(transaction, taskId, param.userId, param.assetIds)
         await finalizeTaskAdmission(transaction, param.userId, param.session)
         return taskId
     })
@@ -245,6 +258,23 @@ export function retryFailedAnalysisTask(taskId: string, userId: string) {
         const failedTask = await findFailedAnalysisTask(transaction, taskId, userId)
         if (!failedTask) {
             return false
+        }
+
+        if (failedTask.standardTask.mediaPreparation) {
+            await resetFailedPreparationMedia(transaction, userId, taskId, failedTask.standardTask)
+            await getTaskPolicy().reserve(
+                transaction,
+                userId,
+                taskId,
+                failedTask.resultVersion,
+                failedTask.standardTask,
+            )
+            return requeueMediaPreparation(
+                transaction,
+                taskId,
+                userId,
+                new Date(Date.now() + MEDIA_PREPARATION.timeoutMs).toISOString(),
+            )
         }
 
         await assertAnalysisAssetsAvailable(

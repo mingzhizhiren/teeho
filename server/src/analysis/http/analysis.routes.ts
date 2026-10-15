@@ -12,6 +12,7 @@ import {
     handleConfirmAnalysisMediaUpload,
     handleCreateAnalysisMediaUploadSession,
     handleGetAnalysisMediaStatuses,
+    handleGetAnalysisMediaPreview,
     handleRetryAnalysisMedia,
 } from '../media/analysis.media.controller'
 import {
@@ -50,6 +51,13 @@ export const analysisRoutes = new Elysia({ prefix: '/analysis' })
     .post('/media/statuses', async ({ apiUser, body, set }) => {
         const result = await handleGetAnalysisMediaStatuses(apiUser.id, body)
         set.status = result.status
+        return result.response
+    })
+    .get('/media/:assetId/preview', async ({ apiUser, params, set }) => {
+        const result = await handleGetAnalysisMediaPreview(apiUser.id, params.assetId)
+        set.status = result.status
+        set.headers['Cache-Control'] = 'private, no-store'
+        if (result.headers) Object.assign(set.headers, result.headers)
         return result.response
     })
     .post('/media/:assetId/retry', async ({ apiUser, params, set }) => {

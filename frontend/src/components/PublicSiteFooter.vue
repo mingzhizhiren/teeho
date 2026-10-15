@@ -4,7 +4,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-    <footer class="border-t border-line px-5 py-6 text-center text-sm text-muted">
+    <footer class="ui-public-footer border-t border-line px-5 py-6 text-center text-sm text-muted">
         <a
             href="https://github.com/mingzhizhiren/teeho"
             class="font-semibold text-brand"

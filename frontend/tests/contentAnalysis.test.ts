@@ -148,6 +148,108 @@ test('content analysis preserves findings and accepts old saved reports without 
     expect(analysisResultSchema.parse(checkupResult).contentAnalysis).toBeUndefined()
 })
 
+test('优化建议独立边界保留核心报告，缺省保持历史缺项，非法新增内容降级', () => {
+    const item = {
+        priority: 'high',
+        location: 'body',
+        sourceId: 'body:p2',
+        evidence: '用户第二段原文',
+        problem: '缺少判断标准',
+        suggestion: '补充判断所需的具体条件。',
+    }
+    const complete = { status: 'completed', evidenceAvailability: 'limited', items: [item] }
+    const invalidAdvice: unknown[] = [
+        null,
+        {},
+        { status: 'unknown', items: [] },
+        { ...complete, items: Array.from({ length: 6 }, () => ({ ...item })) },
+        { ...complete, items: [{ ...item, evidence: '字'.repeat(501) }] },
+        { ...complete, items: [{ ...item, problem: '字'.repeat(801) }] },
+        { ...complete, items: [{ ...item, suggestion: '字'.repeat(801) }] },
+        { ...complete, items: [{ ...item, sourceId: 'body:p0' }] },
+        { ...complete, items: [{ ...item, sourceId: 'body:p01' }] },
+        { ...complete, items: [{ ...item, sourceId: 'body:p9007199254740992' }] },
+        {
+            ...complete,
+            items: [{ ...item, sourceId: 'topic:9007199254740992', location: 'topics' }],
+        },
+        { ...complete, items: [{ ...item, sourceId: 'topic:0', location: 'topics' }] },
+        { ...complete, items: [{ ...item, sourceId: 'body:p' + '1'.repeat(75) }] },
+        { ...complete, items: [{ ...item, sourceId: 'title' }] },
+        { ...complete, items: [{ ...item, sourceId: 'material:uuid', location: 'content' }] },
+        { status: 'unavailable', items: [item] },
+        { ...complete, evidenceAvailability: 'unknown' },
+        { ...complete, items: [{ ...item, evidence: '  ' }] },
+        { ...complete, items: [{ ...item, priority: 'urgent' }] },
+        { ...complete, items: [{ ...item, internalId: 'private-material-id' }] },
+    ]
+    for (const advice of invalidAdvice) {
+        const parsed = analysisResultSchema.parse({
+            ...newReport,
+            contentAnalysis: { ...contentAnalysisFixture, advice },
+        })
+        expect(parsed.contentAnalysis?.advice).toEqual({ status: 'unavailable', items: [] })
+        expect(readPrimaryScore(parsed).value).toBe(7)
+        expect(parsed.contentAnalysis?.consistency).toEqual(contentAnalysisFixture.consistency)
+    }
+    expect(analysisResultSchema.parse(newReport).contentAnalysis?.advice).toBeUndefined()
+    expect(
+        analysisResultSchema.safeParse({
+            ...newReport,
+            contentAnalysis: {
+                ...contentAnalysisFixture,
+                advice: null,
+                consistency: { ...contentAnalysisFixture.consistency, stars: 6 },
+            },
+        }).success,
+    ).toBe(false)
+    for (const count of [0, 1, 2, 3, 4, 5]) {
+        const advice = { ...complete, items: Array.from({ length: count }, () => ({ ...item })) }
+        const parsed = analysisResultSchema.parse({
+            ...newReport,
+            contentAnalysis: { ...contentAnalysisFixture, advice },
+        })
+        expect(parsed.contentAnalysis?.advice).toEqual(advice)
+        expect(readPrimaryScore(parsed).value).toBe(7)
+    }
+})
+
+test('新评价版本标记保留已保存星级和主分，不改旧报告并拒绝未知版本', () => {
+    for (const [stars, value] of [
+        [0, 0],
+        [1, 2.1],
+        [2, 4.2],
+        [3, 7],
+        [4, 7],
+        [5, 7],
+    ] as const) {
+        const report = {
+            ...newReport,
+            insight: { ...checkupResult.insight, score: value },
+            primaryScore: { source: 'insight', value },
+            contentAnalysis: {
+                ...contentAnalysisFixture,
+                evaluationVersion: 'content-evaluation.v2',
+                scorePolicy: 'consistency-weighted.v2',
+                consistency: { ...contentAnalysisFixture.consistency, stars },
+            },
+        }
+        const parsed = analysisResultSchema.parse(report)
+        expect(readPrimaryScore(parsed).value).toBe(value)
+        expect(parsed.contentAnalysis).toMatchObject({
+            evaluationVersion: 'content-evaluation.v2',
+            consistency: { stars },
+        })
+        expect(
+            analysisResultSchema.safeParse({
+                ...report,
+                contentAnalysis: { ...report.contentAnalysis, evaluationVersion: 'unknown' },
+            }).success,
+        ).toBe(false)
+    }
+    expect(analysisResultSchema.parse(newReport).contentAnalysis).toEqual(contentAnalysisFixture)
+})
+
 test('completed zero consistency requires final zero and evidence for insight reports', () => {
     const blocked = {
         ...contentAnalysisFixture,

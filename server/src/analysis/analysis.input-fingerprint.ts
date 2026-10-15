@@ -9,6 +9,27 @@ function normalizeFingerprintFieldValue(value: TaskFieldValue | undefined) {
     return value
 }
 
+/** 提前受理身份只依赖用户确认输入与有序资产 ID，素材处理完成不改变幂等身份。 */
+export function createDeferredSubmissionFingerprint(draft: AnalysisDraft): string {
+    const fields = Object.fromEntries(
+        Object.entries(draft.fields)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([name, value]) => [name, normalizeFingerprintFieldValue(value)]),
+    )
+    return createHash('sha256')
+        .update(
+            JSON.stringify({
+                version: 'media-references-v1',
+                rawText: draft.rawText.trim(),
+                fields,
+                imageReferences: draft.imageReferences,
+                coverReference: draft.coverReference ?? draft.imageReferences[0] ?? null,
+                videoReference: draft.videoReference ?? null,
+            }),
+        )
+        .digest('hex')
+}
+
 /** 只描述任务形成语义和素材形态；同形态替换素材不会改变该身份。 */
 export function createSemanticDraftFingerprint(draft: AnalysisDraft) {
     const fields = Object.fromEntries(

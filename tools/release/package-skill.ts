@@ -3,6 +3,7 @@ import { resolve, dirname, join } from 'node:path'
 import { findPythonExecutable } from './python-runtime'
 import release from '../../skills/teeho/release.json'
 import { isCompatibleSkillVersion } from '../../server/src/skill-distribution/skill-version'
+import { assertSkillSource } from './package-skill-source'
 const root = resolve(import.meta.dirname, '../..')
 const skillRoot = resolve(root, 'skills/teeho')
 
@@ -25,7 +26,8 @@ async function collectPythonTools(directory: string): Promise<string[]> {
 type SkillEntry = readonly [path: string, content: Buffer]
 
 /** 收集发布包与公开源码目录共用的完整 Skill 文件。 */
-export async function collectSkillEntries(): Promise<SkillEntry[]> {
+export async function collectSkillEntries(source = 'github'): Promise<SkillEntry[]> {
+    assertSkillSource(source)
     const toolFiles = await collectPythonTools('tools')
     for (const required of ['tools/teeho.py', 'tools/teeho_skill/__init__.py']) {
         if (!toolFiles.includes(required)) throw new Error(`Missing Python skill file: ${required}`)
@@ -33,6 +35,7 @@ export async function collectSkillEntries(): Promise<SkillEntry[]> {
     const names = [
         'SKILL.md',
         'README.md',
+        'LICENSE.md',
         'endpoint.json',
         'release.json',
         'references/uninstall.md',
@@ -44,11 +47,16 @@ export async function collectSkillEntries(): Promise<SkillEntry[]> {
             async (name) => ['teeho/' + name, await readFile(join(skillRoot, name))] as const,
         ),
     )
-    return toolEntries
+    return toolEntries.map(([path, content]) => [
+        path,
+        path === 'teeho/tools/teeho_skill/distribution.py'
+            ? Buffer.from(`"""发布渠道的内部构建标记。"""\n\nSOURCE = '${source}'\n`)
+            : content,
+    ])
 }
 
 /** 只打包显式公开的技能资料和运行工具，排除测试与用户数据。 */
-export async function packageSkill(output: string): Promise<string> {
+export async function packageSkill(output: string, source = 'github'): Promise<string> {
     const skillMarkdown = await readFile(join(skillRoot, 'SKILL.md'), 'utf8')
     const frontmatter = skillMarkdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1]
     const version = frontmatter?.match(
@@ -61,7 +69,7 @@ export async function packageSkill(output: string): Promise<string> {
         throw new Error('Skill metadata and release.json versions differ')
     if (!isCompatibleSkillVersion(release.version, release.minimumVersion))
         throw new Error('Skill release must meet its minimum compatible version')
-    const entries = await collectSkillEntries()
+    const entries = await collectSkillEntries(source)
     await mkdir(dirname(resolve(output)), { recursive: true })
     const child = Bun.spawn(
         [
@@ -87,7 +95,10 @@ export async function packageSkill(output: string): Promise<string> {
 }
 /** 为指定站点生成同一份技能包；公共源码始终取自本仓库。 */
 export async function buildSkillAssets(siteRoot = resolve(root, 'frontend')): Promise<void> {
-    const version = await packageSkill(resolve(siteRoot, 'public/downloads/teeho-skill.zip'))
+    const version = await packageSkill(
+        resolve(siteRoot, 'public/downloads/teeho-skill.zip'),
+        'official',
+    )
     await rm(resolve(siteRoot, 'public/downloads/teeho-skill.tgz'), { force: true })
     await Bun.write(
         resolve(siteRoot, 'src/config/skill-release.generated.json'),

@@ -2,8 +2,6 @@ import type { OnboardingChapterId, OnboardingEvent } from './onboarding.types'
 
 export const onboardingReplayChapterIds = Object.freeze([
     'workspace_foundation',
-    'agent_reply',
-    'task_confirmation',
     'expert_mode',
     'analysis_result',
 ] as const satisfies readonly OnboardingChapterId[])
@@ -17,7 +15,7 @@ interface OnboardingChapterDefinition {
 export const onboardingChapterCatalog = Object.freeze({
     workspace_foundation: {
         chapterId: 'workspace_foundation',
-        guideId: 'onboarding.workspace-foundation.v2',
+        guideId: 'onboarding.workspace-foundation.v4',
         priority: 10,
     },
     agent_reply: {
@@ -32,7 +30,7 @@ export const onboardingChapterCatalog = Object.freeze({
     },
     expert_mode: {
         chapterId: 'expert_mode',
-        guideId: 'onboarding.expert-mode.v2',
+        guideId: 'onboarding.expert-mode.v3',
         priority: 40,
     },
     analysis_result: {
@@ -42,9 +40,7 @@ export const onboardingChapterCatalog = Object.freeze({
     },
 } satisfies Record<OnboardingChapterId, OnboardingChapterDefinition>)
 
-export function chapterForOnboardingEvent(
-    event: OnboardingEvent,
-): OnboardingChapterDefinition {
+export function chapterForOnboardingEvent(event: OnboardingEvent): OnboardingChapterDefinition {
     switch (event.type) {
         case 'workspace_ready':
             return onboardingChapterCatalog.workspace_foundation

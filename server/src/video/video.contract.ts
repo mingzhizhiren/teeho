@@ -30,6 +30,8 @@ export interface VideoAssetRecord {
     declaredByteSize: number
     originalObjectPath: string
     uploadExpiresAt: string
+    /** 已保留证据的期限，与原片上传资格期限不同。 */
+    expiresAt?: string | null
     processingAttemptCount: number
     failureCode: string | null
     evidenceId: string | null

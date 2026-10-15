@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { analysisUiConstraints } from './analysis.constants'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -31,13 +32,14 @@ import { radarMetricNames } from './analysis.checkup-contract'
 import type { ResultCopyLabels } from './resultDetails'
 import AnalysisCustomMetrics from './AnalysisCustomMetrics.vue'
 import { structureDifferenceState } from './analysis.structure-metrics'
+import { createContentAdviceLabels } from './analysis.advice'
 
 const props = defineProps<{
     task: AnalysisTask
     resultFields: TaskFieldDefinition[]
     tracks: AnalysisTrackDefinition[]
-    canReanalyze: boolean
-    reanalysisBusy: boolean
+    canEdit: boolean
+    editBusy: boolean
     clock: number
     actionError: string
     viewContext: 'current' | 'history'
@@ -46,12 +48,11 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-    reanalyze: []
+    edit: []
     'dismiss-error': []
 }>()
 
 const { t, n } = useI18n()
-const runtime = getFrontendRuntime()
 const { expanded: detailsExpanded, toggleDetails } = useResultDetails()
 const copyBusy = ref<ResultCopyTarget | null>(null)
 const copyFeedback = ref<{
@@ -188,6 +189,8 @@ async function handleCopy(target: ResultCopyTarget) {
                 noRisks: t('workspace.checkup.contentAnalysis.noRisks'),
                 riskReviewUnavailable: t('workspace.checkup.contentAnalysis.riskReviewUnavailable'),
                 noWeaknesses: t('workspace.checkup.contentAnalysis.noWeaknesses'),
+                noObviousWeaknesses: t('workspace.checkup.contentAnalysis.noObviousWeaknesses'),
+                advice: createContentAdviceLabels((key, values) => t(key, values ?? {})),
                 fallback: t('workspace.checkup.contentAnalysis.fallback'),
                 scoreBlocked: t('workspace.checkup.contentAnalysis.scoreBlocked'),
                 references: t('workspace.checkup.contentAnalysis.references'),
@@ -215,6 +218,10 @@ async function handleCopy(target: ResultCopyTarget) {
             referenceMax: t('workspace.checkup.referenceMax'),
             referenceMin: t('workspace.checkup.referenceMin'),
             referenceUnavailable: t('workspace.checkup.referenceUnavailable'),
+            referenceWeightedMedian: t('workspace.checkup.referenceWeightedMedian'),
+            referenceWeightedRange: t('workspace.checkup.referenceWeightedRange'),
+            referenceWeightedMax: t('workspace.checkup.referenceWeightedMax'),
+            referenceWeightedMin: t('workspace.checkup.referenceWeightedMin'),
             selectionReasons: {
                 high_exposure: t('workspace.checkup.selectionReasons.high_exposure'),
                 rapid_growth: t('workspace.checkup.selectionReasons.rapid_growth'),
@@ -243,7 +250,7 @@ async function handleCopy(target: ResultCopyTarget) {
                           low: format(reference.low),
                           high: format(reference.high),
                       })
-                    : t('workspace.checkup.structureMetrics.insufficient')
+                    : ''
                 const noTopics =
                     value === null &&
                     (name === 'maxTopicLength' ||
@@ -257,7 +264,7 @@ async function handleCopy(target: ResultCopyTarget) {
                     : value === null && !noTopics
                       ? ` ${t('workspace.checkup.structureMetrics.missingValue')}`
                       : ''
-                return `${t(`workspace.checkup.structureMetrics.fields.${name}`)}: ${savedValue}${state}\n${range}`
+                return `${t(`workspace.checkup.structureMetrics.fields.${name}`)}: ${savedValue}${state}${range ? `\n${range}` : ''}`
             },
         }
         await copyResult(result.value, labels, undefined, riskMatches.value)
@@ -285,15 +292,23 @@ function dismissResultActionFeedback() {
 </script>
 
 <template>
-    <article ref="resultElement" class="mt-4 space-y-6" data-testid="analysis-result">
+    <article
+        ref="resultElement"
+        v-guide-anchor="'onboarding.analysis-result.report'"
+        class="ui-report mt-4 space-y-6"
+        data-testid="analysis-result"
+    >
         <header class="space-y-4">
             <div
                 v-guide-anchor="'onboarding.analysis-result.actions'"
                 class="flex flex-wrap justify-end gap-2"
                 data-testid="analysis-result-actions"
             >
-                <button
-                    class="min-h-10 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink transition hover:border-brand/50 hover:bg-brand/5 disabled:opacity-50"
+                <AppButton
+                    variant="secondary"
+                    size="md"
+                    :loading="copyBusy !== null"
+                    icon="copy"
                     type="button"
                     :disabled="copyBusy !== null"
                     @click="handleCopy('all')"
@@ -303,21 +318,19 @@ function dismissResultActionFeedback() {
                             ? t('workspace.copy.copying')
                             : t('workspace.checkup.copyReport')
                     }}
-                </button>
-                <button
-                    v-if="canReanalyze"
-                    class="min-h-10 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink transition hover:border-brand/50 hover:bg-brand/5 disabled:opacity-50"
+                </AppButton>
+                <AppButton
+                    v-if="canEdit"
+                    variant="secondary"
+                    size="md"
+                    :loading="editBusy"
+                    icon="edit"
                     type="button"
-                    :disabled="reanalysisBusy"
-                    @click="emit('reanalyze')"
+                    :disabled="editBusy"
+                    @click="emit('edit')"
                 >
-                    {{
-                        reanalysisBusy
-                            ? t('workspace.versions.reanalyzing')
-                            : runtime.analysisText('reanalyze', { task }) ||
-                                t('workspace.versions.reanalyze')
-                    }}
-                </button>
+                    {{ editBusy ? t('workspace.edit.restoring') : t('workspace.edit.action') }}
+                </AppButton>
             </div>
 
             <InlineFeedback

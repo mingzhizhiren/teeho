@@ -14,7 +14,10 @@ import {
 } from './storageCapacity'
 import { activeDraftImages, createDraftPayload, type SharedTaskDraft } from './taskDraft'
 import type { AnalysisSubmissionIntent } from './analysisSubmissionIntents'
-import { createSubmissionInputFingerprint } from './effectiveInputFingerprint'
+import {
+    createDeferredSubmissionFingerprint,
+    createSubmissionInputFingerprint,
+} from './effectiveInputFingerprint'
 
 interface AnalysisDraftPreviewOutcome {
     acceptance: AnalysisInputAcceptance
@@ -29,6 +32,8 @@ interface AnalysisTaskSubmissionOutcome {
 
 /** 一次分析提交所需的草稿、模式、澄清与等待边界。 */
 export interface AnalysisSubmissionInput {
+    deferMediaPreparation?: boolean
+    isCurrent?: () => boolean
     draft: SharedTaskDraft
     mode: AnalysisInputMode
     confirmationRevision: number
@@ -54,6 +59,7 @@ export interface AnalysisSubmissionAdapter {
 
 /** 提交流程持久化和清理轻量提交意图所需的适配器。 */
 export interface AnalysisSubmissionIntentAdapter {
+    find?: (fingerprint: string) => AnalysisSubmissionIntent | undefined
     remember: (intent: AnalysisSubmissionIntent) => Promise<void>
     forget: (submissionId: string) => Promise<void>
 }
@@ -68,7 +74,7 @@ export type AnalysisSubmissionReadiness =
 
 /** 已提交任务与提交瞬间原始图片的组合结果。 */
 export interface SubmittedAnalysisDraft extends AnalysisTaskSubmissionOutcome {
-    originalImages: File[]
+    originalImages: (File | null)[]
 }
 
 /** 管理一次工作台输入从预览、容量判断到幂等提交的完整流程。 */
@@ -85,10 +91,16 @@ export function createAnalysisSubmissionFlow(
     }
 
     /** 根据草稿和输入模式创建提交载荷 */
-    function createPayload(input: AnalysisSubmissionInput) {
+    function createPayload(input: AnalysisSubmissionInput, deferMediaPreparation = false) {
         return {
-            ...createDraftPayload(input.draft, input.mode),
+            ...createDraftPayload(input.draft, input.mode, { deferMediaPreparation }),
             rawText: '',
+        }
+    }
+
+    function assertCurrent(input: AnalysisSubmissionInput): void {
+        if (input.isCurrent && !input.isCurrent()) {
+            throw new Error('analysis_submission_owner_changed')
         }
     }
 
@@ -122,10 +134,12 @@ export function createAnalysisSubmissionFlow(
          * @param input 当前流程所需的草稿和运行状态
          */
         async assess(input: AnalysisSubmissionInput): Promise<AnalysisSubmissionReadiness> {
-            const payload = createPayload(input)
+            const payload = createPayload(input, input.deferMediaPreparation)
             const requiredBytes = estimateLocalHistoryBytes({
                 draft: payload,
-                images: activeDraftImages(input.draft).map((image) => image.file),
+                images: activeDraftImages(input.draft).flatMap((image) =>
+                    image.file ? [image.file] : [],
+                ),
             })
             const capacity = await adapter.estimateCapacity(requiredBytes)
             const decision = resolveStorageSubmission(capacity)
@@ -150,42 +164,54 @@ export function createAnalysisSubmissionFlow(
             persistHistory: boolean,
         ): Promise<SubmittedAnalysisDraft> {
             const originalImages = activeDraftImages(input.draft).map((image) => image.file)
-            const payload = createPayload(input)
+            const payload = createPayload(input, input.deferMediaPreparation)
             if (input.draft.contentKind === 'image' && !payload.coverReference) {
                 preparationId = null
                 pendingSubmission = null
                 return { acceptance: missingCoverAcceptance, task: null, originalImages }
             }
-            const preparationFingerprint = await adapter.fingerprint(
-                payload,
-                activeDraftImages(input.draft).map((image) => image.contentHash!),
-            )
-            const fingerprint = await createSubmissionInputFingerprint(preparationFingerprint)
+            const fingerprint = input.deferMediaPreparation
+                ? await createDeferredSubmissionFingerprint(payload)
+                : await createSubmissionInputFingerprint(
+                      await adapter.fingerprint(
+                          payload,
+                          activeDraftImages(input.draft).map((image) => image.contentHash!),
+                      ),
+                  )
+            assertCurrent(input)
             if (pendingSubmission?.fingerprint !== fingerprint) {
                 pendingSubmission = {
                     fingerprint,
-                    submissionId: adapter.randomUUID(),
+                    submissionId:
+                        intentAdapter.find?.(fingerprint)?.submissionId ?? adapter.randomUUID(),
                 }
             }
+            // 素材状态通知可能使预览失效；请求始终持有提交瞬间的幂等身份。
+            const submissionId = pendingSubmission.submissionId
             const intent: AnalysisSubmissionIntent = {
-                submissionId: pendingSubmission.submissionId,
+                submissionId,
                 inputFingerprint: fingerprint,
                 persistHistory,
             }
             await intentAdapter.remember(intent)
+            assertCurrent(input)
             let outcome: AnalysisTaskSubmissionOutcome
             try {
                 outcome = await adapter.submit(payload, {
-                    preparationId: preparationId ?? undefined,
-                    submissionId: pendingSubmission.submissionId,
+                    preparationId: input.deferMediaPreparation
+                        ? undefined
+                        : (preparationId ?? undefined),
+                    deferMediaPreparation: input.deferMediaPreparation,
+                    submissionId,
                     confirmationRevision: input.confirmationRevision,
                     conversationSession: input.conversationSession,
                     timeoutMs: input.timeoutMs,
                 })
             } catch (error) {
+                assertCurrent(input)
                 let recoveredTask: AnalysisTask | null = null
                 try {
-                    recoveredTask = await adapter.recover(pendingSubmission.submissionId)
+                    recoveredTask = await adapter.recover(submissionId)
                 } catch {
                     // 恢复查询失败时保留原始传输错误和本地会话，供用户安全重试。
                 }
@@ -199,7 +225,8 @@ export function createAnalysisSubmissionFlow(
                     task: recoveredTask,
                 }
             }
-            pendingSubmission = null
+            assertCurrent(input)
+            if (pendingSubmission?.submissionId === submissionId) pendingSubmission = null
             if (outcome.task) {
                 preparationId = null
                 if (outcome.task.id !== intent.submissionId) {
@@ -221,7 +248,7 @@ export function createAnalysisSubmissionFlow(
         /** 草稿、图片或澄清上下文变化后丢弃不可再复用的凭据。 */
         invalidate(options: { preservePreparation?: boolean } = {}) {
             if (!options.preservePreparation) preparationId = null
-            pendingSubmission = null
+            // 输入变化会由下一次指纹比较判定；处理状态变化不能丢失未知结果的提交身份。
         },
     }
 }

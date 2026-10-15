@@ -12,6 +12,9 @@ const analysisSubmissionIntentSchema = z
 /** 加密本地存储中的提交意图列表结构。 */
 export const analysisSubmissionIntentsSchema = z.array(analysisSubmissionIntentSchema)
 
+/** 活动任务和未知受理结果的恢复索引；账号清理保留到权威终态。 */
+export const ANALYSIS_SUBMISSION_INTENT_STORAGE_KEY = 'analysis.submission-intents.v1'
+
 /** 正式请求发出前持久化的轻量分析提交意图。 */
 export type AnalysisSubmissionIntent = z.infer<typeof analysisSubmissionIntentSchema>
 
@@ -27,6 +30,7 @@ export interface AnalysisSubmissionIntentRegistry {
     intents: Readonly<Ref<AnalysisSubmissionIntent[]>>
     intentIds: ComputedRef<ReadonlySet<string>>
     load: () => Promise<AnalysisSubmissionIntent[]>
+    find: (fingerprint: string) => AnalysisSubmissionIntent | undefined
     remember: (intent: AnalysisSubmissionIntent) => Promise<void>
     forget: (submissionId: string) => Promise<void>
 }
@@ -50,6 +54,8 @@ export function createAnalysisSubmissionIntentRegistry(
     return {
         intents,
         intentIds: computed(() => new Set(intents.value.map((intent) => intent.submissionId))),
+        find: (fingerprint) =>
+            intents.value.find((intent) => intent.inputFingerprint === fingerprint),
 
         load() {
             return enqueue(async () => {

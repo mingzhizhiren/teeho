@@ -225,6 +225,14 @@ const standardAnalysisTaskCanonicalSchema = z
         publishedAt: z.string().date().optional(),
         contentKind: z.enum(['image', 'video']),
         videoEvidence: videoEvidenceReferenceSchema.nullable(),
+        mediaPreparation: z
+            .object({
+                schemaVersion: z.literal('media-preparation.v1'),
+                videoReference: z.string().uuid().optional(),
+                deadlineAt: z.string().datetime(),
+            })
+            .strict()
+            .optional(),
         ...standardTaskFields,
         evidence: taskEvidenceSchema,
     })
@@ -249,7 +257,7 @@ const standardAnalysisTaskCanonicalSchema = z
             })
         }
         if (task.contentKind === 'video') {
-            if (!task.videoEvidence) {
+            if (!task.videoEvidence && !task.mediaPreparation?.videoReference) {
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ['videoEvidence'],
@@ -270,6 +278,12 @@ const standardAnalysisTaskCanonicalSchema = z
                 message: '非视频任务不能包含视频证据',
             })
         }
+        if (
+            task.mediaPreparation &&
+            (task.videoEvidence !== null ||
+                (task.contentKind === 'image' && task.mediaPreparation.videoReference))
+        )
+            context.addIssue({ code: z.ZodIssueCode.custom, message: '素材准备身份无效' })
     })
 
 /** 固化后交给算法与 Provider 的完整笔记；不接收旧创作任务。 */
@@ -353,6 +367,8 @@ export const analysisFailureSchema = z
             'image_expired',
             'video_evidence_expired',
             'insufficient_points',
+            'media_preparation_failed',
+            'media_preparation_timeout',
         ]),
         message: z.string().min(1),
     })

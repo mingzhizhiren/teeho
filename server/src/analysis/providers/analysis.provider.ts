@@ -564,6 +564,9 @@ export type AgentGeneratedResult = z.infer<typeof agentGeneratedResultSchema>
 
 /** `generateResult` 输入；量化值只能来自分析算法 */
 export interface AgentResultGenerationInput {
+    adviceSources?: readonly import('../checkup/analysis.advice').AdviceEvidenceSource[]
+    structureMetrics?: import('@teeho/content-metrics').ExtendedStructureFeatures
+    structureReferences?: import('../checkup/analysis.structure-metrics').StructureReferences
     riskCandidates?: readonly import('../checkup/analysis.risk-candidates').RiskCandidate[]
     reviewFrameTimes?: readonly number[]
     scoreContext?: { score: number | null; reference: unknown }

@@ -140,6 +140,7 @@ export async function findNextAnalysisTaskCandidate(
             OR task.status = 'retrying'
         )
             AND task.available_at <= now()
+            AND NOT (task.standard_task_snapshot ? 'mediaPreparation')
             AND (
                 task.started_at IS NULL
                 OR task.started_at + (${timeoutSeconds} * interval '1 second') > now()
@@ -186,6 +187,7 @@ export async function claimAnalysisTaskCandidate(
     processingTimeoutSeconds: number,
     leaseSeconds: number,
 ): Promise<ClaimedAnalysisTask> {
+    if (candidate.standardTask.mediaPreparation) throw new AnalysisTaskLeaseLostError()
     const rows = await executor.execute<{
         attemptCount: number | string
         processingStartedAt: Date | string

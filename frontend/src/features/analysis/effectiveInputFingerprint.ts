@@ -56,3 +56,22 @@ export function createSubmissionInputFingerprint(preparationFingerprint: string)
         }),
     )
 }
+
+/** 已上传素材用稳定引用形成提交身份，不受压缩哈希、抽帧证据或处理进度影响。 */
+export function createDeferredSubmissionFingerprint(draft: AnalysisDraftPayload): Promise<string> {
+    const fields = Object.fromEntries(
+        Object.entries(draft.fields)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([name, value]) => [name, normalizeFieldValue(value)]),
+    )
+    return sha256(
+        JSON.stringify({
+            version: 'media-references-v1',
+            rawText: draft.rawText.trim(),
+            fields,
+            imageReferences: draft.imageReferences,
+            coverReference: draft.coverReference ?? draft.imageReferences[0] ?? null,
+            videoReference: draft.videoReference ?? null,
+        }),
+    )
+}

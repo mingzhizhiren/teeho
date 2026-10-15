@@ -43,9 +43,16 @@ export function useAnalysisLocalHistory(options: AnalysisLocalHistoryOptions) {
         }
     }
 
+    /** 视频证据与任务共用同一个本地保存失败反馈所有者。 */
+    function reportWriteFailure(taskId: string): void {
+        failedWriteTaskId.value = taskId
+        error.value = options.errorMessage('write')
+    }
+
     return {
         records,
         error,
+        reportWriteFailure,
         available: computed(() => manager.value !== null),
 
         /**
@@ -72,7 +79,7 @@ export function useAnalysisLocalHistory(options: AnalysisLocalHistoryOptions) {
          * @param task 需要处理的分析任务
          * @param originalImages 用户本次提交的原始图片
          */
-        async save(task: AnalysisTask, originalImages?: File[]) {
+        async save(task: AnalysisTask, originalImages?: (File | null)[]) {
             const currentManager = manager.value
             if (!currentManager) {
                 error.value = options.errorMessage('write')

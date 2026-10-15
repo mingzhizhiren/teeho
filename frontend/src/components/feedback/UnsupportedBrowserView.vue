@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -54,13 +55,15 @@ function retryDetection() {
             <p class="mt-6 text-sm leading-6 text-muted">
                 {{ t('browser.unsupported.recommendation') }}
             </p>
-            <button
-                class="mt-6 min-h-12 w-full rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-on-brand transition hover:bg-brand-hover focus-visible:outline-none sm:w-auto"
+            <AppButton
+                variant="primary"
+                size="md"
+                class="mt-6 w-full sm:w-auto"
                 type="button"
                 @click="retryDetection"
             >
                 {{ t('browser.unsupported.retry') }}
-            </button>
+            </AppButton>
         </section>
     </main>
 </template>

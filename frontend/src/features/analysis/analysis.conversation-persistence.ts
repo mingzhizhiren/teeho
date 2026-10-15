@@ -37,7 +37,7 @@ function normalizeConversationStorageError(error: unknown) {
     )
 }
 
-const snapshotSchemaVersion = 'analysis-forming-conversation.v4'
+const snapshotSchemaVersion = 'analysis-forming-conversation.v5'
 const conversationImageFilePrefix = 'analysis-forming-image.v1:'
 
 const sessionSchema = z
@@ -52,11 +52,17 @@ const draftFieldsSchema = z.partialRecord(taskFieldNameSchema, taskFieldValueSch
 const persistedImageSchema = z
     .object({
         localId: z.string().min(1),
-        fileId: z.string().startsWith(conversationImageFilePrefix),
+        fileId: z.string().startsWith(conversationImageFilePrefix).nullable(),
         fileName: z.string(),
         mediaType: z.string(),
         byteSize: z.number().int().nonnegative(),
-        lastModified: z.number().int().nonnegative(),
+        lastModified: z.number().int().nonnegative().nullable(),
+        reusable: z.object({
+            fileName: z.string(),
+            declaredMediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+            declaredByteSize: z.number().int().positive(),
+            expiresAt: z.string().datetime(),
+        }).strict().optional(),
         assetId: z.string().uuid().nullable(),
         status: z.enum(['uploading', 'processing', 'ready', 'failed']),
         uploadProgress: z.number().min(0).max(analysisUiConstraints.percentageComplete),
@@ -65,6 +71,7 @@ const persistedImageSchema = z
         failureStage: z.enum(['upload', 'processing']).nullable(),
     })
     .strict()
+    .refine((image) => image.fileId !== null || Boolean(image.assetId && image.reusable), '远端图片必须保留有效资产身份和元数据')
 const persistedVideoSchema = z
     .object({
         localId: z.string().min(1),
@@ -78,6 +85,7 @@ const persistedVideoSchema = z
         evidenceId: z.string().uuid().nullable(),
         errorCode: z.string().nullable(),
         remoteUpdatedAt: z.string().nullable(),
+        origin: z.literal('report').optional(),
     })
     .strict()
 const conversationStateSchema = z
@@ -99,7 +107,7 @@ const confirmationSchema = z
     .strict()
 const storedConversationSchema = z
     .object({
-        schemaVersion: z.literal(snapshotSchemaVersion),
+        schemaVersion: z.enum(['analysis-forming-conversation.v4', snapshotSchemaVersion]),
         changeId: z.string().uuid(),
         createdAt: z.string().datetime(),
         expiresAt: z.string().datetime(),
@@ -157,16 +165,6 @@ export interface AnalysisConversationChannelPort {
     close(): void
 }
 
-export type AnalysisTurnLockResult<T> = { status: 'acquired'; value: T } | { status: 'busy' }
-
-export interface AnalysisTurnLockPort {
-    runIfAvailable<T>(operation: () => Promise<T>): Promise<AnalysisTurnLockResult<T>>
-}
-
-export interface AnalysisMutationLockPort {
-    runExclusive<T>(operation: () => Promise<T>): Promise<T>
-}
-
 export type AnalysisConversationRestoreResult =
     | { status: 'empty' }
     | {
@@ -187,8 +185,6 @@ export type AnalysisConversationRestoreResult =
 interface CreatePersistenceInput {
     storage: AnalysisConversationStoragePort
     channel: AnalysisConversationChannelPort | null
-    turnLock: AnalysisTurnLockPort | null
-    mutationLock?: AnalysisMutationLockPort | null
     pageId: string
     browserInstanceId: string
 }
@@ -215,6 +211,7 @@ function persistedVideo(video: SharedTaskVideo | null) {
         evidenceId: video.evidenceId,
         errorCode: video.errorCode,
         remoteUpdatedAt: video.remoteUpdatedAt,
+        origin: video.origin,
     }
 }
 
@@ -289,12 +286,14 @@ export function createAnalysisConversationPersistence(input: CreatePersistenceIn
                   }
                 : null
             const shouldNormalizeStoredDraft =
+                stored.schemaVersion !== snapshotSchemaVersion ||
                 restoredImages.some(
                     (image, index) => image.status !== stored.draft.images[index]?.status,
                 ) || restoredVideo?.status !== stored.draft.video?.status
             const restorable = shouldNormalizeStoredDraft
                 ? storedConversationSchema.parse({
                       ...stored,
+                      schemaVersion: snapshotSchemaVersion,
                       changeId: crypto.randomUUID(),
                       draft: {
                           ...stored.draft,
@@ -309,19 +308,20 @@ export function createAnalysisConversationPersistence(input: CreatePersistenceIn
             }
             const images: SharedTaskImage[] = await Promise.all(
                 restorable.draft.images.map(async (image) => {
-                    const file = await input.storage.readFile(image.fileId)
+                    const file = image.fileId ? await input.storage.readFile(image.fileId) : null
                     if (
-                        !file ||
+                        image.fileId !== null && (!file ||
                         file.name !== image.fileName ||
                         file.type !== image.mediaType ||
                         file.size !== image.byteSize ||
-                        file.lastModified !== image.lastModified
+                        file.lastModified !== image.lastModified)
                     ) {
                         throw new Error('本地会话图片不完整')
                     }
                     return {
                         localId: image.localId,
                         file,
+                        reusable: image.reusable,
                         assetId: image.assetId,
                         status: image.status,
                         uploadProgress: image.uploadProgress,
@@ -395,18 +395,19 @@ export function createAnalysisConversationPersistence(input: CreatePersistenceIn
         const currentFileIds = new Set<string>()
         const images = await Promise.all(
             snapshot.draft.images.map(async (image) => {
-                const fileId = imageFileId(image.localId)
-                currentFileIds.add(fileId)
-                if (!existingFileIds.has(fileId)) {
+                const fileId = image.file ? imageFileId(image.localId) : null
+                if (fileId) currentFileIds.add(fileId)
+                if (fileId && image.file && !existingFileIds.has(fileId)) {
                     await input.storage.writeFile(fileId, image.file)
                 }
                 return {
                     localId: image.localId,
                     fileId,
-                    fileName: image.file.name,
-                    mediaType: image.file.type,
-                    byteSize: image.file.size,
-                    lastModified: image.file.lastModified,
+                    fileName: image.file?.name ?? image.reusable?.fileName ?? '',
+                    mediaType: image.file?.type ?? image.reusable?.declaredMediaType ?? '',
+                    byteSize: image.file?.size ?? image.reusable?.declaredByteSize ?? 0,
+                    lastModified: image.file?.lastModified ?? null,
+                    reusable: image.reusable,
                     assetId: image.assetId,
                     status: image.status,
                     uploadProgress: image.uploadProgress,
@@ -463,7 +464,7 @@ export function createAnalysisConversationPersistence(input: CreatePersistenceIn
     }
 
     /** 提交前读取匹配当前素材身份的独立缓存副本，不再访问电脑原文件。 */
-    function readImages(images: readonly SharedTaskImage[]): Promise<File[]> {
+    function readImages(images: readonly SharedTaskImage[]): Promise<(File | null)[]> {
         return queueStorageMutation(async () => {
             const stored = storedConversationSchema.parse(await input.storage.readRecord())
             if (Date.parse(stored.expiresAt) <= Date.now()) {
@@ -481,6 +482,8 @@ export function createAnalysisConversationPersistence(input: CreatePersistenceIn
                     ) {
                         throw new AnalysisConversationPersistenceError('storage_unavailable')
                     }
+                    if (cached.fileId === null && !image.file && cached.reusable) return null
+                    if (cached.fileId === null) throw new AnalysisConversationPersistenceError('storage_unavailable')
                     const file = await input.storage.readFile(cached.fileId)
                     if (
                         !file ||
@@ -529,23 +532,6 @@ export function createAnalysisConversationPersistence(input: CreatePersistenceIn
         }
     }
 
-    async function runAgentTurn<T>(operation: () => Promise<T>) {
-        if (!input.channel || !input.turnLock) {
-            return { status: 'unavailable' as const }
-        }
-        return input.turnLock.runIfAvailable(operation)
-    }
-
-    async function runResultMutation<T>(operation: () => Promise<T>) {
-        if (!input.channel || !input.mutationLock) {
-            return { status: 'unavailable' as const }
-        }
-        return {
-            status: 'acquired' as const,
-            value: await input.mutationLock.runExclusive(operation),
-        }
-    }
-
     function notifyUnavailable() {
         mirrorRevision += 1
         input.channel?.publish({ sourcePageId: pageId, kind: 'unavailable' })
@@ -565,8 +551,6 @@ export function createAnalysisConversationPersistence(input: CreatePersistenceIn
         readImages,
         clear,
         subscribe,
-        runAgentTurn,
-        runResultMutation,
         notifyUnavailable,
         close,
     }

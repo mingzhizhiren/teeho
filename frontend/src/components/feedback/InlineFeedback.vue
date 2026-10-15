@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import AppIcon from '@/components/icons/AppIcon.vue'
@@ -123,13 +124,15 @@ onBeforeUnmount(teardownInteractionDismissal)
 
         <p class="min-w-0 flex-1">{{ feedback.message }}</p>
 
-        <button
+        <AppButton
             v-if="feedback.action"
-            class="shrink-0 rounded-lg px-2 py-1 font-semibold underline-offset-4 transition hover:bg-current/5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+            variant="secondary"
+            size="sm"
+            class="shrink-0 underline-offset-4 hover:underline"
             type="button"
             @click="emit('action', feedback.action)"
         >
             {{ feedback.action.label }}
-        </button>
+        </AppButton>
     </div>
 </template>

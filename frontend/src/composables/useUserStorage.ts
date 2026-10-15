@@ -42,14 +42,13 @@ export function useUserStorage() {
         files,
         getValue: <T>(key: string, schema: ZodType<T>) =>
             getUserLocalValue(requireUserId(), key, schema),
-        setValue: <T>(key: string, value: T) =>
-            setUserLocalValue(requireUserId(), key, value),
+        setValue: <T>(key: string, value: T) => setUserLocalValue(requireUserId(), key, value),
         removeValue: (key: string) => removeUserLocalValue(requireUserId(), key),
         clearValues: () => clearUserLocalValues(requireUserId()),
-        clearAll: async () => {
+        clearAll: async (preserveValueKeys: readonly string[] = []) => {
             const userId = requireUserId()
             const fileManager = getFileManager(userId)
-            await clearUserLocalValues(userId)
+            await clearUserLocalValues(userId, preserveValueKeys)
             await fileManager.clearRecords()
             await fileManager.clearFiles()
         },

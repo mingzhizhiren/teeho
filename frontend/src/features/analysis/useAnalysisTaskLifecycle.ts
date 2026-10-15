@@ -21,11 +21,13 @@ export interface AnalysisTaskLifecycleAdapter {
 
 /** 任务生命周期组合式函数所需的历史、轮询与错误处理选项。 */
 export interface AnalysisTaskLifecycleOptions {
+    ownerUserId?: () => string | null
     historyRecords: Ref<LocalHistoryRecord[]>
     submissionIntents: Readonly<Ref<readonly AnalysisSubmissionIntent[]>>
     reanalysisIntents: AnalysisReanalysisIntents
     persistHistory: (task: AnalysisTask, sourceTaskId?: string) => Promise<unknown>
     removeHistory: (task: AnalysisTask) => Promise<unknown>
+    forgetSubmissionIntent?: (task: AnalysisTask) => Promise<unknown>
     setError: (message: string) => void
     formatError: (error: unknown) => string
 }
@@ -42,6 +44,13 @@ export function useAnalysisTaskLifecycle(
     const sessionOnlyTaskIds = new Set<string>()
     const historyRemovalTaskIds = new Set<string>()
     const refreshGate = new LatestRequestGate()
+    let lifecycleGeneration = 0
+
+    function captureOwner(): () => boolean {
+        const ownerUserId = options.ownerUserId?.()
+        const generation = lifecycleGeneration
+        return () => generation === lifecycleGeneration && ownerUserId === options.ownerUserId?.()
+    }
 
     /** 判断任务是否仍在后端执行链路中。 */
     function isActiveTask(task: AnalysisTask) {
@@ -82,6 +91,12 @@ export function useAnalysisTaskLifecycle(
         )
     }
 
+    async function settleSessionOnlyTask(task: AnalysisTask): Promise<void> {
+        if (!isActiveTask(task) && !shouldPersist(task)) {
+            await options.forgetSubmissionIntent?.(task)
+        }
+    }
+
     /** 未成立或已放弃任务只保留当前状态提示，不进入本地历史。 */
     function removeExcludedHistory(task: AnalysisTask) {
         if (task.status !== 'insufficient_points' && task.status !== 'abandoned') {
@@ -111,6 +126,7 @@ export function useAnalysisTaskLifecycle(
         if (currentTask.value?.id === updatedTask.id) {
             currentTask.value = updatedTask
         }
+        void settleSessionOnlyTask(updatedTask).catch(() => undefined)
     }
 
     /** 合并远端任务状态并维护当前选择 */
@@ -141,6 +157,7 @@ export function useAnalysisTaskLifecycle(
                 return
             }
             if (removeExcludedHistory(trackedTask) || !shouldPersist(trackedTask)) {
+                await settleSessionOnlyTask(trackedTask)
                 continue
             }
             const savedRecord = options.historyRecords.value.find(
@@ -159,14 +176,19 @@ export function useAnalysisTaskLifecycle(
 
     /** 初始化当前模块的远端和本地状态 */
     async function initialize() {
+        const isCurrent = captureOwner()
         const serverTasks = await adapter.listTasks()
-        await synchronize(serverTasks)
+        if (!isCurrent()) return
+        await synchronize(serverTasks, isCurrent)
+        if (!isCurrent()) return
         currentTask.value = tasks.value[0] ?? null
     }
 
     /** 刷新当前模块的数据状态 */
     async function refresh(silent = false) {
-        await refreshGate.run(async (isCurrent) => {
+        const isCurrentOwner = captureOwner()
+        await refreshGate.run(async (isLatest) => {
+            const isCurrent = () => isLatest() && isCurrentOwner()
             try {
                 const serverTasks = await adapter.listTasks()
                 if (!isCurrent()) {
@@ -201,17 +223,21 @@ export function useAnalysisTaskLifecycle(
             return
         }
         actionBusy.value = true
+        const isCurrent = captureOwner()
         options.setError('')
         refreshGate.invalidate()
         try {
             const updatedTask = await action(selectedTask.id)
+            if (!isCurrent()) return
             refreshGate.invalidate()
             upsert(updatedTask)
         } catch (error) {
-            options.setError(options.formatError(error))
+            if (isCurrent()) options.setError(options.formatError(error))
         } finally {
-            refreshGate.invalidate()
-            actionBusy.value = false
+            if (isCurrent()) {
+                refreshGate.invalidate()
+                actionBusy.value = false
+            }
         }
     }
 
@@ -222,15 +248,16 @@ export function useAnalysisTaskLifecycle(
             return
         }
         const persistReanalysis = shouldPersist(selectedTask)
+        const isCurrent = captureOwner()
         actionBusy.value = true
         options.setError('')
         refreshGate.invalidate()
         let intent: PreparedReanalysisIntent | null = null
         try {
             intent = await options.reanalysisIntents.prepare(selectedTask.id)
-            if (!options.reanalysisIntents.isCurrentOwner(intent)) return
+            if (!isCurrent() || !options.reanalysisIntents.isCurrentOwner(intent)) return
             const reanalysisTask = await adapter.reanalyzeTask(selectedTask.id, intent.submissionId)
-            if (!options.reanalysisIntents.isCurrentOwner(intent)) return
+            if (!isCurrent() || !options.reanalysisIntents.isCurrentOwner(intent)) return
             if (reanalysisTask.id !== intent.submissionId)
                 throw new Error('analysis_reanalysis_identity_mismatch')
             sessionTaskIds.add(reanalysisTask.id)
@@ -242,13 +269,17 @@ export function useAnalysisTaskLifecycle(
             upsert(reanalysisTask, { persist: false })
             currentTask.value = reanalysisTask
             if (persistReanalysis) await options.persistHistory(reanalysisTask, selectedTask.id)
+            if (!isCurrent()) return
             await options.reanalysisIntents.confirm(intent)
         } catch (error) {
-            if (intent && !options.reanalysisIntents.isCurrentOwner(intent)) return
+            if (!isCurrent() || (intent && !options.reanalysisIntents.isCurrentOwner(intent)))
+                return
             options.setError(options.formatError(error))
         } finally {
-            refreshGate.invalidate()
-            actionBusy.value = false
+            if (isCurrent()) {
+                refreshGate.invalidate()
+                actionBusy.value = false
+            }
         }
     }
 
@@ -270,6 +301,7 @@ export function useAnalysisTaskLifecycle(
          * 停用任务生命周期同步并使未完成请求失效。
          */
         deactivate() {
+            lifecycleGeneration += 1
             refreshGate.invalidate()
         },
 
@@ -333,6 +365,7 @@ export function useAnalysisTaskLifecycle(
          * @param taskId 目标分析任务 ID
          */
         async openTrackedTask(taskId: string) {
+            const isCurrent = captureOwner()
             let selectedTask = tasks.value.find((candidate) => candidate.id === taskId)
             if (!selectedTask?.result) {
                 const isTrackedLocally = options.historyRecords.value.some(
@@ -342,6 +375,7 @@ export function useAnalysisTaskLifecycle(
                     return null
                 }
                 selectedTask = await adapter.getTask(taskId)
+                if (!isCurrent()) return null
                 upsert(selectedTask)
             }
             return selectedTask.result ? selectedTask : null

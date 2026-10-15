@@ -52,7 +52,7 @@ const { phase, userText, agentText } = useSkillChatAnimation(
             </div>
             <div class="ml-5 flex items-start gap-2" :class="phase === 'idle' ? 'invisible' : ''">
                 <div
-                    class="min-w-0 flex-1 rounded-2xl rounded-tr-md bg-brand px-4 py-3 text-sm leading-6 text-on-brand"
+                    class="ui-demo-prompt min-w-0 flex-1 rounded-2xl rounded-tr-md bg-brand px-4 py-3 text-sm leading-6 text-on-brand"
                 >
                     <slot name="attachment" />
                     <div class="grid" aria-hidden="true">

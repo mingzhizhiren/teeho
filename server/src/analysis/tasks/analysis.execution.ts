@@ -524,7 +524,13 @@ async function commitTaskSuccess(
     })
     persistence.requestOriginalImageCleanup(task.userId, task.id)
     try {
-        await getTaskPolicy().resultCommitted?.(task.userId, task.id, task.resultVersion)
+        await getTaskPolicy().resultCommitted?.(task.userId, task.id, task.resultVersion, {
+            title: task.standardTask.fields.title.value,
+            primaryTrack: outcome.result.primaryTrack,
+            secondaryTracks: outcome.result.secondaryTracks ?? [],
+            occurredAt: new Date().toISOString(),
+            entrySource: 'unknown',
+        })
     } catch (error) {
         log.warn(
             {

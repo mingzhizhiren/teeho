@@ -4,17 +4,21 @@ import type { OnboardingChapterId } from './onboarding.types'
 
 export const onboardingChapterAnchorIds = Object.freeze({
     workspace_foundation: [
-        'onboarding.workspace.mode',
-        'onboarding.workspace.options',
-        'onboarding.workspace.agent-input',
+        'onboarding.expert-mode.options',
+        'onboarding.expert-mode.media',
+        'onboarding.expert-mode.core-fields',
+        'onboarding.expert-mode.copy-template',
+        'onboarding.expert-mode.paste-content',
     ],
-    agent_reply: ['onboarding.agent-reply.region', 'onboarding.agent-reply.free-input'],
-    task_confirmation: ['onboarding.task-confirmation.card'],
+    agent_reply: [],
+    task_confirmation: [],
     expert_mode: [
         'onboarding.expert-mode.options',
         'onboarding.expert-mode.core-fields',
         'onboarding.expert-mode.media',
         'onboarding.expert-mode.start-analysis',
+        'onboarding.expert-mode.copy-template',
+        'onboarding.expert-mode.paste-content',
     ],
     analysis_result: [
         ...(SHOW_RADAR_REPORT ? ['onboarding.analysis-result.metrics'] : []),

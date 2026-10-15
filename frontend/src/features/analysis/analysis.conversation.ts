@@ -5,12 +5,9 @@ import {
     resolvedTaskFieldsSchema,
     standardAnalysisTaskSchema,
     taskFieldNameSchema,
-    type AnalysisDraftPayload,
-    type AnalysisTaskConfig,
     type StandardAnalysisTask,
 } from './analysis.contract'
 import { analysisUiConstraints } from './analysis.constants'
-import type { AnalysisContentKind } from './taskDraft'
 
 export const analysisConversationDraftSchema = z
     .object({
@@ -240,98 +237,7 @@ export interface AnalysisConversationState {
     rollingUsage: AnalysisRollingUsage | null
 }
 
-function normalizedFieldValue(value: unknown) {
-    if (typeof value === 'string') return value.trim() || undefined
-    if (Array.isArray(value)) {
-        const items = value.map((item) => String(item).trim()).filter(Boolean)
-        return items.length > 0 ? items : undefined
-    }
-    return undefined
-}
-
-/**
- * 用后端版本化配置把首轮稀疏共享草稿补成完整草稿；后续轮次保留上轮来源，
- * 只有当前共享草稿中的显式值能够覆盖为 user_input。
- */
-export function materializeConversationDraft(
-    config: AnalysisTaskConfig,
-    draft: AnalysisDraftPayload,
-    previous?: AnalysisConversationDraft | null,
-): AnalysisConversationDraft {
-    const definitions = new Map(config.fields.map((field) => [field.name, field]))
-    const track = normalizedFieldValue(draft.fields.track) ?? previous?.fields.track.value
-    const trackDefaults = typeof track === 'string' ? (config.trackDefaults[track] ?? {}) : {}
-    const entries = taskFieldNameSchema.options.map((name) => {
-        const explicit = normalizedFieldValue(draft.fields[name])
-        if (explicit !== undefined) {
-            return [name, { value: explicit, source: 'user_input' as const }]
-        }
-        const prior = previous?.fields[name]
-        if (prior) return [name, prior]
-        const trackDefault = normalizedFieldValue(trackDefaults[name])
-        if (trackDefault !== undefined) {
-            return [name, { value: trackDefault, source: 'track_default' as const }]
-        }
-        const definition = definitions.get(name)
-        if (!definition) {
-            throw new Error(`任务配置缺少字段：${name}`)
-        }
-        return [
-            name,
-            {
-                value: Array.isArray(definition.defaultValue)
-                    ? [...definition.defaultValue]
-                    : definition.defaultValue,
-                source: 'system_default' as const,
-            },
-        ]
-    })
-    return analysisConversationDraftSchema.parse({
-        schemaVersion: 'analysis-conversation-draft.v1',
-        rawText: draft.rawText || previous?.rawText || '',
-        fields: Object.fromEntries(entries),
-    })
-}
-
-interface CommitConversationTurnInput {
-    messageId: string
-    message: string
-    result: unknown
-    questionId: () => string
-}
-
-/**
- * 先校验整包，再创建全新的状态对象；解析失败时调用者持有的浏览器状态绝不被部分修改。
- */
-export function commitConversationTurn(
-    current: AnalysisConversationState,
-    input: CommitConversationTurnInput,
-): AnalysisConversationState {
-    const result = analysisConversationTurnResultSchema.parse(input.result)
-    const userMessage = analysisConversationMessageSchema.parse({
-        id: input.messageId,
-        role: 'user',
-        text: input.message,
-    })
-    const semanticQuestions = result.questions.map((question) =>
-        analysisConversationMessageSchema.parse({
-            id: input.questionId(),
-            role:
-                result.action === 'confirm_topic_switch' ? 'agent_topic_switch' : 'agent_question',
-            text: question.text,
-        }),
-    )
-    return {
-        history: [...current.history, userMessage, ...semanticQuestions],
-        completeDraft: result.completeDraft,
-        standardTask: result.standardTask,
-        preparationId: result.preparationId,
-        tokenBudget: result.tokenBudget,
-        rollingUsage: result.rollingUsage,
-    }
-}
-
-const conversationTurnRequestSchema = z
+export const conversationTurnRequestSchema = z
     .object({
         schemaVersion: z.literal('analysis-conversation-turn-request.v1'),
         session: analysisConversationSessionIdentitySchema.extend({
@@ -367,51 +273,3 @@ const conversationTurnRequestSchema = z
     .strict()
 
 export type AnalysisConversationTurnRequest = z.infer<typeof conversationTurnRequestSchema>
-
-interface CreateConversationTurnRequestInput {
-    session: AnalysisConversationTurnRequest['session']
-    state: AnalysisConversationState
-    message: string
-    draft: AnalysisDraftPayload
-    contentKind: AnalysisContentKind
-    media: AnalysisConversationTurnRequest['media']
-}
-
-/** 只从语义状态组装请求；展示用问候、承接语和打字动画没有入口进入该结构。 */
-export function createConversationTurnRequest(
-    input: CreateConversationTurnRequestInput,
-): AnalysisConversationTurnRequest {
-    return conversationTurnRequestSchema.parse({
-        schemaVersion: 'analysis-conversation-turn-request.v1',
-        session: input.session,
-        history: input.state.history,
-        message: input.message,
-        draft: input.draft,
-        completeDraft: input.state.completeDraft,
-        contentKind: input.contentKind,
-        media: input.media,
-    })
-}
-
-/** 从服务端标准任务响应创建浏览器语义状态。 */
-export function createConversationState(
-    completeDraft: AnalysisConversationDraft,
-): AnalysisConversationState {
-    return {
-        history: [],
-        completeDraft,
-        standardTask: null,
-        preparationId: null,
-        tokenBudget: null,
-        rollingUsage: null,
-    }
-}
-
-/** 供工作台在原子提交后把服务端草稿映射回现有共享草稿结构。 */
-export function resolvedValues(fields: AnalysisConversationDraft['fields']) {
-    return Object.fromEntries(
-        Object.entries(fields)
-            .filter(([, field]) => field.value !== null)
-            .map(([name, field]) => [name, field.value]),
-    ) as AnalysisDraftPayload['fields']
-}

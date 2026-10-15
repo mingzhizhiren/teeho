@@ -34,6 +34,7 @@ describe('analysis media upload admission repository', () => {
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce([{ imageCount: 50, videoCount: 0 }])
             .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([])
             .mockResolvedValueOnce([
                 {
                     id: '00000000-0000-4000-8000-000000000002',
@@ -49,13 +50,15 @@ describe('analysis media upload admission repository', () => {
         expect(queryAt(execute, 2).sql).toMatch(
             /analysis_assets[\s\S]*cleanup_requested_at[\s\S]*task_id IS NULL/iu,
         )
-        expect(queryAt(execute, 3).sql).toMatch(
+        expect(queryAt(execute, 3).sql).toMatch(/ORDER BY id FOR UPDATE/iu)
+        expect(queryAt(execute, 4).sql).toMatch(
             /analysis_video_assets[\s\S]*NOT EXISTS[\s\S]*analysis_tasks/iu,
         )
-        expect(queryAt(execute, 4).sql).toMatch(
+        expect(queryAt(execute, 4).sql).toContain('mediaPreparation,videoReference')
+        expect(queryAt(execute, 5).sql).toMatch(
             /analysis_video_processing_attempts[\s\S]*state = 'cancelled'/iu,
         )
-        expect(queryAt(execute, 5).sql).toMatch(
+        expect(queryAt(execute, 6).sql).toMatch(
             /analysis_video_upload_sessions[\s\S]*state = 'cancelled'/iu,
         )
     })

@@ -42,27 +42,30 @@
                     {{ t('workspace.storage.sessionOnlyWarning') }}
                 </p>
                 <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                    <button
-                        class="rounded-xl border border-line px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
+                    <AppButton
+                        variant="secondary"
+                        size="md"
                         type="button"
                         @click="emit('choose', 'cancel')"
                     >
                         {{ t('workspace.storage.cancel') }}
-                    </button>
-                    <button
-                        class="rounded-xl border border-brand/40 px-4 py-2.5 text-sm font-semibold text-brand transition hover:bg-brand/5"
+                    </AppButton>
+                    <AppButton
+                        variant="secondary"
+                        size="md"
                         type="button"
                         @click="emit('choose', 'manage_history')"
                     >
                         {{ t('workspace.storage.manageHistory') }}
-                    </button>
-                    <button
-                        class="rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand transition hover:bg-brand-hover"
+                    </AppButton>
+                    <AppButton
+                        variant="primary"
+                        size="md"
                         type="button"
                         @click="emit('choose', 'session_only')"
                     >
                         {{ t('workspace.storage.sessionOnly') }}
-                    </button>
+                    </AppButton>
                 </div>
             </section>
         </div>
@@ -70,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { useI18n } from 'vue-i18n'
 
 import { BYTE_SIZE } from '@/config/constants'

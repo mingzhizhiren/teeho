@@ -27,6 +27,7 @@ export interface AnalysisTaskRecord {
     status: AnalysisTaskStatus
     structureConfigVersion: string
     standardTask: StandardAnalysisTask
+    preparationStatus?: 'waiting' | 'ready'
     result: AgentAnalysisResult | null
     resultVersion: number | null
     failure: AnalysisFailure | null
@@ -134,6 +135,7 @@ function mapAnalysisTask(row: AnalysisTaskDatabaseRow): AnalysisTaskRecord | nul
         status: analysisTaskStatusSchema.parse(row.status),
         structureConfigVersion: row.structureConfigVersion,
         standardTask,
+        ...(standardTask.mediaPreparation ? { preparationStatus: 'waiting' as const } : {}),
         result,
         resultVersion: row.resultVersion === null ? null : Number(row.resultVersion),
         failure,
@@ -207,7 +209,7 @@ export async function insertResearchingAnalysisTask(
             ${param.fingerprints.quantification},
             ${param.fingerprints.level},
             ${param.fingerprints.generation},
-            ${param.webResearchEnabled ? 'researching' : 'queued'},
+            ${!param.standardTask.mediaPreparation && param.webResearchEnabled ? 'researching' : 'queued'},
             now(),
             ${param.standardTask.structureVersion},
             ${JSON.stringify(param.standardTask)}::jsonb,

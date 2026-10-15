@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { listSkillDevices, revokeSkillDevice, type SkillDevice } from '@/api/skill'
@@ -47,15 +48,19 @@ onBeforeUnmount(() => controller.abort())
     <h2 class="text-2xl font-semibold text-ink">{{ t('skillAuth.devices') }}</h2>
     <p class="mt-3 text-sm leading-6 text-muted">{{ t('skillAuth.deviceLimit') }}</p>
     <p v-if="failed" role="alert" class="mt-4 text-ink">{{ t('skillAuth.devicesError') }}</p>
-    <button :disabled="pending" class="mt-4 text-brand" @click="load()">
+    <AppButton variant="secondary" size="md" :disabled="pending" class="mt-4" @click="load()">
         {{ t('skillAuth.refresh') }}
-    </button>
+    </AppButton>
     <p v-if="pending" role="status" class="mt-4 text-muted">{{ t('skillAuth.loading') }}</p>
     <p v-if="!pending && !failed && !devices.length" class="mt-4 text-muted">
         {{ t('skillAuth.empty') }}
     </p>
     <ul class="mt-6 space-y-4">
-        <li v-for="device in devices" :key="device.id" class="rounded-xl border border-line p-4">
+        <li
+            v-for="device in devices"
+            :key="device.id"
+            class="ui-device-card rounded-xl border border-line p-4"
+        >
             <p class="break-words text-ink">{{ device.name }}</p>
             <p class="text-sm text-muted">
                 {{
@@ -64,21 +69,26 @@ onBeforeUnmount(() => controller.abort())
                         : t('skillAuth.longTerm')
                 }}
             </p>
-            <button
+            <AppButton
+                variant="danger"
+                size="sm"
+                icon="trash"
                 :disabled="pending"
-                class="mt-3 text-brand disabled:opacity-50"
+                class="mt-3"
                 @click="revoke(device.id)"
             >
                 {{ t('skillAuth.revoke') }}
-            </button>
+            </AppButton>
         </li>
     </ul>
-    <button
+    <AppButton
         v-if="nextCursor"
+        variant="secondary"
+        size="md"
         :disabled="pending"
-        class="mt-4 text-brand disabled:opacity-50"
+        class="mt-4"
         @click="load(true)"
     >
         {{ t('skillAuth.loadMore') }}
-    </button>
+    </AppButton>
 </template>

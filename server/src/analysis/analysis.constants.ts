@@ -62,6 +62,9 @@ export const analysisUploadConstraints = {
 /** 私有分析图片的上传、处理、轮询与清理策略。 */
 export const analysisMediaConstraints = {
     originalFileNameMaxLength: 255,
+    previewMaxAgeSeconds: 300,
+    previewSigningSafetySeconds: 1,
+    previewRequestsPerMinute: 120,
     derivedMaxEdgePixels: 2_048,
     lossyQuality: 82,
     signedUploadLifetimeSeconds: signedUploadLifetimeMinutes * secondsPerMinute,
@@ -69,7 +72,7 @@ export const analysisMediaConstraints = {
     processingConcurrency: 3,
     downloadConcurrency: 4,
     processingLeaseSeconds: processingLeaseMinutes * secondsPerMinute,
-    maxProcessingAttempts: 3,
+    maxProcessingAttempts: 2,
     cleanupBatchSize: 100,
     cleanupMaxAttempts: 5,
     cleanupRetryDelaySeconds: cleanupRetryDelayMinutes * secondsPerMinute,

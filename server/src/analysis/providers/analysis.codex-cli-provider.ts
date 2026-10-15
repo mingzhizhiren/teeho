@@ -565,7 +565,7 @@ export class CodexCliAgentProvider implements AgentProvider, WebResearchProvider
                 videoFrameCount: input.videoEvidence?.frames.length ?? 0,
                 ...codexPromptCacheContracts.generate_result,
                 ...(input.comparisonFacts
-                    ? { schemaVersion: 'comparison-explanation.schema.v1' }
+                    ? { schemaVersion: 'comparison-explanation.schema.v2' }
                     : {}),
             },
             input.videoEvidence,

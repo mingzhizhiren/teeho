@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -92,7 +93,13 @@ async function submitPasswordChange(): Promise<void> {
                     v-if="currentError"
                     element-id="account-current-password-error"
                     compact
-                    :feedback="{ key: 'account.password.current', scope: 'field', tone: 'error', message: currentError, announce: 'assertive' }"
+                    :feedback="{
+                        key: 'account.password.current',
+                        scope: 'field',
+                        tone: 'error',
+                        message: currentError,
+                        announce: 'assertive',
+                    }"
                 />
             </label>
             <label class="grid gap-1.5 text-sm font-medium text-ink">
@@ -115,7 +122,13 @@ async function submitPasswordChange(): Promise<void> {
                     v-if="newError"
                     element-id="account-new-password-error"
                     compact
-                    :feedback="{ key: 'account.password.new', scope: 'field', tone: 'error', message: newError, announce: 'assertive' }"
+                    :feedback="{
+                        key: 'account.password.new',
+                        scope: 'field',
+                        tone: 'error',
+                        message: newError,
+                        announce: 'assertive',
+                    }"
                 />
             </label>
             <label class="grid gap-1.5 text-sm font-medium text-ink">
@@ -138,7 +151,13 @@ async function submitPasswordChange(): Promise<void> {
                     v-if="confirmError"
                     element-id="account-confirm-password-error"
                     compact
-                    :feedback="{ key: 'account.password.confirm', scope: 'field', tone: 'error', message: confirmError, announce: 'assertive' }"
+                    :feedback="{
+                        key: 'account.password.confirm',
+                        scope: 'field',
+                        tone: 'error',
+                        message: confirmError,
+                        announce: 'assertive',
+                    }"
                 />
             </label>
             <InlineFeedback
@@ -152,13 +171,9 @@ async function submitPasswordChange(): Promise<void> {
                     announce: 'assertive',
                 }"
             />
-            <button
-                class="min-h-11 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
-                type="submit"
-                :disabled="isChanging"
-            >
+            <AppButton variant="primary" size="md" type="submit" :disabled="isChanging">
                 {{ isChanging ? t('auth.changingPassword') : t('auth.changePasswordAction') }}
-            </button>
+            </AppButton>
         </form>
     </section>
 </template>

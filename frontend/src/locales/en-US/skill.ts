@@ -42,7 +42,7 @@ export default {
         description:
             'Give your agent an existing Xiaohongshu note or a folder of materials. Use Teeho to diagnose the note, check tasks, and read local reports.',
         compatibility:
-            'For clients supporting Agent Skills and local Python execution, including Codex, Claude Code, Cursor, and Gemini CLI. Supports Windows, Linux, and macOS.',
+            'For clients supporting Agent Skills and local Python execution, including Claude Code, Codex, WorkBuddy, Qwen, Cursor, and OpenClaw, etc. Supports Windows, Linux, and macOS.',
         agentTitle: 'Ask your agent to install or upgrade',
         agentDescription: 'Install Teeho in a single step.',
         agentPrompt:

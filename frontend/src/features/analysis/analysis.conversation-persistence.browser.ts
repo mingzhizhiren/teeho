@@ -7,8 +7,6 @@ import {
     type AnalysisConversationChannelEvent,
     type AnalysisConversationChannelPort,
     type AnalysisConversationStoragePort,
-    type AnalysisMutationLockPort,
-    type AnalysisTurnLockPort,
 } from './analysis.conversation-persistence'
 
 const browserInstanceStorageKey = 'teeho.browser-instance.v1'
@@ -86,29 +84,6 @@ function createChannel(name: string): AnalysisConversationChannelPort | null {
     }
 }
 
-function createTurnLock(name: string): AnalysisTurnLockPort | null {
-    if (typeof navigator === 'undefined' || !navigator.locks) return null
-    return {
-        runIfAvailable: async <T>(operation: () => Promise<T>) =>
-            await navigator.locks.request(
-                name,
-                { mode: 'exclusive', ifAvailable: true },
-                async (lock) => {
-                    if (!lock) return { status: 'busy' as const }
-                    return { status: 'acquired' as const, value: await operation() }
-                },
-            ),
-    }
-}
-
-function createMutationLock(name: string): AnalysisMutationLockPort | null {
-    if (typeof navigator === 'undefined' || !navigator.locks) return null
-    return {
-        runExclusive: async <T>(operation: () => Promise<T>) =>
-            await navigator.locks.request(name, { mode: 'exclusive' }, operation),
-    }
-}
-
 interface CreateBrowserPersistenceInput {
     userId: string
     manager: IndexedDbFileManager
@@ -122,16 +97,10 @@ export async function createBrowserAnalysisConversationPersistence(
     const ownerScope = await getUserEncryption().getUserScope(userId)
     const identity = resolveBrowserInstanceIdentity(window.localStorage)
     const channelName = `teeho.analysis-conversation.v1.${ownerScope}`
-    const lockName = `${channelName}.agent-turn`
-    const mutationLockName = `${channelName}.result-mutation`
     const channel = identity.persistent ? createChannel(channelName) : null
-    const turnLock = identity.persistent ? createTurnLock(lockName) : null
-    const mutationLock = identity.persistent ? createMutationLock(mutationLockName) : null
     return createAnalysisConversationPersistence({
         storage: createStoragePort(input.manager),
         channel,
-        turnLock,
-        mutationLock,
         pageId: crypto.randomUUID(),
         browserInstanceId: identity.id,
     })

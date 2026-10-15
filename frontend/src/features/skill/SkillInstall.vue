@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ToastMessage from '@/components/ToastMessage.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
+import ArtScene from '@/components/art/ArtScene.vue'
+import ArtNote from '@/components/art/ArtNote.vue'
 import { publicSite } from '@/config/publicSite'
 import skillRelease from '@/config/skill-release.generated.json'
 import SkillUsageExamples from './SkillUsageExamples.vue'
@@ -52,20 +55,28 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <main class="flex-1 px-5 py-12 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
-        <div class="mx-auto max-w-5xl">
-            <p class="text-sm font-semibold text-brand">{{ t('skillInstall.navLabel') }}</p>
-            <h1 class="mt-4 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
-                {{ t('skillInstall.title') }}
-            </h1>
-            <p class="mt-5 max-w-3xl text-base leading-8 text-muted">
-                {{ t('skillInstall.description') }}
-            </p>
-            <p class="mt-3 text-sm leading-6 text-muted">{{ t('skillInstall.compatibility') }}</p>
+    <main class="ui-page-shell ui-skill-page flex-1">
+        <div class="mx-auto w-full">
+            <header class="art-page-heading">
+                <div>
+                    <p class="text-sm font-semibold text-brand">{{ t('skillInstall.navLabel') }}</p>
+                    <h1 class="mt-4 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
+                        {{ t('skillInstall.title') }}
+                    </h1>
+                    <p class="mt-5 max-w-3xl text-base leading-8 text-muted">
+                        {{ t('skillInstall.description') }}
+                    </p>
+                    <p class="mt-3 text-sm leading-6 text-muted">
+                        {{ t('skillInstall.compatibility') }}
+                    </p>
+                </div>
+                <ArtScene variant="video" motion="lively" eager />
+            </header>
+            <ArtNote class="mt-6" message="skill" />
 
             <div class="mt-10 grid gap-6 md:grid-cols-2">
                 <section
-                    class="relative flex min-w-0 flex-col overflow-hidden rounded-3xl border border-brand/25 bg-surface p-6 sm:p-8"
+                    class="ui-panel ui-feature-panel relative flex min-w-0 flex-col overflow-hidden rounded-3xl border border-brand/25 bg-surface p-6 sm:p-8"
                     data-testid="skill-agent-install"
                 >
                     <div class="mb-6 flex items-center justify-between">
@@ -94,18 +105,20 @@ onBeforeUnmount(() => {
                         installation
                     />
                     <div class="mt-auto flex flex-wrap items-center gap-4">
-                        <button
+                        <AppButton
+                            variant="secondary"
+                            size="md"
                             type="button"
                             :disabled="copying"
-                            class="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full bg-ink px-5 py-3 text-sm font-semibold text-surface transition hover:opacity-90 disabled:opacity-50"
+                            class="self-start"
                             @click="copy(agentPrompt)"
                         >
                             <AppIcon name="copy" size="sm" />{{ t('skillInstall.copyPrompt') }}
-                        </button>
+                        </AppButton>
                     </div>
                 </section>
                 <section
-                    class="flex min-w-0 flex-col rounded-3xl border border-line bg-surface p-6 sm:p-8"
+                    class="ui-panel flex min-w-0 flex-col rounded-3xl border border-line bg-surface p-6 sm:p-8"
                     data-testid="skill-functions"
                 >
                     <div class="mb-6 flex items-center justify-between">

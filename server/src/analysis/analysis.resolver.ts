@@ -27,6 +27,7 @@ export interface StandardTaskResolutionLayers {
     agentInference: TaskFieldLayer
     workspaceDefault: TaskFieldLayer
     videoEvidence?: VideoEvidenceReference | null
+    mediaPreparation?: StandardAnalysisTask['mediaPreparation']
 }
 function normalize(value: TaskFieldValue | undefined): TaskFieldValue | undefined {
     if (typeof value === 'string') return value.trim() || undefined
@@ -73,7 +74,11 @@ export function createStandardAnalysisTask(
         },
     })
     if (!fields.title.value || !fields.topics.value.length) throw new Error('请提供完整标题和话题')
-    if (draft.videoReference && layers.videoEvidence?.assetId !== draft.videoReference)
+    if (
+        draft.videoReference &&
+        (layers.mediaPreparation?.videoReference ?? layers.videoEvidence?.assetId) !==
+            draft.videoReference
+    )
         throw new Error('视频草稿与证据引用不一致')
     if (!draft.videoReference && !draft.coverReference) throw new Error('请提供封面')
     const coverReference = draft.coverReference
@@ -82,6 +87,7 @@ export function createStandardAnalysisTask(
         contentKind: draft.videoReference ? 'video' : 'image',
         coverReference,
         videoEvidence: layers.videoEvidence ?? null,
+        ...(layers.mediaPreparation ? { mediaPreparation: layers.mediaPreparation } : {}),
         rawText: '',
         imageReferences: [...draft.imageReferences],
         fields: { ...fields, body: { ...fields.body, value: fields.body.value ?? '' } },

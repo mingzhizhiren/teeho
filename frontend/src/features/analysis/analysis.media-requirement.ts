@@ -1,7 +1,8 @@
 import {
     activeDraftImages,
-    areDraftImagesReady,
-    isDraftVideoReady,
+    draftCoverImage,
+    areDraftImagesUploaded,
+    isDraftVideoUploaded,
     type SharedTaskDraft,
 } from './taskDraft'
 
@@ -11,15 +12,15 @@ export interface AnalysisMediaRequirement {
     readonly videoInvalid: boolean
 }
 
-/** 缺少与处理中分开判断，提示、红框和提交阻断使用同一份状态。 */
+/** 缺少与上传未确认分开判断；预处理交给已受理任务等待。 */
 export function analysisMediaRequirement(draft: SharedTaskDraft): AnalysisMediaRequirement {
     // 与提交载荷一致：未单独指定时，第一张图片就是封面。
-    const hasCover = draft.images.length > 0
+    const hasCover = Boolean(draftCoverImage(draft))
     const needsVideo = draft.contentKind === 'video'
     const hasVideo = Boolean(draft.video)
     const coverMissing = !needsVideo && !hasCover
-    const coverInvalid = coverMissing || !areDraftImagesReady(activeDraftImages(draft))
-    const videoInvalid = needsVideo && !isDraftVideoReady(draft.video)
+    const coverInvalid = coverMissing || !areDraftImagesUploaded(activeDraftImages(draft))
+    const videoInvalid = needsVideo && !isDraftVideoUploaded(draft.video)
     const messageKey = coverMissing
         ? 'cover'
         : needsVideo && !hasVideo

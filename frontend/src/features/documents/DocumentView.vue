@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import InlineFeedback from '@/components/feedback/InlineFeedback.vue'
 import AppIcon from '@/components/icons/AppIcon.vue'
+import ArtScene from '@/components/art/ArtScene.vue'
+import ArtNote from '@/components/art/ArtNote.vue'
 import PublicSiteLayout from '@/components/PublicSiteLayout.vue'
 import { HTTP_STATUS } from '@/config/constants'
 import { getPublicPage, getPublicPageCanonical } from '@/config/publicPages'
@@ -17,10 +19,7 @@ import {
     type PublicDocumentSlug,
 } from '@/features/documents/document.adapter'
 import SafeMarkdownContent from '@/features/documents/SafeMarkdownContent.vue'
-import {
-    getDocumentBodyMarkdown,
-    type DocumentHeading,
-} from '@/features/documents/safeMarkdown'
+import { getDocumentBodyMarkdown, type DocumentHeading } from '@/features/documents/safeMarkdown'
 import { prerenderDataKey } from '@/prerender/prerenderData'
 import { ApiRequestError, getApiRequestErrorMessage } from '@/utils/apiRequestError'
 
@@ -188,11 +187,8 @@ onBeforeUnmount(() => {
 
 <template>
     <PublicSiteLayout>
-        <main class="relative flex-1" data-testid="document-page">
-            <div
-                class="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_24%_0%,rgb(var(--color-brand-vivid)/0.12),transparent_48%)]"
-            ></div>
-            <div class="relative mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16 lg:px-10">
+        <main class="ui-document-page relative flex-1" data-testid="document-page">
+            <div class="ui-page-shell ui-document-shell">
                 <RouterLink class="text-sm font-medium text-muted hover:text-brand" to="/">
                     <AppIcon class="mr-1 inline-block" name="arrow-left" size="sm" />
                     {{ t('documents.backHome') }}
@@ -209,6 +205,7 @@ onBeforeUnmount(() => {
                     class="mt-14 rounded-3xl border border-line bg-surface p-8 text-center"
                     data-testid="document-not-found"
                 >
+                    <ArtScene class="mx-auto mb-4 max-w-32" variant="error" motion="calm" />
                     <h1 class="text-3xl font-semibold">{{ t('documents.notFoundTitle') }}</h1>
                     <p class="mt-3 text-muted">{{ t('documents.notFoundDescription') }}</p>
                 </section>
@@ -218,6 +215,7 @@ onBeforeUnmount(() => {
                     class="mt-14 rounded-3xl border border-line bg-surface p-8 text-center"
                     data-testid="document-error"
                 >
+                    <ArtScene class="mx-auto mb-4 max-w-32" variant="error" motion="calm" />
                     <h1 class="text-3xl font-semibold">{{ t('documents.errorTitle') }}</h1>
                     <InlineFeedback
                         class="mt-5 text-left"
@@ -236,30 +234,39 @@ onBeforeUnmount(() => {
                 </section>
 
                 <template v-else-if="document">
-                    <header class="mt-10 border-b border-line pb-10">
-                        <div
-                            class="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-brand/25 bg-brand/10 text-brand"
-                        >
-                            <DocumentIcon :name="document.meta.icon" />
+                    <header class="art-page-heading mt-10">
+                        <div>
+                            <div
+                                class="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-brand/25 bg-brand/10 text-brand"
+                            >
+                                <DocumentIcon :name="document.meta.icon" />
+                            </div>
+                            <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">
+                                {{ documentTitle }}
+                            </h1>
+                            <p
+                                v-if="document.meta.description"
+                                class="mt-4 max-w-3xl text-base leading-7 text-muted"
+                            >
+                                {{ document.meta.description }}
+                            </p>
+                            <div class="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
+                                <span v-if="document.meta.version">{{
+                                    t('documents.version', { version: document.meta.version })
+                                }}</span>
+                                <span v-if="formattedUpdatedAt">{{
+                                    t('documents.updatedAt', { date: formattedUpdatedAt })
+                                }}</span>
+                            </div>
                         </div>
-                        <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">
-                            {{ documentTitle }}
-                        </h1>
-                        <p
-                            v-if="document.meta.description"
-                            class="mt-4 max-w-3xl text-base leading-7 text-muted"
-                        >
-                            {{ document.meta.description }}
-                        </p>
-                        <div class="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
-                            <span v-if="document.meta.version">{{
-                                t('documents.version', { version: document.meta.version })
-                            }}</span>
-                            <span v-if="formattedUpdatedAt">{{
-                                t('documents.updatedAt', { date: formattedUpdatedAt })
-                            }}</span>
-                        </div>
+                        <ArtScene
+                            :key="category"
+                            :variant="category === 'legal' ? 'plant' : 'operator'"
+                            :motion="category === 'legal' ? 'calm' : 'lively'"
+                            eager
+                        />
                     </header>
+                    <ArtNote v-if="category !== 'legal'" class="mt-6" message="perspective" />
 
                     <div
                         v-if="bodyMarkdown"
@@ -276,7 +283,7 @@ onBeforeUnmount(() => {
                             data-testid="document-toc-desktop"
                         >
                             <nav
-                                class="sticky top-28 max-h-[calc(100dvh-8rem)] overflow-y-auto border-l border-line pl-4 pr-2"
+                                class="ui-document-toc sticky top-28 max-h-[calc(100dvh-8rem)] overflow-y-auto border-l border-line pl-4 pr-2"
                                 :aria-label="t('documents.tableOfContents')"
                             >
                                 <p
@@ -336,9 +343,7 @@ onBeforeUnmount(() => {
                                     >
                                 </nav>
                             </details>
-                            <section
-                                class="rounded-3xl border border-line bg-surface p-6 shadow-sm sm:p-10"
-                            >
+                            <section class="ui-reading-surface art-panel rounded-3xl p-6 sm:p-10">
                                 <SafeMarkdownContent
                                     :markdown="bodyMarkdown"
                                     :initial-result="initialDocument?.body"

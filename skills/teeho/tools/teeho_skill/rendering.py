@@ -1,7 +1,6 @@
 """固定报告排版与仅使用本机快照的字段翻译。"""
 
 import json
-import math
 import re
 import unicodedata
 from collections.abc import Callable
@@ -18,7 +17,7 @@ from .storage import ensure_private_directory, write_json
 from .release_notes import has_seen
 from .points_display import points_lines, report_points_line
 from .radar import radar_plot
-from .content_analysis import content_analysis_lines
+from .content_analysis import content_analysis_lines, content_analysis_rating
 from .risk_matches import risk_match_lines
 from .structure_metrics import project_structure_metrics, structure_metric_lines
 
@@ -172,8 +171,11 @@ def _field(label: str, value: object) -> str:
     return f"• {label}: {value}"
 
 
-def _section(label: str, translate: Translate, icon: str = "") -> list[str]:
-    return ["", DIVIDER, "", "【" + icon + translate(label) + "】", ""]
+def _section(
+    label: str, translate: Translate, icon: str = "", suffix: str = ""
+) -> list[str]:
+    heading = icon + translate(label) + (" " + suffix if suffix else "")
+    return ["", DIVIDER, "", "【" + heading + "】", ""]
 
 
 def _comparison_lines(note: View, translate: Translate) -> list[str]:
@@ -216,6 +218,12 @@ def _insight_lines(data: View, translate: Translate) -> list[str]:
     ]
     reference = data.get("scoreReference")
     if data.get("scoreSource") == "insight":
+        weighted = data.get("typedReference") and data.get("weightedReference")
+        if data.get("typedReference") and reference:
+            value = (f'{_fixed(reference["p10"])} ~ {_fixed(reference["p90"])}'
+                     if reference.get("p10") is not None and reference.get("p90") is not None
+                     else translate("unavailable"))
+            rows = [*rows, translate("referenceWeightedRange" if weighted else "referenceRange") + ": " + value]
         rows.extend(
             [
                 translate(label) + ": " + (
@@ -224,9 +232,9 @@ def _insight_lines(data: View, translate: Translate) -> list[str]:
                     else translate("unavailable")
                 )
                 for key, label in (
-                    ("median", "referenceMedian"),
-                    ("max", "referenceMax"),
-                    ("min", "referenceMin"),
+                    ("median", "referenceWeightedMedian" if weighted else "referenceMedian"),
+                    ("max", "referenceWeightedMax" if weighted else "referenceMax"),
+                    ("min", "referenceWeightedMin" if weighted else "referenceMin"),
                 )
             ]
         )
@@ -260,7 +268,9 @@ def _report_lines(view: View, translate: Translate) -> list[str]:
             else translate("unavailable")
         )
         rows.extend(["", item["name"] + ": " + value, item["description"]])
-    rows.extend(_section("contentAnalysis", translate))
+    rows.extend(
+        _section("contentAnalysis", translate, suffix=content_analysis_rating(data))
+    )
     rows.extend(content_analysis_lines(data, translate))
     rows.extend(["", "⚠️ " + translate("contentTermRisks")])
     rows.extend(risk_match_lines(data, translate))

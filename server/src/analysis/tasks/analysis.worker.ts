@@ -30,6 +30,7 @@ type ClaimNextWebResearchTask = (
 
 /** Worker 所需的调度依赖；单次分析尝试由 executor 完整封装。 */
 export interface AnalysisTaskWorkerOptions {
+    advanceMediaPreparations?: () => Promise<void>
     executor: AnalysisTaskExecutor
     researchExecutor?: WebResearchTaskExecutor
     claimNextResearchTask?: ClaimNextWebResearchTask
@@ -52,6 +53,8 @@ export const systemAnalysisWorkerClock: AnalysisWorkerClock = {
 
 /** PostgreSQL 后台队列 Worker；只负责生命周期、领取与轮询。 */
 export class AnalysisTaskWorker {
+    private readonly advanceMediaPreparations: (() => Promise<void>) | undefined
+    private preparationPromise: Promise<void> | undefined
     private readonly workerId: string
     private readonly executor: AnalysisTaskExecutor
     private readonly researchExecutor: WebResearchTaskExecutor | undefined
@@ -72,6 +75,7 @@ export class AnalysisTaskWorker {
      * @param options 执行器、队列操作、轮询周期、时钟及日志配置
      */
     constructor(options: AnalysisTaskWorkerOptions) {
+        this.advanceMediaPreparations = options.advanceMediaPreparations
         this.executor = options.executor
         this.researchExecutor = options.researchExecutor
         this.claimNextResearchTask = options.claimNextResearchTask
@@ -98,6 +102,22 @@ export class AnalysisTaskWorker {
 
     /** 新任务入队后主动唤醒。 */
     wake() {
+        if (this.started && this.advanceMediaPreparations && !this.preparationPromise) {
+            this.preparationPromise = this.advanceMediaPreparations()
+                .catch((error: unknown) =>
+                    this.log.error(
+                        {
+                            event: 'analysis_media_preparation_poll_failed',
+                            workerId: this.workerId,
+                            errorName: error instanceof Error ? error.name : 'UnknownError',
+                        },
+                        '素材准备队列读取失败，将在下次轮询恢复',
+                    ),
+                )
+                .finally(() => {
+                    this.preparationPromise = undefined
+                })
+        }
         if (!this.started || this.drainPromise) {
             return
         }
@@ -121,7 +141,10 @@ export class AnalysisTaskWorker {
 
     /** 暴露只读生命周期快照，供维护恢复健康矩阵判断待命状态。 */
     readReadiness(): { readonly started: boolean; readonly busy: boolean } {
-        return { started: this.started, busy: Boolean(this.drainPromise) }
+        return {
+            started: this.started,
+            busy: Boolean(this.drainPromise || this.preparationPromise),
+        }
     }
 
     /** 持续领取并串行执行当前可处理的分析任务 */
@@ -163,5 +186,6 @@ export class AnalysisTaskWorker {
             this.timer = undefined
         }
         await this.drainPromise
+        await this.preparationPromise
     }
 }

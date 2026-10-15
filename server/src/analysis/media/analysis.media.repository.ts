@@ -122,6 +122,7 @@ export interface ReadyMediaBindingRow extends Record<string, unknown> {
     id: string
     taskId: string | null
     declaredByteSize: number | string
+    isReusable?: boolean
 }
 
 /**
@@ -144,7 +145,7 @@ export function assertReadyMediaBinding(
         byId.size !== assetIds.length ||
         assetIds.some((id) => {
             const row = byId.get(id)
-            return !row || (row.taskId !== null && row.taskId !== taskId)
+            return !row || (row.taskId !== null && row.taskId !== taskId && !row.isReusable)
         })
     ) {
         throw new Error('分析图片未就绪、已过期或不属于当前账号')
@@ -263,13 +264,21 @@ export async function markMediaAssetUploaded(assetId: string, userId: string) {
 /** 原子领取一张待处理素材，并回收进程异常留下的过期处理租约。 */
 export async function claimNextMediaAsset(processingLeaseSeconds: number) {
     const rows = await db.execute<AnalysisMediaRow>(sql`
-        WITH candidate AS (
+        WITH exhausted AS (
+            UPDATE public.analysis_assets
+            SET state = 'failed', failure_code = 'image_processing_timeout'
+            WHERE state = 'processing'
+                AND ${maintenanceClaimAllowedSql()}
+                AND processing_attempt_count - processing_cycle_start_attempt >= ${analysisMediaConstraints.maxProcessingAttempts}
+                AND processing_started_at < now() - (${processingLeaseSeconds} * interval '1 second')
+            RETURNING id
+        ), candidate AS (
             SELECT id AS candidate_id
             FROM public.analysis_assets
             WHERE expires_at > now()
                 AND ${maintenanceClaimAllowedSql()}
                 AND cleanup_requested_at IS NULL
-                AND processing_attempt_count < ${analysisMediaConstraints.maxProcessingAttempts}
+                AND processing_attempt_count - processing_cycle_start_attempt < ${analysisMediaConstraints.maxProcessingAttempts}
                 AND (
                     state = 'uploaded'
                     OR (
@@ -299,6 +308,7 @@ export async function markMediaAssetReady(
     assetId: string,
     processedObjectPath: string,
     processed: ProcessedAnalysisImage,
+    attemptNumber: number,
 ) {
     const rows = await db.execute<{ id: string }>(sql`
         UPDATE public.analysis_assets
@@ -315,33 +325,51 @@ export async function markMediaAssetReady(
             failure_code = NULL
         WHERE id = ${assetId}::uuid
             AND state = 'processing'
+            AND processing_attempt_count = ${attemptNumber}
             AND cleanup_requested_at IS NULL
         RETURNING id::text AS id
     `)
     return rows.length > 0
 }
 
-/** 记录安全错误码；达到上限后保持失败供用户移除或显式重试。 */
-export async function markMediaAssetFailed(assetId: string, failureCode: string) {
+/** 当前尝试首次失败时重新排队，第二次失败进入终态；旧尝试不能覆盖新状态。 */
+export async function markMediaAssetFailed(
+    assetId: string,
+    failureCode: string,
+    attemptNumber: number,
+): Promise<void> {
     await db.execute(sql`
         UPDATE public.analysis_assets
-        SET state = 'failed', failure_code = ${failureCode}
+        SET state = CASE
+                WHEN processing_attempt_count - processing_cycle_start_attempt < ${analysisMediaConstraints.maxProcessingAttempts}
+                    AND expires_at > now()
+                    AND cleanup_requested_at IS NULL
+                THEN 'uploaded'
+                ELSE 'failed'
+            END,
+            failure_code = ${failureCode}
         WHERE id = ${assetId}::uuid
             AND state = 'processing'
+            AND processing_attempt_count = ${attemptNumber}
     `)
 }
 
 /** 用户显式重试仍在保留期内的失败素材。 */
 export async function retryMediaAsset(assetId: string, userId: string) {
     const rows = await db.execute<{ id: string }>(sql`
-        UPDATE public.analysis_assets
-        SET state = 'uploaded', failure_code = NULL
+        UPDATE public.analysis_assets AS asset
+        SET state = 'uploaded', failure_code = NULL,
+            processing_cycle_start_attempt = processing_attempt_count
         WHERE id = ${assetId}::uuid
             AND user_id = ${userId}::uuid
             AND state = 'failed'
-            AND processing_attempt_count < ${analysisMediaConstraints.maxProcessingAttempts}
             AND expires_at > now()
             AND cleanup_requested_at IS NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM public.analysis_tasks AS task
+                WHERE task.id = asset.task_id AND task.user_id = asset.user_id
+                    AND task.status IN ('researching', 'queued', 'processing', 'retrying')
+            )
         RETURNING id::text AS id
     `)
     return rows.length > 0
@@ -353,21 +381,28 @@ export async function bindReadyMediaAssets(
     taskId: string,
     userId: string,
     assetIds: string[],
-) {
+): Promise<void> {
     if (assetIds.length === 0) {
         return
     }
     const rows = await executor.execute<ReadyMediaBindingRow>(sql`
         SELECT
-            id::text AS id,
-            task_id::text AS "taskId",
-            declared_byte_size AS "declaredByteSize"
-        FROM public.analysis_assets
-        WHERE user_id = ${userId}::uuid
-            AND id IN (${identifiers(assetIds)})
-            AND state = 'ready'
-            AND expires_at > now()
-        FOR UPDATE
+            asset.id::text AS id,
+            asset.task_id::text AS "taskId",
+            asset.declared_byte_size AS "declaredByteSize",
+            true AS "isReusable"
+        FROM public.analysis_assets AS asset
+        WHERE asset.user_id = ${userId}::uuid
+            AND asset.id IN (${identifiers(assetIds)})
+            AND asset.state = 'ready'
+            AND asset.expires_at > now()
+            AND asset.cleanup_requested_at IS NULL
+            AND (asset.task_id IS NULL OR asset.task_id = ${taskId}::uuid OR NOT EXISTS (
+                SELECT 1 FROM public.analysis_tasks AS owner_task
+                WHERE owner_task.id = asset.task_id
+                    AND owner_task.status IN ('researching', 'queued', 'processing', 'retrying')
+            ))
+        FOR UPDATE OF asset
     `)
     assertReadyMediaBinding(taskId, assetIds, rows)
     for (const [position, assetId] of assetIds.entries()) {
@@ -446,12 +481,23 @@ export async function requestMediaAssetCleanup(
     taskId: string,
     userId: string,
 ) {
+    await executor.execute(sql`
+        SELECT id FROM public.analysis_assets
+        WHERE task_id = ${taskId}::uuid AND user_id = ${userId}::uuid
+        ORDER BY id
+        FOR UPDATE
+    `)
     const rows = await executor.execute<{ id: string }>(sql`
-        UPDATE public.analysis_assets
+        UPDATE public.analysis_assets AS asset
         SET cleanup_requested_at = COALESCE(cleanup_requested_at, now())
         WHERE task_id = ${taskId}::uuid
             AND user_id = ${userId}::uuid
             AND state NOT IN ('deleted', 'deleting')
+            AND NOT EXISTS (
+                SELECT 1 FROM public.analysis_tasks AS task
+                WHERE task.id = asset.task_id AND task.user_id = asset.user_id
+                    AND task.status IN ('researching', 'queued', 'processing', 'retrying')
+            )
         RETURNING id::text AS id
     `)
     return rows.length

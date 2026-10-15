@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -143,17 +144,20 @@ function publishVideo(video: SharedTaskVideo | null) {
 }
 
 async function refreshAuthoritativeStatus() {
+    const generation = uploadGeneration
     const current = latestVideo
     if (!current?.videoId) {
         return
     }
     try {
         const refreshed = await refreshDraftVideoStatus(current, browserAnalysisVideoTransport)
+        if (generation !== uploadGeneration) return
         if (latestVideo?.localId === current.localId) {
             publishVideo(refreshed)
         }
         statusErrorVisible = false
     } catch (error) {
+        if (generation !== uploadGeneration) return
         if (isAnalysisMediaUploadRateLimitError(error)) {
             publishVideo(null)
             emit('draft-reset-required')
@@ -185,6 +189,7 @@ async function startUpload(video: SharedTaskVideo) {
             controller.signal,
         )
     } catch (error) {
+        if (generation !== uploadGeneration) return
         if (!isAnalysisMediaUploadRateLimitError(error)) throw error
         publishVideo(null)
         emit('draft-reset-required')
@@ -208,7 +213,7 @@ async function cancelCurrentVideo() {
     uploadController?.abort()
     uploadController = null
     try {
-        if (current.videoId) {
+        if (current.videoId && current.origin !== 'report') {
             await browserAnalysisVideoTransport.cancel(current.videoId)
         }
         publishVideo(null)
@@ -377,9 +382,7 @@ onUnmounted(() => {
             compact
                 ? 'relative flex min-h-0 flex-1 flex-col'
                 : 'rounded-2xl border border-dashed bg-surface-muted p-4',
-            !compact && invalid
-                ? 'border-red-500 ring-1 ring-red-500 dark:border-red-400 dark:ring-red-400'
-                : 'border-line',
+            'border-line',
         ]"
         :aria-invalid="invalid || undefined"
     >
@@ -410,32 +413,34 @@ onUnmounted(() => {
             >
                 {{ t('workspace.video.limits', { size: maximumMegabytes }) }}
             </p>
-            <button
+            <AppButton
                 v-if="!video"
-                class="shrink-0 border border-line bg-surface text-center font-semibold text-ink transition hover:border-brand/50 hover:bg-brand/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50"
-                :class="compact ? 'rounded-lg px-3 py-2 text-xs' : 'rounded-xl px-4 py-2.5 text-sm'"
+                variant="secondary"
+                :size="compact ? 'sm' : 'md'"
+                class="shrink-0"
                 type="button"
                 :disabled="mutationLocked"
                 @click="openFilePicker"
             >
                 {{ t('workspace.video.choose') }}
-            </button>
+            </AppButton>
         </div>
 
         <div
             v-if="compact && !video"
-            class="mt-2 flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed bg-surface-muted xl:mt-0"
-            :class="invalid ? 'border-red-500 dark:border-red-400' : 'border-line'"
+            class="mt-2 flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-line bg-surface-muted xl:mt-0"
         >
-            <button
+            <AppButton
+                variant="secondary"
+                size="md"
+                icon="video"
                 type="button"
-                class="rounded-xl border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink transition hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="mutationLocked"
                 data-testid="empty-video-upload"
                 @click="openFilePicker"
             >
                 {{ t('workspace.video.choose') }}
-            </button>
+            </AppButton>
         </div>
 
         <div
@@ -448,7 +453,7 @@ onUnmounted(() => {
                 compact
                     ? [
                         'mt-2 min-h-0 flex-1 gap-2 overflow-y-auto overscroll-contain rounded-2xl border border-dashed bg-surface-muted p-2 xl:mt-0',
-                        invalid ? 'border-red-500 dark:border-red-400' : 'border-line',
+                        'border-line',
                     ]
                     : stacked
                         ? 'gap-4'
@@ -556,23 +561,27 @@ onUnmounted(() => {
                 class="flex shrink-0 flex-wrap justify-center gap-2"
                 :class="stacked ? '' : 'sm:justify-end'"
             >
-                <button
+                <AppButton
                     v-if="video.status !== 'upload_paused'"
-                    class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-muted transition hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
+                    variant="secondary"
+                    size="sm"
+                    icon="edit"
                     type="button"
                     :disabled="operationPending || mutationLocked"
                     @click="openFilePicker"
                 >
                     {{ t('workspace.video.replace') }}
-                </button>
-                <button
-                    class="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-muted transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                </AppButton>
+                <AppButton
+                    variant="danger"
+                    size="sm"
+                    icon="trash"
                     type="button"
                     :disabled="operationPending || mutationLocked"
                     @click="removeVideo"
                 >
                     {{ t('workspace.video.remove') }}
-                </button>
+                </AppButton>
             </div>
         </div>
     </div>

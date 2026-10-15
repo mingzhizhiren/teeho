@@ -25,7 +25,7 @@ function selectNextTheme() {
 
 <template>
     <button
-        class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-muted/60 hover:bg-surface-muted hover:text-ink focus:outline-none focus:ring-4 focus:ring-brand/10"
+        class="app-button app-button--secondary app-button--icon-only app-button--sm "
         type="button"
         :aria-label="themeLabel"
         :title="themeLabel"

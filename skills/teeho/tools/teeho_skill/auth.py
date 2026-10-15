@@ -87,6 +87,16 @@ class AuthSession:
     def _save(self, identity: dict) -> None:
         write_json(self.root / "identity.json", {**identity, "baseUrl": self.base_url})
 
+    def cached_access_token(self, expected_user_id: str) -> Optional[str]:
+        """可选请求只读取仍有效的缓存凭据，不创建或刷新身份。"""
+        identity = self.read_identity() or {}
+        if identity.get("user", {}).get("id") != expected_user_id:
+            return None
+        if _expiration(identity.get("accessExpiresAt")) <= self.now() + TOKEN_MARGIN_SECONDS:
+            return None
+        token = identity.get("accessToken")
+        return token if isinstance(token, str) and token and not any(ord(char) < 32 for char in token) else None
+
     def login(self, device_name: str = "Teeho Skill") -> dict:
         with self._locked():
             publish_anonymous_history(self.root, self.read_identity())

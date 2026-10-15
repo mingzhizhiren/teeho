@@ -19,7 +19,8 @@
         "test:database": "bun test supabase/tests",
         "test:skill": "bun tools/release/python-runtime.ts && bun tools/release/python-runtime.ts tools/release test_archive.py",
         "test:plugins": "bun run --cwd server test src/customization && bun test tools/release/plugin-bundles.test.ts",
-        "package:skill": "bun tools/release/package-skill.ts"
+        "package:skill": "bun tools/release/package-skill.ts",
+        "package:skill:github": "bun tools/release/package-skill-github.ts"
     },
     "devDependencies": {
         "@electric-sql/pglite": "0.5.8",

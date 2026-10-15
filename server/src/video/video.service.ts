@@ -86,11 +86,18 @@ function validateDescriptor(file: VideoUploadDescriptor): VideoMediaType {
     return mediaType
 }
 
-function publicVideo(asset: VideoAssetRecord) {
+function publicVideo(asset: VideoAssetRecord, now: Date) {
+    const evidenceExpiresAt = asset.expiresAt ? Date.parse(asset.expiresAt) : Number.NaN
+    const isEvidenceExpired =
+        asset.state === 'ready' &&
+        (!Number.isFinite(evidenceExpiresAt) || evidenceExpiresAt <= now.getTime())
     return {
         id: asset.id,
         fileName: asset.fileName,
-        state: asset.state,
+        declaredMediaType: asset.declaredMediaType,
+        declaredByteSize: asset.declaredByteSize,
+        expiresAt: asset.expiresAt ?? null,
+        state: isEvidenceExpired ? ('expired' as const) : asset.state,
         queuePosition: asset.queuePosition,
         processingAttemptCount: asset.processingAttemptCount,
         errorCode: asset.failureCode,
@@ -297,7 +304,7 @@ export function createVideoService(options: CreateVideoServiceOptions = {}) {
             }
             assertDraftVideoStillValid(asset)
             if (asset.state !== 'awaiting_upload') {
-                return publicVideo(asset)
+                return publicVideo(asset, clock.now())
             }
             if (new Date(asset.uploadExpiresAt).getTime() <= clock.now().getTime()) {
                 await cancelAdmission(userId, videoId)
@@ -360,7 +367,7 @@ export function createVideoService(options: CreateVideoServiceOptions = {}) {
                 },
                 '视频上传已确认并进入预处理队列',
             )
-            return publicVideo(queued)
+            return publicVideo(queued, clock.now())
         },
 
         async resumeUpload(userId: string, videoId: string) {
@@ -385,20 +392,20 @@ export function createVideoService(options: CreateVideoServiceOptions = {}) {
                 throw new VideoServiceError('VIDEO_NOT_FOUND', '视频不存在')
             }
             assertDraftVideoStillValid(asset)
-            return publicVideo(asset)
+            return publicVideo(asset, clock.now())
         },
 
         async cancel(userId: string, videoId: string) {
             const cancelled = await persistence.cancelOwned(userId, videoId)
             if (cancelled) {
-                return publicVideo(cancelled)
+                return publicVideo(cancelled, clock.now())
             }
             const existing = await persistence.findOwned(userId, videoId)
             if (!existing) {
                 throw new VideoServiceError('VIDEO_NOT_FOUND', '视频不存在')
             }
             if (existing.state === 'cancelled') {
-                return publicVideo(existing)
+                return publicVideo(existing, clock.now())
             }
             throw new VideoServiceError('VIDEO_UPLOAD_NOT_RESUMABLE', '当前视频无法取消')
         },

@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+    contentAdviceSchema,
+    contentAdviceCopyLines,
+    type ContentAdviceLabels,
+} from './analysis.advice'
 
 const CONTENT_ANALYSIS_LIMITS = {
     stars: 5,
@@ -36,6 +41,8 @@ export const riskMatchSchema = findingSchema
 export const contentAnalysisSchema = z
     .object({
         status: z.enum(['completed', 'fallback']),
+        evaluationVersion: z.literal('content-evaluation.v2').optional(),
+        advice: contentAdviceSchema.catch({ status: 'unavailable', items: [] }).optional(),
         scorePolicy: z.enum(['consistency-weighted.v1', 'consistency-weighted.v2']).optional(),
         consistency: z
             .object({
@@ -149,6 +156,8 @@ export interface ContentAnalysisLabels {
     noRisks: string
     riskReviewUnavailable?: string
     noWeaknesses: string
+    noObviousWeaknesses: string
+    advice: ContentAdviceLabels
     fallback: string
     scoreBlocked: string
     references: string
@@ -173,8 +182,8 @@ export function contentAnalysisCopyLines(
 ): string[] {
     if (!analysis) return [labels.title, legacySummary]
     const consistency = [
-        labels.title,
-        `${labels.consistency}: ${labels.stars(analysis.consistency.stars)}`,
+        `${labels.title} · ${labels.consistency}: ${labels.stars(analysis.consistency.stars)}`,
+        labels.consistency,
         ...(analysis.status === 'fallback' ? [labels.fallback] : []),
         analysis.consistency.summary,
         ...analysis.consistency.issues.map((item) => formatContentFinding(item, labels)),
@@ -182,6 +191,7 @@ export function contentAnalysisCopyLines(
     if (analysis.status === 'fallback') return consistency
     return [
         ...consistency,
+        ...contentAdviceCopyLines(analysis.advice, labels.advice),
         labels.weaknesses,
         ...(analysis.weaknesses.length
             ? analysis.weaknesses.map((item) =>
@@ -194,6 +204,10 @@ export function contentAnalysisCopyLines(
                           .join(' / ')}`,
                   ].join('\n'),
               )
-            : [labels.noWeaknesses]),
+            : [
+                  analysis.evaluationVersion === 'content-evaluation.v2'
+                      ? labels.noObviousWeaknesses
+                      : labels.noWeaknesses,
+              ]),
     ]
 }

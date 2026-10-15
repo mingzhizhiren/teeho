@@ -274,7 +274,10 @@ export async function reconcileRestoredDraftVideo(
     if (!video.videoId) return video
     try {
         const remote = await transport.status(video.videoId)
-        return unavailableRestoredVideoStates.includes(remote.state)
+        const hasExpiredReportEvidence =
+            video.origin === 'report' &&
+            (!remote.expiresAt || !(Date.parse(remote.expiresAt) > Date.now()))
+        return unavailableRestoredVideoStates.includes(remote.state) || hasExpiredReportEvidence
             ? null
             : applyRemoteVideoStatus(video, remote)
     } catch (error: unknown) {

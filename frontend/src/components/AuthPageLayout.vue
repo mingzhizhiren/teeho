@@ -2,40 +2,23 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BrandMark from '@/components/BrandMark.vue'
+import AuthLibraryScene from '@/components/art/AuthLibraryScene.vue'
 import PublicSiteLayout from '@/components/PublicSiteLayout.vue'
-import { useTheme } from '@/composables/useTheme'
 
 const { t } = useI18n()
-const { effectiveTheme } = useTheme()
 const currentYear = computed(() => new Date().getFullYear())
 </script>
 
 <template>
     <PublicSiteLayout>
         <main
-            class="grid min-h-[calc(100vh-5rem)] bg-surface lg:grid-cols-[minmax(0,1.08fr)_minmax(460px,0.92fr)]"
+            class="ui-auth-layout grid min-h-[calc(100vh-5rem)] bg-surface lg:grid-cols-[minmax(0,1.08fr)_minmax(460px,0.92fr)]"
         >
             <section
-                class="relative isolate hidden overflow-hidden bg-canvas px-12 py-10 text-ink lg:flex lg:flex-col"
+                class="ui-auth-story relative isolate hidden overflow-hidden border-r border-line bg-canvas px-12 py-10 text-ink lg:flex lg:flex-col"
                 data-testid="auth-brand-panel"
             >
-                <div
-                    class="auth-brand-visual absolute inset-0"
-                    :class="{ 'auth-brand-visual-dark': effectiveTheme === 'dark' }"
-                    data-testid="auth-brand-visual"
-                    aria-hidden="true"
-                ></div>
-                <div
-                    class="auth-brand-wash absolute inset-0"
-                    :class="{ 'auth-brand-wash-dark': effectiveTheme === 'dark' }"
-                    aria-hidden="true"
-                ></div>
-                <div
-                    class="auth-brand-bottom absolute inset-x-0 bottom-0 h-48"
-                    aria-hidden="true"
-                ></div>
-
-                <div class="relative my-auto max-w-xl pb-12">
+                <div class="relative max-w-xl pt-6">
                     <p class="mb-5 text-sm font-medium text-brand">
                         {{ t('auth.heroEyebrow') }}
                     </p>
@@ -47,56 +30,33 @@ const currentYear = computed(() => new Date().getFullYear())
                     </p>
                 </div>
 
-                <p class="relative text-xs text-muted/70">
+                <AuthLibraryScene
+                    class="mx-auto my-8 max-w-lg"
+                    data-testid="auth-brand-visual"
+                />
+
+                <p class="relative mt-auto text-xs text-muted">
                     © {{ currentYear }} {{ t('common.appName') }}
                 </p>
             </section>
 
             <section
-                class="relative flex min-h-screen items-center justify-center px-6 py-12 sm:px-12"
+                class="ui-auth-form relative flex min-h-[calc(100dvh-5rem)] items-center justify-center px-6 py-12 sm:px-12"
             >
-                <div class="w-full max-w-sm">
-                    <BrandMark class="mb-10 lg:hidden" compact />
+                <div class="ui-auth-card w-full max-w-sm">
+                    <div class="mb-10 flex items-center justify-between gap-4 lg:hidden">
+                        <BrandMark compact />
+                        <img
+                            src="/images/main/LOGO_xhs.png"
+                            :alt="t('auth.xhsLogoAlt')"
+                            width="44"
+                            height="44"
+                            class="size-11 rounded-xl"
+                        />
+                    </div>
                     <slot />
                 </div>
             </section>
         </main>
     </PublicSiteLayout>
 </template>
-
-<style scoped>
-@media (min-width: 1024px) {
-    .auth-brand-visual {
-        background-image: url('/images/illustrations/auth-brand-scene.webp');
-        background-position: center;
-        background-size: cover;
-        opacity: 0.24;
-    }
-
-    .auth-brand-wash {
-        background: linear-gradient(
-            90deg,
-            rgb(var(--color-canvas) / 0.98) 0%,
-            rgb(var(--color-canvas) / 0.9) 48%,
-            rgb(var(--color-canvas) / 0.62) 100%
-        );
-    }
-
-    .auth-brand-bottom {
-        background: linear-gradient(0deg, rgb(var(--color-canvas)) 0%, transparent 100%);
-    }
-
-    .auth-brand-visual-dark {
-        opacity: 0.72;
-    }
-
-    .auth-brand-wash-dark {
-        background: linear-gradient(
-            90deg,
-            rgb(var(--color-canvas) / 0.98) 0%,
-            rgb(var(--color-canvas) / 0.86) 48%,
-            rgb(var(--color-canvas) / 0.22) 100%
-        );
-    }
-}
-</style>

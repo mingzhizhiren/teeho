@@ -6,6 +6,8 @@ export default {
     content: ['./index.html', './src/**/*.{vue,ts}'],
     theme: {
         extend: {
+            fontFamily: { sans: ['var(--font-ui)'] },
+            borderRadius: { xl: '0.625rem', '2xl': '0.75rem', '3xl': '1rem' },
             colors: {
                 brand: {
                     DEFAULT: 'rgb(var(--color-brand) / <alpha-value>)',

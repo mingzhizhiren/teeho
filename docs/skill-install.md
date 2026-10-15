@@ -11,30 +11,32 @@
 
 ### 安装选择固定模板
 
-**输出要求：** 原样保留引用层级、空行、加粗标题、✍ 图标、Agent 的 `1–6` 编号、安装方式的 `A/B` 标记和回复示例。不得改成摘要、表格、代码块或交互工具的问卷／选择卡片。其他语言只翻译自然语言，Agent 名称和格式保持不变。
+**输出要求：** 原样保留引用层级、空行、加粗标题、✍ 图标、Agent 的 `1–8` 编号、安装方式的 `A/B` 标记和回复示例。不得改成摘要、表格、代码块或交互工具的问卷／选择卡片。其他语言只翻译自然语言，Agent 名称和格式保持不变。
 
 > 请明确这次要安装到哪个 Agent，以及安装方式：
 >
 > **✍拷问1：目标 Agent（可多选）**
 >
-> 1. Codex
-> 2. Claude Code
-> 3. OpenClaw
-> 4. Cursor
-> 5. Gemini CLI
-> 6. 其他：请填写名称
+> 1. 当前智能体
+> 2. Codex
+> 3. Claude Code
+> 4. OpenClaw
+> 5. WorkBuddy
+> 6. Qwen
+> 7. Cursor
+> 8. 其他：请填写名称
 >
 > **✍拷问2：安装方式（选一项）**
 >
 > A. 全局：当前系统用户的所选 Agent 可跨项目使用（推荐）
 > B. 当前项目：仅指定项目使用
 >
-> 例如回复“1、3，A”表示安装Codex、OpenClaw到全局。
+> 例如回复“1、4、gemini，A”表示安装在当前智能体、OpenClaw、gemini到A(全局)。
 
 发送前按未确认项核对：
 
 - 两项都缺：第一行与模板一致，两个拷问、全部选项及完整回复示例均保留。
-- 只缺 Agent：仅保留拷问1、全部 Agent 选项及原编号，回复示例改为“例如回复‘1、3’表示选择 Codex 和 OpenClaw。”
+- 只缺 Agent：仅保留拷问1、全部 Agent 选项及原编号，回复示例改为“例如回复‘2、4’表示选择 Codex 和 OpenClaw。”
 - 只缺安装方式：仅保留拷问2、全部安装方式选项及 A/B 标记，回复示例改为“例如回复‘A’表示全局安装。”
 - 所有提问分支：保留引用符号、空行、加粗和图标，模板前后不添加其他文字。
 - 两项都已确认：沿用用户选择，不输出提问模板，继续流程。
@@ -54,9 +56,9 @@
 本实例用于安装或升级题火 Skill。
 
 <!-- skill-version:start -->
-当前发布版本：**2.4.2**。
+当前发布版本：**2.5.3**。
 网站／本地下载：[题火技能包](/api/skill/download)。
-GitHub 下载：[题火技能包](https://github.com/mingzhizhiren/teeho/releases/download/v2.4.2/teeho-agent-skill.zip)。
+GitHub 下载：[题火技能包](https://github.com/mingzhizhiren/teeho/releases/download/v2.5.3/teeho-agent-skill.zip)。
 按下方渠道规则选择下载地址，安装或升级以本文版本和实际包内容为准。
 <!-- skill-version:end -->
 

@@ -6,7 +6,6 @@ describe('手动话题输入', () => {
         '#咖啡 #周末日常',
         '#咖啡#周末日常',
         '＃咖啡＃周末日常',
-        '咖啡 周末日常',
         '咖啡，周末日常',
         '咖啡,周末日常',
         '咖啡\r\n周末日常',
@@ -18,10 +17,7 @@ describe('手动话题输入', () => {
     })
 
     it('忽略空项和重复项，保留首次出现的顺序', () => {
-        expect(parseTopicInput('  #咖啡,,＃咖啡；#周末日常 #咖啡 ')).toEqual([
-            '咖啡',
-            '周末日常',
-        ])
+        expect(parseTopicInput('  #咖啡,,＃咖啡；#周末日常 #咖啡 ')).toEqual(['咖啡', '周末日常'])
         expect(parseTopicInput(' #＃,，、;；\n\t ')).toEqual([])
         expect(parseTopicInput('')).toEqual([])
     })
@@ -32,5 +28,11 @@ describe('手动话题输入', () => {
             '周末☕',
             'AI工具',
         ])
+    })
+
+    it('保留普通空格作为话题名称的一部分', () => {
+        expect(parseTopicInput('daily life')).toEqual(['daily life'])
+        expect(parseTopicInput('咖啡 周末日常')).toEqual(['咖啡 周末日常'])
+        expect(parseTopicInput('#daily life ＃收纳 #daily life')).toEqual(['daily life', '收纳'])
     })
 })

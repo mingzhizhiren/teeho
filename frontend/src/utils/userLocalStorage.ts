@@ -61,19 +61,22 @@ export async function removeUserLocalValue(userId: string, key: string) {
     window.localStorage.removeItem(await createStorageKey(userId, key))
 }
 
-/** 只清理当前账号的全部加密 localStorage 数据 */
-export async function clearUserLocalValues(userId: string) {
+/** 清理当前账号的加密数据，显式保留仍需对账的轻量键。 */
+export async function clearUserLocalValues(userId: string, preserveKeys: readonly string[] = []) {
     if (!supportsLocalStorage()) {
         return
     }
 
     const userScope = await getUserEncryption().getUserScope(userId)
     const prefix = `${userStoragePrefix}.${userScope}.`
+    const preservedKeys = new Set(
+        preserveKeys.map((key) => `${prefix}${userStorageKeySchema.parse(key)}`),
+    )
     const keysToRemove: string[] = []
 
     for (let index = 0; index < window.localStorage.length; index += 1) {
         const key = window.localStorage.key(index)
-        if (key?.startsWith(prefix)) {
+        if (key?.startsWith(prefix) && !preservedKeys.has(key)) {
             keysToRemove.push(key)
         }
     }

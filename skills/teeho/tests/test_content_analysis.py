@@ -62,7 +62,127 @@ def analysis(stars: int = 4, status: str = "completed") -> dict:
     }
 
 
+def report_with_analysis(detail: dict) -> dict:
+    source = report()
+    return {
+        **source,
+        "task": {
+            **source["task"],
+            "result": {**source["task"]["result"], "contentAnalysis": detail},
+        },
+    }
+
+
 class ContentAnalysisTests(unittest.TestCase):
+
+    def test_v2_empty_weaknesses_only_changes_completed_copy(self) -> None:
+        for status in ("completed", "fallback"):
+            with self.subTest(status=status):
+                view = create_presentation(
+                    "task",
+                    report_with_analysis(
+                        {
+                            **analysis(3, status),
+                            "evaluationVersion": "content-evaluation.v2",
+                        }
+                    ),
+                )
+                detail = view["data"]["contentAnalysis"]
+                self.assertEqual(
+                    detail.get("evaluationVersion"), "content-evaluation.v2"
+                )
+                self.assertEqual(view["data"]["score"], 7.2)
+                rendered = render_presentation(view)
+                if status == "completed":
+                    self.assertIn("No obvious shortcomings", rendered)
+                    self.assertNotIn(
+                        "No supported shortcomings were reported", rendered
+                    )
+                    envelope = PresentationStore("unused").envelope(None, view)
+                    self.assertEqual(
+                        envelope["translation"]["fields"]["contentNoObviousWeaknesses"],
+                        "No obvious shortcomings",
+                    )
+                else:
+                    self.assertIn("This part of the analysis is unavailable.", rendered)
+                    self.assertIn("displayed rating is a fallback", rendered)
+                    self.assertNotIn("No obvious shortcomings", rendered)
+
+    def test_consistency_rating_appears_once_in_content_analysis_heading(self) -> None:
+        for version in (None, "content-evaluation.v2"):
+            for stars, status, rating in (
+                (0, "completed", "☆☆☆☆☆ (0/5)"),
+                (4, "completed", "★★★★☆ (4/5)"),
+                (3, "fallback", "★★★☆☆ (3/5)"),
+            ):
+                with self.subTest(version=version, stars=stars, status=status):
+                    detail = {
+                        **analysis(stars, status),
+                        **({"evaluationVersion": version} if version else {}),
+                    }
+                    view = create_presentation("task", report_with_analysis(detail))
+                    self.assertEqual(view["data"]["score"], 7.2)
+                    rendered = render_presentation(view)
+                    self.assertIn(f"【Content analysis {rating}】", rendered)
+                    self.assertIn("\nContent consistency\n", rendered)
+                    self.assertEqual(rendered.count(rating), 1)
+                    self.assertLess(
+                        rendered.index("\nContent consistency\n"),
+                        rendered.index("Material and title align."),
+                    )
+                    localized = render_presentation(
+                        view,
+                        {
+                            "contentAnalysis": "内容分析",
+                            "contentConsistency": "内容一致性",
+                            "contentNoObviousWeaknesses": "没有明显不足",
+                        },
+                    )
+                    self.assertIn(f"【内容分析 {rating}】", localized)
+                    self.assertIn("\n内容一致性\n", localized)
+                    self.assertEqual(localized.count(rating), 1)
+                    if version and status == "completed":
+                        self.assertIn("没有明显不足", localized)
+
+    def test_unknown_evaluation_version_keeps_saved_report_without_new_claims(
+        self,
+    ) -> None:
+        for version in (None, True, {}, "content-evaluation.v3"):
+            with self.subTest(version=version):
+                view = create_presentation(
+                    "task",
+                    report_with_analysis({**analysis(), "evaluationVersion": version}),
+                )
+                self.assertEqual(view["state"], "completed")
+                self.assertEqual(view["data"]["score"], 7.2)
+                self.assertIsNone(view["data"]["contentAnalysis"])
+                self.assertNotIn("No obvious shortcomings", render_presentation(view))
+
+    def test_v2_invalid_reference_does_not_become_valid_empty_analysis(self) -> None:
+        view = create_presentation(
+            "task",
+            report_with_analysis(
+                {
+                    **analysis(),
+                    "evaluationVersion": "content-evaluation.v2",
+                    "weaknesses": [
+                        {
+                            "location": "body",
+                            "evidence": "Coffee",
+                            "description": "Unsupported comparison.",
+                            "referenceIds": ["missing-reference"],
+                        }
+                    ],
+                }
+            ),
+        )
+        detail = view["data"]["contentAnalysis"]
+        self.assertEqual(detail["weaknesses"], [])
+        self.assertFalse(detail["weaknessesAvailable"])
+        rendered = render_presentation(view)
+        self.assertIn("This part of the analysis is unavailable.", rendered)
+        self.assertNotIn("No obvious shortcomings", rendered)
+        self.assertNotIn("Unsupported comparison.", rendered)
 
     def test_all_reference_sources_render_engagement_tiers(self) -> None:
         for reason in ("semantic_similarity", "similar_content", "reference_note"):

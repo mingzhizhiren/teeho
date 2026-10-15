@@ -3,9 +3,23 @@ import type { DatabaseTransaction } from '../db/database'
 import type { StandardAnalysisTask } from '../analysis/analysis.schema'
 import type { AnalysisTaskClaimCandidate } from '../analysis/tasks/analysis.queue.contract'
 
+/** 成功提交后的最小内容观察；部署侧可以保留需求而不读取短期业务表。 */
+export interface AnalysisResultObservation {
+    readonly title: string
+    readonly primaryTrack: number
+    readonly secondaryTracks: readonly number[]
+    readonly occurredAt: string
+    readonly entrySource: 'web' | 'skill' | 'unknown'
+}
+
 /** 部署侧任务策略。业务回调沿用原事务；resultCommitted 是提交后的可选观测。 */
 export interface TaskPolicy {
-    resultCommitted?(userId: string, taskId: string, resultVersion: number): Promise<void>
+    resultCommitted?(
+        userId: string,
+        taskId: string,
+        resultVersion: number,
+        observation: AnalysisResultObservation,
+    ): Promise<void>
     assertAvailable(transaction: DatabaseTransaction): Promise<void>
     authorize(
         transaction: DatabaseTransaction,

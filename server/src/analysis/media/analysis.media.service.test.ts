@@ -8,6 +8,11 @@ import type { AnalysisObjectStorage } from './analysis.storage'
 const userId = '00000000-0000-4000-8000-000000000001'
 
 function createHarness() {
+    const signPreview = vi.fn(async () => 'https://storage.test/derived-preview?token=synthetic')
+    const clock = {
+        now: vi.fn(() => new Date('2026-08-02T04:00:00.000Z')),
+        randomUUID: () => crypto.randomUUID(),
+    }
     const records = new Map<string, AnalysisMediaAssetRecord>()
     const storage: AnalysisObjectStorage = {
         createSignedUpload: vi.fn(async (path) => ({
@@ -84,18 +89,189 @@ function createHarness() {
         records,
         persistence,
         storage,
+        signPreview,
+        clock,
         service: createAnalysisMediaService({
             storage,
+            signPreview,
             persistence,
-            clock: {
-                now: () => new Date('2026-08-02T04:00:00.000Z'),
-                randomUUID: () => crypto.randomUUID(),
-            },
+            clock,
         }),
     }
 }
 
 describe('analysis media service', () => {
+    it('签名响应耗尽整个预览有效期时要求重试，不返回已经失效的资格', async () => {
+        const { service, records, signPreview, clock } = createHarness()
+        const session = await service.createUploadSession(userId, [
+            { fileName: 'original.jpg', declaredMediaType: 'image/jpeg', byteSize: 1_024 },
+        ])
+        const id = session.assets[0]!.id
+        records.set(id, {
+            ...records.get(id)!,
+            state: 'ready',
+            processedObjectPath: 'private/derived.jpg',
+        })
+        signPreview.mockImplementationOnce(async () => {
+            clock.now.mockReturnValue(new Date('2026-08-02T04:05:00.000Z'))
+            return 'https://storage.test/late-preview?token=synthetic'
+        })
+
+        await expect(service.getPreview(userId, id)).rejects.toThrow('图片预览暂不可用，请重试')
+    })
+    it.each(['invalid-date', '2026-08-02T04:00:00.999Z', '2026-08-02T04:00:01.000Z'])(
+        '素材期限 %s 不足以安全签发预览时不会调用 Storage',
+        async (expiresAt) => {
+            const { service, records, signPreview } = createHarness()
+            const session = await service.createUploadSession(userId, [
+                { fileName: 'original.jpg', declaredMediaType: 'image/jpeg', byteSize: 1_024 },
+            ])
+            const id = session.assets[0]!.id
+            records.set(id, {
+                ...records.get(id)!,
+                state: 'ready',
+                processedObjectPath: 'private/derived.jpg',
+                expiresAt,
+            })
+
+            await expect(service.getPreview(userId, id)).rejects.toMatchObject({
+                reason: 'analysis_asset_expired',
+            })
+            expect(signPreview).not.toHaveBeenCalled()
+        },
+    )
+    it('签名完成前收到清理请求，不再交付仍在保留期内的素材预览', async () => {
+        const { service, records, persistence } = createHarness()
+        const session = await service.createUploadSession(userId, [
+            { fileName: 'original.jpg', declaredMediaType: 'image/jpeg', byteSize: 1_024 },
+        ])
+        const id = session.assets[0]!.id
+        records.set(id, {
+            ...records.get(id)!,
+            state: 'ready',
+            processedObjectPath: 'private/derived.jpg',
+        })
+        vi.spyOn(persistence, 'hasCleanupRequested')
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce(true)
+
+        await expect(service.getPreview(userId, id)).rejects.toMatchObject({
+            reason: 'analysis_asset_expired',
+        })
+    })
+    it('签名延迟可能让短期资格越过素材期限时保留素材并要求重试', async () => {
+        const { service, records, clock, signPreview } = createHarness()
+        const session = await service.createUploadSession(userId, [
+            { fileName: 'original.jpg', declaredMediaType: 'image/jpeg', byteSize: 1_024 },
+        ])
+        const id = session.assets[0]!.id
+        records.set(id, {
+            ...records.get(id)!,
+            state: 'ready',
+            processedObjectPath: 'private/derived.jpg',
+            expiresAt: '2026-08-02T04:01:00.000Z',
+        })
+        signPreview.mockImplementationOnce(async () => {
+            clock.now.mockReturnValue(new Date('2026-08-02T04:00:02.000Z'))
+            return 'https://storage.test/late-preview?token=synthetic'
+        })
+
+        await expect(service.getPreview(userId, id)).rejects.toThrow('图片预览暂不可用，请重试')
+        expect(records.get(id)).toMatchObject({
+            state: 'ready',
+            expiresAt: '2026-08-02T04:01:00.000Z',
+        })
+    })
+    it('签名返回时素材已到期，不向浏览器返回迟到的预览资格', async () => {
+        const { service, records, clock, signPreview } = createHarness()
+        const session = await service.createUploadSession(userId, [
+            { fileName: 'original.jpg', declaredMediaType: 'image/jpeg', byteSize: 1_024 },
+        ])
+        const id = session.assets[0]!.id
+        records.set(id, {
+            ...records.get(id)!,
+            state: 'ready',
+            processedObjectPath: 'private/derived.jpg',
+            expiresAt: '2026-08-02T04:01:00.000Z',
+        })
+        signPreview.mockImplementationOnce(async () => {
+            clock.now.mockReturnValue(new Date('2026-08-02T04:01:00.000Z'))
+            return 'https://storage.test/late-preview?token=synthetic'
+        })
+
+        await expect(service.getPreview(userId, id)).rejects.toMatchObject({
+            reason: 'analysis_asset_expired',
+        })
+        expect(records.get(id)?.expiresAt).toBe('2026-08-02T04:01:00.000Z')
+    })
+    it('清理状态校验期间到期的素材不会继续签发预览', async () => {
+        const { service, records, persistence, clock, signPreview } = createHarness()
+        const session = await service.createUploadSession(userId, [
+            { fileName: 'original.jpg', declaredMediaType: 'image/jpeg', byteSize: 1_024 },
+        ])
+        const id = session.assets[0]!.id
+        records.set(id, {
+            ...records.get(id)!,
+            state: 'ready',
+            processedObjectPath: 'private/derived.jpg',
+            expiresAt: '2026-08-02T04:01:00.000Z',
+        })
+        vi.spyOn(persistence, 'hasCleanupRequested').mockImplementationOnce(async () => {
+            clock.now.mockReturnValue(new Date('2026-08-02T04:01:00.000Z'))
+            return false
+        })
+
+        await expect(service.getPreview(userId, id)).rejects.toMatchObject({
+            reason: 'analysis_asset_expired',
+        })
+        expect(signPreview).not.toHaveBeenCalled()
+    })
+    it('同账号连续预览被限流，不能借重复签名无限访问存储服务', async () => {
+        const { service, records } = createHarness()
+        const session = await service.createUploadSession(userId, [
+            { fileName: 'original.jpg', declaredMediaType: 'image/jpeg', byteSize: 1_024 },
+        ])
+        const id = session.assets[0]!.id
+        records.set(id, {
+            ...records.get(id)!,
+            state: 'ready',
+            processedObjectPath: 'private/derived.jpg',
+        })
+        for (let index = 0; index < 120; index += 1) await service.getPreview(userId, id)
+        await expect(service.getPreview(userId, id)).rejects.toMatchObject({
+            retryAfterSeconds: 60,
+        })
+    })
+    it('原片已清理时仍可预览有效派生素材，签名期限不超出素材期限', async () => {
+        const { service, records, signPreview, clock } = createHarness()
+        const session = await service.createUploadSession(userId, [
+            { fileName: 'original.jpg', declaredMediaType: 'image/jpeg', byteSize: 1_024 },
+        ])
+        const id = session.assets[0]!.id
+        records.set(id, {
+            ...records.get(id)!,
+            state: 'ready',
+            processedObjectPath: 'private/derived.jpg',
+            mediaType: 'image/jpeg',
+            expiresAt: '2026-08-02T04:01:00.000Z',
+        })
+        signPreview.mockImplementationOnce(async () => {
+            clock.now.mockReturnValue(new Date('2026-08-02T04:00:00.500Z'))
+            return 'https://storage.test/derived-preview?token=synthetic'
+        })
+        await expect(service.getPreview(userId, id)).resolves.toEqual({
+            assetId: id,
+            previewUrl: 'https://storage.test/derived-preview?token=synthetic',
+            previewExpiresAt: '2026-08-02T04:00:59.000Z',
+        })
+        await expect(service.getStatuses(userId, [id])).resolves.toEqual([
+            expect.objectContaining({
+                declaredMediaType: 'image/jpeg',
+                declaredByteSize: 1_024,
+                expiresAt: '2026-08-02T04:01:00.000Z',
+            }),
+        ])
+    })
     it('does not sign uploads after the account window clears draft media', async () => {
         const { service, persistence, storage } = createHarness()
         vi.spyOn(persistence, 'insertSession').mockRejectedValueOnce(

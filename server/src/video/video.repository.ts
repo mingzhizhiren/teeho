@@ -8,6 +8,7 @@ import {
     type DatabaseTransaction,
 } from '../db/database'
 import { mapVideoAsset, type VideoAssetRow, videoAssetSelection } from './video.asset-record'
+import { activeVideoTaskExistsSql } from './video.task-protection'
 import type {
     CreateVideoUploadParam,
     ReadyVideoAnalysisEvidence,
@@ -118,7 +119,7 @@ export async function findReadyVideoEvidence(
           AND evidence.evidence_version = ${VIDEO_RULES.evidenceVersion}
           AND evidence.cleanup_state = 'retained'
           AND evidence.expires_at > now()
-        FOR KEY SHARE OF asset, evidence
+        FOR SHARE OF asset, evidence
     `)
     const evidence = packages[0]
     if (!evidence || evidence.evidenceVersion !== VIDEO_RULES.evidenceVersion) {
@@ -353,13 +354,30 @@ export async function assertVideoAdmission(
 /** 在准入锁与同一事务内替换本账号旧上传，终态原文件交给既有清理租约处理。 */
 async function cancelReplacedVideoUploads(transaction: DatabaseTransaction, userId: string) {
     await transaction.execute(sql`
+        SELECT id FROM public.analysis_video_assets
+        WHERE user_id = ${userId}::uuid
+        ORDER BY id
+        FOR UPDATE
+    `)
+    const protectedAssets = await transaction.execute<{ id: string }>(sql`
+        SELECT asset.id FROM public.analysis_video_assets AS asset
+        WHERE asset.user_id = ${userId}::uuid
+            AND asset.state IN ('awaiting_upload', 'uploaded', 'queued', 'processing')
+            AND ${activeVideoTaskExistsSql(sql`asset.id`, sql`asset.user_id`)}
+        LIMIT 1
+    `)
+    if (protectedAssets.length > 0) {
+        throw new VideoAdmissionRejectedError('account_busy')
+    }
+    await transaction.execute(sql`
         WITH cancelled_assets AS (
-            UPDATE public.analysis_video_assets
+            UPDATE public.analysis_video_assets AS asset
             SET state = 'cancelled', cancellation_requested_at = now(),
                 next_attempt_at = NULL, failure_code = NULL, failure_detail = NULL,
                 updated_at = now()
             WHERE user_id = ${userId}::uuid
               AND state IN ('awaiting_upload', 'uploaded', 'queued', 'processing')
+              AND NOT ${activeVideoTaskExistsSql(sql`asset.id`, sql`asset.user_id`)}
             RETURNING id, upload_session_id, processing_attempt_count
         ), cancelled_attempts AS (
             UPDATE public.analysis_video_processing_attempts attempt
@@ -381,6 +399,11 @@ async function cancelReplacedVideoUploads(transaction: DatabaseTransaction, user
 /** 用户删除或替换素材时原子取消旧资产；在途 Worker 随后的提交会因状态守卫失效。 */
 export async function cancelVideoAsset(userId: string, videoId: string) {
     return withTransaction(async (transaction) => {
+        await transaction.execute(sql`
+            SELECT id FROM public.analysis_video_assets
+            WHERE id = ${videoId}::uuid AND user_id = ${userId}::uuid
+            FOR UPDATE
+        `)
         const rows = await transaction.execute<VideoAssetRow>(sql`
             UPDATE public.analysis_video_assets asset
             SET state = 'cancelled',
@@ -391,6 +414,7 @@ export async function cancelVideoAsset(userId: string, videoId: string) {
                 updated_at = now()
             WHERE asset.id = ${videoId}::uuid
               AND asset.user_id = ${userId}::uuid
+              AND NOT ${activeVideoTaskExistsSql(sql`asset.id`, sql`asset.user_id`)}
               AND asset.state IN (
                   'awaiting_upload',
                   'uploaded',

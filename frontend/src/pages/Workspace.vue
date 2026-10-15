@@ -31,8 +31,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-canvas">
-        <header class="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
+    <div class="ui-product-shell min-h-screen bg-canvas">
+        <header class="ui-workspace-header sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
             <div
                 class="mx-auto flex h-16 max-w-screen-2xl items-center justify-between gap-1 px-4 sm:gap-3 sm:px-8"
             >
@@ -61,7 +61,7 @@ onBeforeUnmount(() => {
         </header>
 
         <main class="min-h-[calc(100vh-4rem)]">
-            <AnalysisWorkspace />
+            <AnalysisWorkspace v-if="auth.user" :key="auth.user.id" />
         </main>
     </div>
 </template>

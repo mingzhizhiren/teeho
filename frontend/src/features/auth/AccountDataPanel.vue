@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -7,6 +8,7 @@ import { cleanupAnalysisUserAssets } from '@/api/analysis'
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
 import InlineFeedback from '@/components/feedback/InlineFeedback.vue'
 import { useUserStorage } from '@/composables/useUserStorage'
+import { ANALYSIS_SUBMISSION_INTENT_STORAGE_KEY } from '@/features/analysis/analysisSubmissionIntents'
 import { useAuthStore } from '@/stores/auth'
 import { createAccountSessionFlow } from './account.session'
 
@@ -24,7 +26,7 @@ const clearAndLogoutConfirmOpen = ref(false)
 const errorMessage = ref('')
 const sessionFlow = createAccountSessionFlow({
     logout: (options) => auth.logout(options),
-    clearCurrentUserData: () => userStorage.clearAll(),
+    clearCurrentUserData: () => userStorage.clearAll([ANALYSIS_SUBMISSION_INTENT_STORAGE_KEY]),
     async cleanupCurrentUserAssets() {
         await cleanupAnalysisUserAssets()
     },
@@ -79,7 +81,9 @@ async function clearLocalDataAndSignOut(): Promise<void> {
             {{ t('account.sections.data.description') }}
         </p>
 
-        <div class="mt-5 rounded-2xl border border-red-200 bg-red-50/60 p-4 dark:border-red-400/20 dark:bg-red-400/5">
+        <div
+            class="mt-5 rounded-2xl border border-red-200 bg-red-50/60 p-4 dark:border-red-400/20 dark:bg-red-400/5"
+        >
             <h4 class="font-semibold text-red-700 dark:text-red-200">
                 {{ t('account.localDataTitle') }}
             </h4>
@@ -87,26 +91,28 @@ async function clearLocalDataAndSignOut(): Promise<void> {
                 {{ t('account.localDataDescription') }}
             </p>
             <div class="mt-4 grid gap-2 sm:grid-cols-2">
-                <button
-                    class="min-h-11 rounded-xl border border-red-200 bg-surface px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-50 disabled:opacity-60 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-400/10"
+                <AppButton
+                    variant="danger"
+                    size="md"
+                    icon="trash"
                     type="button"
                     :disabled="isClearing"
                     @click="clearOnlyConfirmOpen = true"
                 >
                     {{ isClearing ? t('auth.clearingLocalData') : t('auth.clearLocalData') }}
-                </button>
-                <button
-                    class="min-h-11 rounded-xl border border-red-200 bg-surface px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-50 disabled:opacity-60 dark:border-red-400/30 dark:text-red-300 dark:hover:bg-red-400/10"
+                </AppButton>
+                <AppButton
+                    variant="danger"
+                    size="md"
+                    icon="trash"
                     type="button"
                     :disabled="isClearing"
                     @click="clearAndLogoutConfirmOpen = true"
                 >
                     {{
-                        isClearing
-                            ? t('auth.clearingLocalData')
-                            : t('auth.clearLocalDataAndLogout')
+                        isClearing ? t('auth.clearingLocalData') : t('auth.clearLocalDataAndLogout')
                     }}
-                </button>
+                </AppButton>
             </div>
         </div>
 

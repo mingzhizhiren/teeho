@@ -119,7 +119,7 @@ onBeforeUnmount(restorePage)
                         </h2>
                         <button
                             ref="closeButton"
-                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                            class="app-button app-button--secondary app-button--icon-only app-button--sm shrink-0"
                             type="button"
                             :aria-label="closeLabel"
                             @click="close"

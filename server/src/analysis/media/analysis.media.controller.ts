@@ -2,9 +2,13 @@ import { z } from 'zod'
 
 import { API_CODES, HTTP_STATUS } from '../../config/constants'
 
-import { fail, ok } from '../../utils/response'
+import { fail, ok, type ApiResult } from '../../utils/response'
 
-import { analysisMediaService } from './analysis.media.service'
+import {
+    analysisMediaService,
+    AnalysisMediaAssetNotFoundError,
+    AnalysisMediaPreviewRateLimitError,
+} from './analysis.media.service'
 
 import { AnalysisMediaUploadRateLimitError } from './analysis.media-upload-admission'
 
@@ -13,6 +17,35 @@ import { analysisMediaConstraints, analysisUploadConstraints } from '../analysis
 import { domainErrorResponse } from '../http/analysis.http-errors'
 
 const mediaAssetIdSchema = z.string().uuid()
+
+/** 只为已认证账号名下的有效派生素材提供预览资格。 */
+export async function handleGetAnalysisMediaPreview(
+    userId: string,
+    assetId: unknown,
+): Promise<{ status: number; response: ApiResult<unknown>; headers?: Record<string, string> }> {
+    const parsed = mediaAssetIdSchema.safeParse(assetId)
+    if (!parsed.success)
+        return {
+            status: HTTP_STATUS.BAD_REQUEST,
+            response: fail(API_CODES.VALIDATION_ERROR, '图片素材标识无效'),
+        }
+    try {
+        const preview = await analysisMediaService.getPreview(userId, parsed.data)
+        return { status: HTTP_STATUS.OK, response: ok({ preview }) }
+    } catch (error) {
+        if (error instanceof AnalysisMediaPreviewRateLimitError) {
+            return {
+                status: HTTP_STATUS.TOO_MANY_REQUESTS,
+                headers: { 'Retry-After': String(error.retryAfterSeconds) },
+                response: fail(API_CODES.RATE_LIMITED, error.message, {
+                    reason: 'media_preview_rate',
+                    retryAfterSeconds: error.retryAfterSeconds,
+                }),
+            }
+        }
+        return domainErrorResponse(error)
+    }
+}
 
 const mediaUploadSessionBodySchema = z
     .object({
@@ -97,13 +130,13 @@ export async function handleGetAnalysisMediaStatuses(userId: string, body: unkno
         const assets = await analysisMediaService.getStatuses(userId, parsed.data.assetIds)
         return { status: 200, response: ok({ assets }) }
     } catch (error) {
-        if (error instanceof AnalysisMediaUploadRateLimitError) {
-            return domainErrorResponse(error)
+        if (error instanceof AnalysisMediaAssetNotFoundError) {
+            return {
+                status: HTTP_STATUS.NOT_FOUND,
+                response: fail(API_CODES.NOT_FOUND, error.message),
+            }
         }
-        return {
-            status: 404,
-            response: fail(API_CODES.NOT_FOUND, '图片素材不存在'),
-        }
+        return domainErrorResponse(error)
     }
 }
 

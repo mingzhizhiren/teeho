@@ -17,6 +17,22 @@ const labels: ResultCopyLabels = {
         weaknesses: 'Shortcomings',
         noRisks: 'No wording risks',
         noWeaknesses: 'No supported shortcomings',
+        noObviousWeaknesses: 'No obvious shortcomings',
+        advice: {
+            title: 'Issues and optimization advice',
+            empty: 'No obvious shortcomings',
+            unavailable: 'Optimization advice is temporarily unavailable',
+            problem: 'Problem',
+            location: 'Location',
+            evidence: 'Evidence',
+            suggestion: 'Suggested action',
+            priorities: { high: 'High priority', medium: 'Medium priority', low: 'Low priority' },
+            titleLocation: 'Title',
+            coverLocation: 'Cover',
+            contentLocation: 'Existing image / video materials',
+            paragraphLocation: (number) => `Body paragraph ${number}`,
+            topicLocation: (number) => `Topic ${number}`,
+        },
         fallback: 'Default 3 stars; analysis incomplete',
         scoreBlocked: 'Final score set to 0',
         references: 'References:',
@@ -189,6 +205,22 @@ describe('复制已完成的笔记体检报告', () => {
         expect(copied).toContain('最佳')
         expect(copied.indexOf('Wording risks')).toBeLessThan(copied.lastIndexOf('Comparable note'))
         expect(copied).not.toContain('No supported shortcomings')
+    })
+    test('必需评价fallback不把新增建议失败单独包装成成功交付', () => {
+        const copied = buildResultCopyText(
+            {
+                ...checkupResult,
+                contentAnalysis: {
+                    ...fallbackContentAnalysisFixture,
+                    advice: { status: 'unavailable', items: [] },
+                },
+            },
+            labels,
+        )
+        expect(copied).toContain('Default 3 stars; analysis incomplete')
+        expect(copied).not.toContain('Issues and optimization advice')
+        expect(copied).not.toContain('No obvious shortcomings')
+        expect(copied).toContain('7.00 / 10')
     })
     test('新报告保留赛道权重和模型身份，不复制加权参照说明', async () => {
         const reference = {

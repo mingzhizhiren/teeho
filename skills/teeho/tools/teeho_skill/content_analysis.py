@@ -3,6 +3,11 @@
 from collections.abc import Callable
 from typing import Any, Optional
 
+from .content_advice import (
+    content_advice_lines,
+    project_content_advice,
+    read_content_advice,
+)
 from .messages import safe_text
 from .report_fields import read_optional
 
@@ -12,6 +17,7 @@ MAX_ISSUES = 5
 MAX_RISKS = 20
 MAX_WEAKNESSES = 5
 MAX_REFERENCES = 4
+EVALUATION_VERSION = "content-evaluation.v2"
 
 
 def _text(value: object) -> str:
@@ -73,6 +79,11 @@ def read_content_analysis(
         "fallback",
     ):
         raise ValueError("invalid_content_analysis")
+    if (
+        "evaluationVersion" in value
+        and value["evaluationVersion"] != EVALUATION_VERSION
+    ):
+        raise ValueError("invalid_content_analysis")
     consistency = value.get("consistency")
     if not isinstance(consistency, dict):
         raise ValueError("invalid_content_analysis")
@@ -103,6 +114,23 @@ def read_content_analysis(
     weaknesses = findings(value.get("weaknesses"), MAX_WEAKNESSES, "weakness")
     return {
         "status": value["status"],
+        **(
+            {
+                "advice": read_optional(
+                    "contentAnalysis.advice",
+                    lambda: read_content_advice(value["advice"]),
+                    {"status": "unavailable", "items": []},
+                    log,
+                )
+            }
+            if "advice" in value
+            else {}
+        ),
+        **(
+            {"evaluationVersion": EVALUATION_VERSION}
+            if "evaluationVersion" in value
+            else {}
+        ),
         "consistency": {
             "stars": stars,
             "summary": _text(consistency.get("summary")),
@@ -150,6 +178,23 @@ def project_content_analysis(
     ]
     return {
         "status": analysis["status"],
+        **(
+            {
+                "advice": read_optional(
+                    "contentAnalysis.advice",
+                    lambda: project_content_advice(analysis["advice"], prose),
+                    {"status": "unavailable", "items": []},
+                    log,
+                )
+            }
+            if "advice" in analysis
+            else {}
+        ),
+        **(
+            {"evaluationVersion": analysis["evaluationVersion"]}
+            if "evaluationVersion" in analysis
+            else {}
+        ),
         "stars": consistency["stars"],
         "summary": prose(consistency["summary"]),
         "issues": [project(item) for item in consistency["issues"]],
@@ -182,28 +227,37 @@ def _finding_lines(item: dict[str, Any], translate: Callable[[str], str]) -> lis
     ]
 
 
+def content_analysis_rating(data: dict[str, Any]) -> str:
+    """主标题使用已保存的一致性星级，不重算评分。"""
+    analysis = data.get("contentAnalysis")
+    if not analysis:
+        return ""
+    stars = analysis["stars"]
+    return "★" * stars + "☆" * (MAX_STARS - stars) + f" ({stars}/5)"
+
+
 def content_analysis_lines(
     data: dict[str, Any], translate: Callable[[str], str]
 ) -> list[str]:
-    """按固定次序渲染一致性和参考不足。"""
+    """按固定次序渲染一致性、优化建议和参考不足。"""
     analysis = data.get("contentAnalysis")
     if not analysis:
         return [translate(data["summary"])]
-    stars = analysis["stars"]
-    rows = [
-        translate("contentConsistency")
-        + ": "
-        + "★" * stars
-        + "☆" * (MAX_STARS - stars)
-        + f" ({stars}/5)"
-    ]
+    rows = [translate("contentConsistency")]
     if analysis["status"] == "fallback":
         rows.append(translate("contentAnalysisFallback"))
     rows.append(translate(analysis["summary"]))
+    empty_weaknesses = (
+        "contentNoObviousWeaknesses"
+        if analysis.get("evaluationVersion") == EVALUATION_VERSION
+        else "contentNoWeaknesses"
+    )
     for key, heading, empty in (
         ("issues", None, None),
-        ("weaknesses", "contentWeaknesses", "contentNoWeaknesses"),
+        ("weaknesses", "contentWeaknesses", empty_weaknesses),
     ):
+        if key == "weaknesses":
+            rows.extend(content_advice_lines(analysis.get("advice"), translate))
         if heading:
             rows.extend(["", translate(heading)])
         if not analysis[key] and empty:

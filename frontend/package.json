@@ -12,6 +12,7 @@
     },
     "dependencies": {
         "@unhead/vue": "^3.3.1",
+        "animejs": "^4.5.0",
         "axios": "^1.7.7",
         "dompurify": "^3.4.13",
         "driver.js": "1.8.0",

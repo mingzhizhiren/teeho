@@ -5,6 +5,7 @@ import { HTTP_STATUS } from '../../config/constants'
 import { env } from '../../config/env'
 import { logger } from '../../utils/logger'
 import { analysisMediaConstraints } from '../analysis.constants'
+import { AnalysisAssetExpiredError } from '../analysis.errors'
 
 export interface AnalysisObjectInfo {
     size: number | null
@@ -72,6 +73,32 @@ function createStorageClient(trace?: DownloadTrace) {
             persistSession: false,
         },
     }).storage.from(analysisMediaConstraints.storageBucket)
+}
+
+/** 只为服务端已核验的派生图签发短时预览，不复制或恢复原片。 */
+export async function createAnalysisMediaPreviewUrl(
+    path: string,
+    seconds: number,
+): Promise<string> {
+    try {
+        const { data, error } = await createStorageClient().createSignedUrl(path, seconds)
+        if (error && 'code' in error && error.code === 'NoSuchKey') {
+            throw new AnalysisAssetExpiredError('图片已不可用，请重新上传')
+        }
+        if (error || !data?.signedUrl) throw error ?? new Error('图片预览暂不可用')
+        return data.signedUrl
+    } catch (error) {
+        if (error instanceof AnalysisAssetExpiredError) throw error
+        const code =
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            typeof error.code === 'string'
+                ? safeResponseId(error.code)
+                : null
+        logger.warn({ event: 'analysis_media_preview_failed', code }, '图片预览签名失败')
+        throw new Error('图片预览暂不可用，请重试')
+    }
 }
 
 /** Supabase Storage 生产适配器。 */

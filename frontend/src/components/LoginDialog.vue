@@ -58,7 +58,7 @@ onMounted(() => syncDialog(props.modelValue))
     >
         <div class="relative rounded-3xl border border-line bg-surface p-6 sm:p-8">
             <button
-                class="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full text-muted transition hover:bg-surface-muted hover:text-ink focus:outline-none focus:ring-4 focus:ring-brand/10"
+                class="app-button app-button--secondary app-button--icon-only app-button--sm absolute right-4 top-4"
                 type="button"
                 :aria-label="t('common.close')"
                 @click="close"

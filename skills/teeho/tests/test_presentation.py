@@ -121,14 +121,82 @@ class PresentationTests(unittest.TestCase):
         view = create_presentation('task', data)
         text = render_presentation(view)
         self.assertIn('Topic count: 0', text)
-        self.assertIn('⚪ Average topic length: No topics\n', text)
+        self.assertNotIn('Average topic length:', text)
         self.assertNotIn('Average topic length: 0', text)
         chinese = render_presentation(view, {
             'topicCount': '话题数量', 'topicLength': '平均话题长度',
             'metricNoTopics': '无话题',
         })
         self.assertIn('话题数量: 0', chinese)
-        self.assertIn('⚪ 平均话题长度: 无话题\n', chinese)
+        self.assertNotIn('平均话题长度:', chinese)
+
+    def test_uploaded_image_count_without_reference_is_hidden(self) -> None:
+        data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
+        data['task']['result']['structureMetrics'] = {'imageCount': 3, 'topicCount': 0, 'topicLength': None}
+        data['task']['result']['structureReferences'] = {}
+        text = render_presentation(create_presentation('task', data))
+        self.assertNotIn('Image count:', text)
+        self.assertIn('Topic count: 0', text)
+        self.assertNotIn('Average topic length:', text)
+        self.assertNotIn('Typical comparable range:', text)
+
+    def test_video_duration_without_reference_is_hidden(self) -> None:
+        data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
+        data['task']['result']['structureMetrics'] = {'videoDurationSeconds': 15.25, 'imageCount': None}
+        data['task']['result']['structureReferences'] = {}
+        text = render_presentation(create_presentation('task', data))
+        self.assertNotIn('Video duration (seconds):', text)
+        self.assertNotIn('Image count:', text)
+
+    def test_media_metrics_render_saved_references_including_zero(self) -> None:
+        for name, label, value in (
+            ('imageCount', 'Image count', 0),
+            ('imageCount', 'Image count', 3),
+            ('videoDurationSeconds', 'Video duration (seconds)', 0),
+            ('videoDurationSeconds', 'Video duration (seconds)', 15.25),
+        ):
+            with self.subTest(metric=name, value=value):
+                data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
+                data['task']['result']['structureMetrics'] = {name: value}
+                data['task']['result']['structureReferences'] = {
+                    name: {'low': 0, 'high': 20, 'sampleCount': 3, 'severity': 'aligned'},
+                }
+                view = create_presentation('task', data)
+                before = copy.deepcopy(view)
+                text = render_presentation(view)
+                self.assertIn(f'{label}: {value}', text)
+                self.assertIn('0 ~ 20', text)
+                self.assertEqual(view, before)
+
+    def test_cached_media_without_references_is_hidden_before_translation(self) -> None:
+        data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
+        view = create_presentation('history', data)
+        view['data']['structureMetrics'] = [
+            {'name': 'imageCount', 'value': 3, 'reference': None},
+            {'name': 'videoDurationSeconds', 'value': 15.25, 'reference': None},
+        ]
+        before = copy.deepcopy(view)
+        with tempfile.TemporaryDirectory() as directory:
+            store = PresentationStore(directory)
+            published = store.publish(view)
+            self.assertNotIn('imageCount', published['translation']['fields'])
+            self.assertNotIn('videoDurationSeconds', published['translation']['fields'])
+            rendered = store.render(published['presentationId'], {
+                'imageCount': '图片数量', 'videoDurationSeconds': '视频时长（秒）',
+            })
+            for label in ('Image count:', 'Video duration (seconds):', '图片数量', '视频时长'):
+                self.assertNotIn(label, rendered['displayText'])
+        self.assertEqual(view, before)
+
+    def test_typed_reference_keeps_central_range_and_identifies_weighted_statistics(self) -> None:
+        data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
+        data['task']['result']['insight']['reference'] = {
+            'sampleCount': 25, 'contentType': 'image', 'aggregation': 'weighted_tracks',
+            'mean': 5, 'median': 4.36, 'min': 0.26, 'max': 9.2, 'p10': 2.5, 'p90': 7.5,
+        }
+        text = render_presentation(create_presentation('task', data))
+        self.assertIn('Track-weighted reference range: 2.50 ~ 7.50', text)
+        self.assertIn('Track-weighted maximum reference: 9.20', text)
 
     def test_historical_metrics_remain_readable_without_inventing_new_values(self) -> None:
         data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
@@ -149,8 +217,8 @@ class PresentationTests(unittest.TestCase):
                 self.assertIn('Body length: 192', text)
                 self.assertIn('Characters per paragraph: 95', text)
                 self.assertIn('Topic count: 7', text)
-                self.assertIn('Paragraph count: Unavailable · Current metric unavailable', text)
-                self.assertIn('Average topic length: Unavailable · Current metric unavailable', text)
+                self.assertNotIn('Paragraph count:', text)
+                self.assertNotIn('Average topic length:', text)
                 self.assertNotIn('No topics', text)
                 self.assertNotIn('Title emoji ratio', text)
                 self.assertNotIn('List / step item count', text)

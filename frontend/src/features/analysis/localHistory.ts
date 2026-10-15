@@ -94,6 +94,16 @@ function originalImageId(taskId: string, index: number) {
     return `${localHistoryRecordPrefix}:${taskId}:source:${index + 1}`
 }
 
+/** 根据资产位置匹配真实原图；部分原片缺失时不能按压缩后的数组位置推断。 */
+export function originalImageMetadataForAsset(record: LocalHistoryRecord, assetId: string): LocalFileMetadata | null {
+    const task = record.task.standardTask
+    const references = task.contentKind === 'video' ? task.coverReference ? [task.coverReference] : [] : task.imageReferences
+    const index = references.indexOf(assetId)
+    if (index < 0) return null
+    return record.originalImages.find((metadata) => metadata.id === originalImageId(record.taskId, index))
+        ?? (record.originalImages.length === references.length ? record.originalImages[index] ?? null : null)
+}
+
 /** 截取用于本地历史标题的文本摘要 */
 function summarize(value: string) {
     const normalized = value.replace(/\s+/g, ' ').trim()
@@ -138,7 +148,7 @@ export class LocalHistoryManager {
     }
 
     /** 保存任务、最新结果和可选原始图片。 */
-    async saveTask(task: AnalysisTask, originalImages?: File[]) {
+    async saveTask(task: AnalysisTask, originalImages?: (File | null)[]) {
         try {
             const validTask = analysisTaskSchema.parse(task)
             const previousWrite = this.taskWrites.get(validTask.id)
@@ -152,11 +162,12 @@ export class LocalHistoryManager {
                     let imageMetadata = existingRecord?.originalImages ?? []
 
                     if (originalImages !== undefined) {
-                        imageMetadata = await Promise.all(
+                        const savedImages = await Promise.all(
                             originalImages.map((image, index) =>
-                                this.storage.saveFile(image, originalImageId(validTask.id, index)),
+                                image ? this.storage.saveFile(image, originalImageId(validTask.id, index)) : Promise.resolve(null),
                             ),
                         )
+                        imageMetadata = savedImages.filter((image): image is LocalFileMetadata => image !== null)
                         const currentImageIds = new Set(
                             imageMetadata.map((metadata) => metadata.id),
                         )
@@ -203,18 +214,13 @@ export class LocalHistoryManager {
             const sourceRecord = await this.getTask(z.string().min(1).parse(sourceTaskId))
             if (!sourceRecord) return await this.saveTask(task)
 
-            const sourceImages = await Promise.all(
-                sourceRecord.originalImages.map((metadata) => this.storage.getFile(metadata.id)),
-            )
-            const originalImages = sourceImages
-                .filter((image): image is LocalFile => image !== null)
-                .map(
-                    (image) =>
-                        new File([image.content], image.metadata.name, {
-                            type: image.metadata.type,
-                            lastModified: image.metadata.lastModified,
-                        }),
-                )
+            const standard = task.standardTask
+            const references = standard.contentKind === 'video' ? standard.coverReference ? [standard.coverReference] : [] : standard.imageReferences
+            const originalImages = await Promise.all(references.map(async (assetId) => {
+                const metadata = originalImageMetadataForAsset(sourceRecord, assetId)
+                const image = metadata ? await this.storage.getFile(metadata.id) : null
+                return image ? new File([image.content], image.metadata.name, { type: image.metadata.type, lastModified: image.metadata.lastModified }) : null
+            }))
             return await this.saveTask(task, originalImages)
         } catch {
             throw new LocalHistoryError('write_failed')

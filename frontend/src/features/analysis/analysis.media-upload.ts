@@ -70,6 +70,9 @@ export async function uploadDraftImages(
     onProgress: AnalysisImageUploadProgress = () => undefined,
     onSettled: (image: SharedTaskImage) => void = () => undefined,
 ) {
+    if (images.some((image) => image.file === null)) {
+        throw new Error('Original image file is unavailable for upload')
+    }
     if (images.length === 0) {
         return []
     }
@@ -77,10 +80,10 @@ export async function uploadDraftImages(
     try {
         session = await transport.createSession(
             images.map((image) => ({
-                fileName: image.file.name,
-                declaredMediaType: image.file
+                fileName: image.file!.name,
+                declaredMediaType: image.file!
                     .type as AnalysisMediaUploadDescriptor['declaredMediaType'],
-                byteSize: image.file.size,
+                byteSize: image.file!.size,
             })),
         )
     } catch (error) {
@@ -103,7 +106,7 @@ export async function uploadDraftImages(
             const qualification = session.assets[index]!
             const qualified = { ...image, assetId: qualification.id }
             try {
-                await transport.directUpload(qualification.uploadUrl, image.file, (percentage) =>
+                await transport.directUpload(qualification.uploadUrl, image.file!, (percentage) =>
                     onProgress(image.localId, percentage),
                 )
                 await transport.confirm(qualification.id)
@@ -135,7 +138,10 @@ function applyRemoteStatus(image: SharedTaskImage, asset: AnalysisMediaAsset): S
             failureStage: null,
         }
     }
-    if (['awaiting_upload', 'uploaded', 'processing'].includes(asset.state)) {
+    if (asset.state === 'awaiting_upload') {
+        return uploadFailure(image)
+    }
+    if (asset.state === 'uploaded' || asset.state === 'processing') {
         return {
             ...image,
             status: 'processing',

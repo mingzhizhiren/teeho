@@ -19,6 +19,7 @@ export { checkupOutputConstraints } from './analysis.checkup.constants'
 const MAXIMUM_INSIGHT_TRACKS = 4
 const insightReferenceGroupSchema = z
     .object({
+        contentType: z.enum(['image', 'video']).optional(),
         trackCode: z.number().int().min(0).max(checkupOutputConstraints.maximumTrackCode),
         sampleCount: z.number().int().nonnegative(),
         mean: z.number().min(0).max(checkupOutputConstraints.insightMaximumScore),
@@ -153,7 +154,7 @@ export const checkupReportSchema = z
         customMetrics: z.array(customMetricSchema).max(customMetricLimits.count).optional(),
         structureMetrics: structureMetricsSchema,
         structureReferences: structureReferencesSchema,
-        structureMetricsVersion: z.literal('structure.v2').optional(),
+        structureMetricsVersion: z.enum(['structure.v2', 'structure.v3']).optional(),
         structureReferencePolicy: z.string().min(1).optional(),
         structureLocations: structureLocationsSchema.optional(),
         primaryScore: z
@@ -238,7 +239,19 @@ export const checkupReportSchema = z
     .strict()
     .superRefine((report, context) => {
         if (
-            report.structureMetricsVersion === 'structure.v2' &&
+            report.structureMetricsVersion === 'structure.v3' &&
+            (report.structureMetrics.imageCount === undefined ||
+                report.structureReferences.imageCount === undefined ||
+                report.structureMetrics.videoDurationSeconds === undefined ||
+                report.structureReferences.videoDurationSeconds === undefined)
+        )
+            context.addIssue({
+                code: 'custom',
+                path: ['structureMetrics'],
+                message: 'Incomplete structure v3 report',
+            })
+        if (
+            report.structureMetricsVersion !== undefined &&
             (report.structureMetrics.maxTopicLength === undefined ||
                 report.structureMetrics.maxParagraphLength == null ||
                 report.structureReferences.maxTopicLength === undefined ||

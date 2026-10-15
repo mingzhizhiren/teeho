@@ -1,5 +1,5 @@
 <template>
-    <div class="flex min-h-screen flex-col overflow-x-clip bg-canvas text-ink">
+    <div class="ui-public-shell flex min-h-screen flex-col overflow-x-clip bg-canvas text-ink">
         <PublicSiteHeader />
         <div class="flex min-h-0 flex-1 flex-col">
             <slot />

@@ -17,10 +17,11 @@ export function selectImageAttachments(
     existing: File[],
     incoming: File[],
     limits: ImageIntakeLimits,
+    reserved: { count: number; bytes: number } = { count: 0, bytes: 0 },
 ): { files: File[]; error: string | null } {
     const initial = {
         files: [] as File[],
-        bytes: existing.reduce((total, file) => total + file.size, 0),
+        bytes: existing.reduce((total, file) => total + file.size, reserved.bytes),
         error: null as string | null,
     }
     const result = selectNewDraftImageFiles(existing, incoming).reduce((state, file) => {
@@ -28,7 +29,7 @@ export function selectImageAttachments(
             ? 'invalidType'
             : file.size <= 0 || file.size > limits.maxFileBytes
               ? 'fileTooLarge'
-              : existing.length + state.files.length >= limits.maxFiles
+              : existing.length + reserved.count + state.files.length >= limits.maxFiles
                 ? 'tooMany'
                 : state.bytes + file.size > limits.maxTotalBytes
                   ? 'batchTooLarge'

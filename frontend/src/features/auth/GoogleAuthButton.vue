@@ -1,6 +1,6 @@
 <template>
     <a
-        class="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface px-4 text-sm font-semibold text-ink transition focus:outline-none focus:ring-4 focus:ring-brand/10"
+        class="app-button app-button--secondary app-button--md w-full"
         :class="
             disabled
                 ? 'cursor-not-allowed opacity-60'

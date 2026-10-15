@@ -1,10 +1,31 @@
 import type { GuideDefinition } from './productGuide.types'
 import { SHOW_RADAR_REPORT } from '@/utils/reportPresentation'
 
+const templateSteps: GuideDefinition['steps'] = [
+    {
+        id: 'copy-template',
+        routeName: 'workspace',
+        anchorId: 'onboarding.expert-mode.copy-template',
+        titleKey: 'productGuide.onboarding.template.copy.title',
+        contentKey: 'productGuide.onboarding.template.copy.content',
+        placement: 'top',
+        interaction: 'highlight_only',
+    },
+    {
+        id: 'paste-content',
+        routeName: 'workspace',
+        anchorId: 'onboarding.expert-mode.paste-content',
+        titleKey: 'productGuide.onboarding.template.paste.title',
+        contentKey: 'productGuide.onboarding.template.paste.content',
+        placement: 'top',
+        interaction: 'highlight_only',
+    },
+]
+
 /** 随当前前端发布的生产引导；语义变化通过 guide ID 版本显式升级。 */
 const allProductGuideDefinitions: GuideDefinition[] = [
     {
-        id: 'onboarding.workspace-foundation.v2',
+        id: 'onboarding.workspace-foundation.v4',
         steps: [
             {
                 id: 'welcome',
@@ -15,9 +36,9 @@ const allProductGuideDefinitions: GuideDefinition[] = [
                 interaction: 'highlight_only',
             },
             {
-                id: 'mode-choice',
+                id: 'content-kind',
                 routeName: 'workspace',
-                anchorId: 'onboarding.workspace.mode',
+                anchorId: 'onboarding.expert-mode.options',
                 titleKey: 'productGuide.onboarding.workspaceFoundation.steps.modeChoice.title',
                 contentKey: 'productGuide.onboarding.workspaceFoundation.steps.modeChoice.content',
                 placement: 'bottom',
@@ -26,80 +47,26 @@ const allProductGuideDefinitions: GuideDefinition[] = [
             {
                 id: 'task-options',
                 routeName: 'workspace',
-                anchorId: 'onboarding.workspace.options',
+                anchorId: 'onboarding.expert-mode.media',
                 titleKey: 'productGuide.onboarding.workspaceFoundation.steps.taskOptions.title',
                 contentKey: 'productGuide.onboarding.workspaceFoundation.steps.taskOptions.content',
                 placement: 'top',
                 interaction: 'highlight_only',
             },
             {
-                id: 'agent-input',
+                id: 'note-fields',
                 routeName: 'workspace',
-                anchorId: 'onboarding.workspace.agent-input',
+                anchorId: 'onboarding.expert-mode.core-fields',
                 titleKey: 'productGuide.onboarding.workspaceFoundation.steps.agentInput.title',
                 contentKey: 'productGuide.onboarding.workspaceFoundation.steps.agentInput.content',
                 placement: 'top',
                 interaction: 'highlight_only',
             },
+            ...templateSteps,
         ],
     },
     {
-        id: 'onboarding.agent-reply.v2',
-        steps: [
-            {
-                id: 'reply-region',
-                routeName: 'workspace',
-                anchorId: 'onboarding.agent-reply.region',
-                titleKey: 'productGuide.onboarding.agentReply.steps.replyRegion.title',
-                contentKey: 'productGuide.onboarding.agentReply.steps.replyRegion.content',
-                placement: 'bottom',
-                interaction: 'highlight_only',
-            },
-            {
-                id: 'free-input',
-                routeName: 'workspace',
-                anchorId: 'onboarding.agent-reply.free-input',
-                titleKey: 'productGuide.onboarding.agentReply.steps.freeInput.title',
-                contentKey: 'productGuide.onboarding.agentReply.steps.freeInput.content',
-                placement: 'top',
-                interaction: 'highlight_only',
-            },
-        ],
-    },
-    {
-        id: 'onboarding.task-confirmation.v2',
-        steps: [
-            {
-                id: 'confirmation-card',
-                routeName: 'workspace',
-                anchorId: 'onboarding.task-confirmation.card',
-                titleKey: 'productGuide.onboarding.taskConfirmation.steps.card.title',
-                contentKey: 'productGuide.onboarding.taskConfirmation.steps.card.content',
-                placement: 'bottom',
-                interaction: 'click_to_advance',
-            },
-            {
-                id: 'key-fields',
-                routeName: 'workspace',
-                anchorId: 'onboarding.task-confirmation.key-fields',
-                titleKey: 'productGuide.onboarding.taskConfirmation.steps.keyFields.title',
-                contentKey: 'productGuide.onboarding.taskConfirmation.steps.keyFields.content',
-                placement: 'bottom',
-                interaction: 'highlight_only',
-            },
-            {
-                id: 'start-analysis',
-                routeName: 'workspace',
-                anchorId: 'onboarding.task-confirmation.start-analysis',
-                titleKey: 'productGuide.onboarding.taskConfirmation.steps.startAnalysis.title',
-                contentKey: 'productGuide.onboarding.taskConfirmation.steps.startAnalysis.content',
-                placement: 'top',
-                interaction: 'highlight_only',
-            },
-        ],
-    },
-    {
-        id: 'onboarding.expert-mode.v2',
+        id: 'onboarding.expert-mode.v3',
         steps: [
             {
                 id: 'task-options',
@@ -128,6 +95,7 @@ const allProductGuideDefinitions: GuideDefinition[] = [
                 placement: 'top',
                 interaction: 'highlight_only',
             },
+            ...templateSteps,
             {
                 id: 'start-analysis',
                 routeName: 'workspace',
@@ -174,9 +142,11 @@ const allProductGuideDefinitions: GuideDefinition[] = [
 ]
 
 /** 暂时跳过已隐藏的雷达图引导，保留其余报告引导。 */
-export const productGuideDefinitions: GuideDefinition[] = allProductGuideDefinitions.map((guide) => ({
-    ...guide,
-    steps: guide.steps.filter(
-        (step) => SHOW_RADAR_REPORT || step.anchorId !== 'onboarding.analysis-result.metrics',
-    ),
-}))
+export const productGuideDefinitions: GuideDefinition[] = allProductGuideDefinitions.map(
+    (guide) => ({
+        ...guide,
+        steps: guide.steps.filter(
+            (step) => SHOW_RADAR_REPORT || step.anchorId !== 'onboarding.analysis-result.metrics',
+        ),
+    }),
+)

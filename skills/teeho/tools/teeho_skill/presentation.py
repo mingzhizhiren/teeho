@@ -142,6 +142,10 @@ def _report_view(
             isinstance(insight.get("reference"), dict)
             and insight["reference"].get("aggregation") == "weighted_tracks"
         ),
+        "typedReference": (
+            isinstance(insight.get("reference"), dict)
+            and insight["reference"].get("contentType") in ("image", "video")
+        ),
         "scoreReference": (
             {
                 key: _number(insight["reference"].get(key), 10)

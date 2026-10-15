@@ -1,4 +1,5 @@
 import type { Agent } from '@mastra/core/agent'
+import type { StandardSchemaWithJSON } from '@mastra/core/schema'
 import { z } from 'zod'
 import { comparisonExplanationSchema } from '../checkup/analysis.comparison-explanation'
 import {
@@ -24,6 +25,7 @@ import {
 } from './analysis.provider'
 import { createGenerateResultPrompt, createRepairResultPrompt } from './analysis.provider-prompts'
 import { normalizeAgentProviderUsage } from './analysis.provider-usage'
+import { createComparisonExplanationTransportSchema } from './analysis.comparison-transport'
 
 const maximumErrorTraversalDepth = 6
 
@@ -37,6 +39,7 @@ interface MastraGenerationInput {
     prompt: string
     images: AgentImageAsset[]
     schema: z.ZodType<unknown>
+    modelSchema?: StandardSchemaWithJSON
     signal: AbortSignal
     requestId: string
 }
@@ -77,8 +80,7 @@ function createAgentRunner(agent: Agent): MastraGenerationRunner {
     return async (input) => {
         const output = await agent.generate(createMessages(input.prompt, input.images), {
             structuredOutput: {
-                // 两个业务 Schema 共享同一运行时协议；窄化只用于选择 Mastra 的重载。
-                schema: input.schema as typeof agentGeneratedResultProviderSchema,
+                schema: input.modelSchema ?? input.schema,
                 errorStrategy: 'strict',
             },
             abortSignal: input.signal,
@@ -425,6 +427,9 @@ export class MastraModelAgentProvider implements AgentProvider {
             schema: input.comparisonFacts
                 ? comparisonExplanationSchema
                 : agentGeneratedResultProviderSchema,
+            modelSchema: input.comparisonFacts
+                ? createComparisonExplanationTransportSchema()
+                : undefined,
             signal: input.signal,
             requestId: input.correlation.requestId,
         })

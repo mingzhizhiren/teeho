@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -36,15 +37,17 @@ async function signOut(): Promise<void> {
 
 <template>
     <div>
-        <button
-            class="min-h-11 w-full rounded-xl border border-line bg-surface-muted px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-60"
+        <AppButton
+            variant="secondary"
+            size="md"
+            class="w-full"
             type="button"
             :disabled="isLoggingOut"
             data-testid="account-sign-out"
             @click="signOut"
         >
             {{ isLoggingOut ? t('auth.loggingOut') : t('auth.logout') }}
-        </button>
+        </AppButton>
         <InlineFeedback
             v-if="errorMessage"
             class="mt-2"

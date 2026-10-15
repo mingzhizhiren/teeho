@@ -2,6 +2,7 @@ import { TIME_MS } from '../../config/constants'
 import { withTransaction } from '../../db/database'
 import { analysisTaskConfig } from '../analysis.config'
 import { analysisMediaConstraints } from '../analysis.constants'
+import { AnalysisAssetExpiredError } from '../analysis.errors'
 import { requestAnalysisMediaCleanupRunBestEffort } from './analysis.asset-lifecycle.service'
 import { validateAnalysisUploadDescriptors, type AnalysisUploadDescriptor } from './analysis.media'
 import { AnalysisMediaUploadRateLimitError } from './analysis.media-upload-admission'
@@ -15,7 +16,11 @@ import {
     type AnalysisMediaAssetRecord,
     type InsertMediaUploadSessionParam,
 } from './analysis.media.repository'
-import { supabaseAnalysisObjectStorage, type AnalysisObjectStorage } from './analysis.storage'
+import {
+    createAnalysisMediaPreviewUrl,
+    supabaseAnalysisObjectStorage,
+    type AnalysisObjectStorage,
+} from './analysis.storage'
 
 interface AnalysisMediaPersistence {
     insertSession(param: InsertMediaUploadSessionParam): Promise<void>
@@ -56,10 +61,27 @@ const systemAnalysisMediaClock: AnalysisMediaClock = {
     randomUUID: () => crypto.randomUUID(),
 }
 
+/** 账号不可见的素材与不存在的素材使用同一领域错误。 */
+export class AnalysisMediaAssetNotFoundError extends Error {
+    constructor() {
+        super('图片素材不存在')
+        this.name = 'AnalysisMediaAssetNotFoundError'
+    }
+}
+
+/** 预览限制独立于上传窗口，达到限制不清空草稿或素材。 */
+export class AnalysisMediaPreviewRateLimitError extends Error {
+    constructor(readonly retryAfterSeconds: number) {
+        super('图片预览请求过于频繁，请稍后重试')
+        this.name = 'AnalysisMediaPreviewRateLimitError'
+    }
+}
+
 export interface CreateAnalysisMediaServiceOptions {
     storage?: AnalysisObjectStorage
     persistence?: AnalysisMediaPersistence
     clock?: AnalysisMediaClock
+    signPreview?: (path: string, seconds: number) => Promise<string>
 }
 
 function extensionFor(mediaType: AnalysisMediaAssetRecord['declaredMediaType']) {
@@ -73,6 +95,8 @@ function publicAsset(asset: AnalysisMediaAssetRecord) {
     return {
         id: asset.id,
         fileName: asset.fileName,
+        declaredMediaType: asset.declaredMediaType,
+        declaredByteSize: asset.declaredByteSize,
         state: asset.state,
         mediaType: asset.mediaType,
         byteSize: asset.byteSize,
@@ -89,6 +113,27 @@ export function createAnalysisMediaService(options: CreateAnalysisMediaServiceOp
     const storage = options.storage ?? supabaseAnalysisObjectStorage
     const persistence = options.persistence ?? postgresAnalysisMediaPersistence
     const clock = options.clock ?? systemAnalysisMediaClock
+    const signPreview = options.signPreview ?? createAnalysisMediaPreviewUrl
+    let previewWindows = new Map<string, { expiresAt: number; count: number }>()
+    function claimPreview(userId: string): void {
+        const now = clock.now().getTime()
+        const previous = previewWindows.get(userId)
+        const current =
+            previous && previous.expiresAt > now
+                ? previous
+                : { expiresAt: now + TIME_MS.MINUTE, count: 0 }
+        if (current.count >= analysisMediaConstraints.previewRequestsPerMinute) {
+            throw new AnalysisMediaPreviewRateLimitError(
+                Math.ceil((current.expiresAt - now) / TIME_MS.SECOND),
+            )
+        }
+        previewWindows = new Map([
+            ...[...previewWindows].filter(
+                ([id, window]) => id !== userId && window.expiresAt > now,
+            ),
+            [userId, { ...current, count: current.count + 1 }],
+        ])
+    }
 
     const getStatuses = async (userId: string, assetIds: string[]) => {
         const uniqueIds = [...new Set(assetIds)]
@@ -98,12 +143,54 @@ export function createAnalysisMediaService(options: CreateAnalysisMediaServiceOp
         const assets = await persistence.findOwned(userId, uniqueIds)
         const byId = new Map(assets.map((asset) => [asset.id, asset]))
         if (byId.size !== uniqueIds.length) {
-            throw new Error('图片素材不存在')
+            throw new AnalysisMediaAssetNotFoundError()
         }
         return uniqueIds.map((id) => publicAsset(byId.get(id)!))
     }
 
     return {
+        /** 预览只引用有效派生图，签名期限不能越过资产期限。 */
+        async getPreview(userId: string, assetId: string) {
+            claimPreview(userId)
+            const [asset] = await persistence.findOwned(userId, [assetId])
+            const hasCleanupRequested = await persistence.hasCleanupRequested(userId, [assetId])
+            const now = clock.now().getTime()
+            const remaining = asset
+                ? Math.floor((Date.parse(asset.expiresAt) - now) / TIME_MS.SECOND) -
+                  analysisMediaConstraints.previewSigningSafetySeconds
+                : 0
+            if (
+                !asset ||
+                asset.state !== 'ready' ||
+                !asset.processedObjectPath ||
+                !Number.isFinite(remaining) ||
+                remaining <= 0 ||
+                hasCleanupRequested
+            ) {
+                throw new AnalysisAssetExpiredError('图片已不可用，请重新上传')
+            }
+            const seconds = Math.min(remaining, analysisMediaConstraints.previewMaxAgeSeconds)
+            const previewUrl = await signPreview(asset.processedObjectPath, seconds)
+            if (await persistence.hasCleanupRequested(userId, [assetId])) {
+                throw new AnalysisAssetExpiredError('图片已不可用，请重新上传')
+            }
+            const signedAt = clock.now().getTime()
+            if (signedAt >= Date.parse(asset.expiresAt)) {
+                throw new AnalysisAssetExpiredError('图片已不可用，请重新上传')
+            }
+            if (
+                signedAt >= now + seconds * TIME_MS.SECOND ||
+                signedAt + seconds * TIME_MS.SECOND > Date.parse(asset.expiresAt)
+            ) {
+                // Storage 按实际签发时刻起算；用响应时刻保守核验，超时资格不得交给浏览器。
+                throw new Error('图片预览暂不可用，请重试')
+            }
+            return {
+                assetId,
+                previewUrl,
+                previewExpiresAt: new Date(now + seconds * TIME_MS.SECOND).toISOString(),
+            }
+        },
         async createUploadSession(userId: string, files: AnalysisUploadDescriptor[]) {
             const totalBytes = validateAnalysisUploadDescriptors(files)
             const now = clock.now()

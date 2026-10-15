@@ -1,3 +1,4 @@
+import { withTransaction } from '../../db/database'
 import { logger } from '../../utils/logger'
 import {
     findAnalysisTaskOriginalObjectPaths,
@@ -8,13 +9,17 @@ import { supabaseAnalysisObjectStorage } from './analysis.storage'
 
 /** 记录单个任务的素材清理意图，实际删除由 PostgreSQL 定时任务执行。 */
 export async function cleanupAnalysisTaskAssets(userId: string, taskId: string) {
-    const requested = await requestAnalysisAssetCleanup({ userId, taskId })
+    const requested = await withTransaction((transaction) =>
+        requestAnalysisAssetCleanup({ userId, taskId }, transaction),
+    )
     return { requested }
 }
 
 /** 记录当前账号全部素材的清理意图，实际删除由 PostgreSQL 定时任务执行。 */
 export async function cleanupAnalysisUserAssets(userId: string) {
-    const requested = await requestAnalysisAssetCleanup({ userId })
+    const requested = await withTransaction((transaction) =>
+        requestAnalysisAssetCleanup({ userId }, transaction),
+    )
     return { requested }
 }
 

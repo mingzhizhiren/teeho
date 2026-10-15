@@ -22,7 +22,7 @@ function processedObjectPath(asset: AnalysisMediaAssetRecord, mediaType: string)
     const extension =
         mediaType === 'image/jpeg' ? 'jpg' : mediaType === 'image/png' ? 'png' : 'webp'
     const base = asset.originalObjectPath.replace(/\/original\/[^/]+$/u, '/processed')
-    return `${base}/${asset.id}.${extension}`
+    return `${base}/${asset.id}-${asset.processingAttemptCount}.${extension}`
 }
 
 /** Durable PostgreSQL queue consumer for validating and deriving private analysis images. */
@@ -135,7 +135,12 @@ export class AnalysisMediaWorker {
             })
             const derivedPath = processedObjectPath(asset, processed.mediaType)
             await this.storage.upload(derivedPath, processed.content, processed.mediaType)
-            const committed = await this.markReady(asset.id, derivedPath, processed)
+            const committed = await this.markReady(
+                asset.id,
+                derivedPath,
+                processed,
+                asset.processingAttemptCount,
+            )
             if (!committed) {
                 await this.storage.remove([derivedPath])
                 this.log.info(
@@ -166,7 +171,7 @@ export class AnalysisMediaWorker {
                     ? error.code
                     : 'image_processing_failed'
             try {
-                await this.markFailed(asset.id, failureCode)
+                await this.markFailed(asset.id, failureCode, asset.processingAttemptCount)
             } catch (persistenceError) {
                 this.log.warn(
                     {
@@ -187,6 +192,7 @@ export class AnalysisMediaWorker {
                     assetId: asset.id,
                     event: 'analysis_media_processing_failed',
                     failureCode,
+                    attemptNumber: asset.processingAttemptCount,
                     errorName: error instanceof Error ? error.name : 'UnknownError',
                 },
                 '分析图片处理失败',

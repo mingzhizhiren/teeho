@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppButton from '@/components/AppButton.vue'
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -163,7 +164,7 @@ onBeforeUnmount(restoreBodyScroll)
         >
             <section
                 ref="accountDialog"
-                class="flex h-[100dvh] max-h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden border border-line bg-surface shadow-2xl md:h-[44rem] md:max-h-[calc(100dvh-2rem)] md:max-w-3xl md:rounded-3xl"
+                class="ui-account-dialog flex h-[100dvh] max-h-[100dvh] w-full min-w-0 max-w-full flex-col overflow-hidden border border-line bg-surface shadow-2xl md:h-[44rem] md:max-h-[calc(100dvh-2rem)] md:max-w-3xl md:rounded-3xl"
                 role="dialog"
                 aria-modal="true"
                 :aria-labelledby="accountDialogTitleId"
@@ -187,7 +188,7 @@ onBeforeUnmount(restoreBodyScroll)
                     </div>
                     <button
                         ref="accountCloseButton"
-                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line text-muted transition hover:border-brand/40 hover:bg-brand/5 hover:text-ink"
+                        class="app-button app-button--secondary app-button--icon-only app-button--sm shrink-0"
                         type="button"
                         :aria-label="t('common.close')"
                         @click="closeAccountDialog"
@@ -243,16 +244,18 @@ onBeforeUnmount(restoreBodyScroll)
 
                         <main class="min-w-0 p-5 sm:p-6" :aria-labelledby="accountPanelTitleId">
                             <div class="mb-5">
-                                <button
+                                <AppButton
                                     v-if="activeSection !== 'overview'"
-                                    class="mb-3 inline-flex min-h-10 items-center gap-2 rounded-xl border border-line px-3 text-sm font-medium text-muted transition hover:border-brand/40 hover:bg-brand/5 hover:text-ink md:hidden"
+                                    variant="secondary"
+                                    size="sm"
+                                    class="mb-3 md:hidden"
                                     type="button"
                                     :aria-label="t('account.backToOverview')"
                                     @click="selectSection('overview')"
                                 >
                                     <AppIcon name="arrow-left" size="sm" />
                                     {{ t('account.back') }}
-                                </button>
+                                </AppButton>
                                 <h3
                                     :id="accountPanelTitleId"
                                     ref="accountPanelHeading"
@@ -291,7 +294,11 @@ onBeforeUnmount(restoreBodyScroll)
                     </div>
                 </div>
                 <footer class="shrink-0 border-t border-line bg-surface px-5 py-4 sm:px-6">
-                    <component :is="runtime.accountFooter" v-if="runtime.accountFooter" @suspend="closeAccountDialog" />
+                    <component
+                        :is="runtime.accountFooter"
+                        v-if="runtime.accountFooter"
+                        @suspend="closeAccountDialog"
+                    />
                     <AccountSignOutAction @suspend="suspendAccountDialog" />
                 </footer>
             </section>
