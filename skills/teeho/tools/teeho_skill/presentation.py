@@ -13,7 +13,8 @@ from .errors import TeehoError
 from .version import SkillUpgradeRequired
 from .report_fields import read_optional
 from .score import read_primary_score
-from .content_analysis import project_content_analysis, read_content_analysis
+from .content_analysis import project_content_analysis
+from .report_access import allows, project_access_result, read_report_access
 from .risk_matches import project_risk_matches
 from .selection_reason import selection_reason
 from .custom_metrics import read_custom_metrics
@@ -95,12 +96,15 @@ def _make_report(task: View, saved: bool, historical: bool, log: Optional[Callab
     result = task.get("result")
     if not isinstance(result, dict):
         return _invalid()
+    access = read_report_access(result)
     conclusion = result.get("qualitativeConclusion")
-    if not isinstance(conclusion, dict) or not isinstance(
-        conclusion.get("summary"), str
+    if access is None and (
+        not isinstance(conclusion, dict)
+        or not isinstance(conclusion.get("summary"), str)
+        or not conclusion["summary"].strip()
     ):
         return _invalid()
-    if not conclusion["summary"].strip() or _identifier(task.get("id")) is None:
+    if _identifier(task.get("id")) is None:
         return _invalid()
     return _report_view(task, result, saved, historical, log)
 
@@ -109,6 +113,8 @@ def _report_view(
     task: View, result: View, saved: bool, historical: bool, log: Optional[Callable] = None
 ) -> View:
     texts: dict[str, str] = {}
+    access = read_report_access(result)
+    result = project_access_result(result, access)
 
     def prose(value: object) -> str:
         nonlocal texts
@@ -126,8 +132,10 @@ def _report_view(
     insight = result.get("insight") if isinstance(result.get("insight"), dict) else {}
     radar = result.get("radar") if isinstance(result.get("radar"), dict) else {}
     primary_score = read_primary_score(result)
-    conclusion = result["qualitativeConclusion"]
+    conclusion = result.get("qualitativeConclusion")
+    summary = conclusion.get("summary") if isinstance(conclusion, dict) else None
     data = {
+        **({"reportAccess": access} if access is not None else {}),
         "taskId": _identifier(task.get("id")),
         "historical": historical,
         "saved": saved is True,
@@ -162,11 +170,12 @@ def _report_view(
             else None
         ),
         "scores": [_number(radar.get(key), 10) for key in RADAR_METRICS],
-        "summary": prose(conclusion["summary"]),
+        "summary": prose(summary) if isinstance(summary, str) and summary.strip()
+        and allows(access, "contentAnalysis", "consistency") else None,
         "comparisons": comparisons,
         "riskMatches": read_optional(
-            "riskMatches", lambda: project_risk_matches(result, task, prose), None, log
-        ),
+            "riskMatches", lambda: project_risk_matches(result, prose), None, log
+        ) if allows(access, "contentAnalysis", "termRisks") else None,
         "riskReviewStatus": result.get("riskReviewStatus"),
         "structureMetrics": read_optional(
             "structureMetrics",
@@ -177,7 +186,7 @@ def _report_view(
         "contentAnalysis": read_optional(
             "contentAnalysis",
             lambda: project_content_analysis(
-                result.get("contentAnalysis"), prose, comparisons, log
+                result.get("contentAnalysis"), prose, comparisons, log, access=access
             ),
             None,
             log,

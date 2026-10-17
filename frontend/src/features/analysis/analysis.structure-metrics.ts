@@ -18,7 +18,7 @@ export const structureLocationsSchema = z
 export type StructureLocations = z.infer<typeof structureLocationsSchema>
 
 /** 只接收报告保存的结构指标，不从当前任务重新计算历史值。 */
-const currentStructureMetricsSchema = z
+export const currentStructureMetricsSchema = z
     .object({
         titleLength: structureCountSchema,
         bodyLength: structureCountSchema,
@@ -72,7 +72,7 @@ const structureReferenceSchema = z
     .nullable()
 
 /** 服务端冻结的同类优秀样本参考范围，缺少证据时保留 null。 */
-const currentStructureReferencesSchema = z
+export const currentStructureReferencesSchema = z
     .object({
         titleLength: structureReferenceSchema,
         bodyLength: structureReferenceSchema,
@@ -130,21 +130,27 @@ export const structureMetricNames = [
     'videoDurationSeconds',
 ] as const
 
-export type StructureDifferenceState = 'within' | 'short' | 'long' | 'few' | 'many'
+type StructureDifferenceDirection = 'short' | 'long' | 'few' | 'many'
+export type StructureDifferenceState =
+    | 'within'
+    | StructureDifferenceDirection
+    | `slightly_${StructureDifferenceDirection}`
+    | `too_${StructureDifferenceDirection}`
 
 /** 媒体指标只有保存值和参考范围同时存在时才展示。 */
 export function visibleStructureMetricNames(
-    metrics: StructureMetrics,
-    references: StructureReferences,
+    metrics: Partial<StructureMetrics>,
+    references: Partial<StructureReferences>,
 ): (keyof StructureMetrics)[] {
     return structureMetricNames.filter(
         (name) =>
             metrics[name] != null &&
-            ((name !== 'imageCount' && name !== 'videoDurationSeconds') || references[name] != null),
+            ((name !== 'imageCount' && name !== 'videoDurationSeconds') ||
+                references[name] != null),
     )
 }
 
-/** 差异文字描述保存值相对范围的位置，严重度只用于原有配色。 */
+/** 按保存的严重度映射稍、偏、过三档文案，不重新计算范围或配色。 */
 export function structureDifferenceState(
     metric: keyof StructureMetrics,
     value: number | null | undefined,
@@ -154,6 +160,9 @@ export function structureDifferenceState(
     if (value >= reference.low && value <= reference.high) return 'within'
     const isCount =
         metric === 'paragraphCount' || metric === 'topicCount' || metric === 'imageCount'
-    if (value < reference.low) return isCount ? 'few' : 'short'
-    return isCount ? 'many' : 'long'
+    const direction =
+        value < reference.low ? (isCount ? 'few' : 'short') : isCount ? 'many' : 'long'
+    if (reference.severity === 'minor') return `slightly_${direction}`
+    if (reference.severity === 'critical') return `too_${direction}`
+    return direction
 }

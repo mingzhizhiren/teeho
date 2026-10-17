@@ -92,7 +92,11 @@ export function useAnalysisTaskLifecycle(
     }
 
     async function settleSessionOnlyTask(task: AnalysisTask): Promise<void> {
-        if (!isActiveTask(task) && !shouldPersist(task)) {
+        if (
+            !isActiveTask(task) &&
+            !shouldPersist(task) &&
+            (sessionTaskIds.has(task.id) || findSubmissionIntent(task))
+        ) {
             await options.forgetSubmissionIntent?.(task)
         }
     }
@@ -150,7 +154,8 @@ export function useAnalysisTaskLifecycle(
                 options.submissionIntents.value.some((intent) => intent.submissionId === task.id) ||
                 (isActiveTask(task) && trackedFingerprints.has(task.inputFingerprint)),
         )
-        remoteTasks.value = trackedTasks
+        // 同账号远端任务均可展示；本地保存和提交对账仍只处理本浏览器跟踪的任务。
+        remoteTasks.value = [...serverTasks]
 
         for (const trackedTask of trackedTasks) {
             if (!isCurrent()) {
@@ -361,19 +366,13 @@ export function useAnalysisTaskLifecycle(
         },
 
         /**
-         * 打开已跟踪任务；必要时先从服务端加载最新状态。
+         * 打开同账号任务；通知可指向本地未跟踪的任务，所有权由服务端校验。
          * @param taskId 目标分析任务 ID
          */
         async openTrackedTask(taskId: string) {
             const isCurrent = captureOwner()
             let selectedTask = tasks.value.find((candidate) => candidate.id === taskId)
             if (!selectedTask?.result) {
-                const isTrackedLocally = options.historyRecords.value.some(
-                    (record) => record.taskId === taskId,
-                )
-                if (!isTrackedLocally && !sessionTaskIds.has(taskId)) {
-                    return null
-                }
                 selectedTask = await adapter.getTask(taskId)
                 if (!isCurrent()) return null
                 upsert(selectedTask)

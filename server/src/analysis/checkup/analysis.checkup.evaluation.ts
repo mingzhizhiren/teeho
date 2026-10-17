@@ -36,6 +36,7 @@ import { loadCheckupEvidence } from './analysis.checkup.evidence'
 import type { AnalysisQuantificationEvidenceStore } from './analysis.checkup.evidence-store'
 import { mapCheckupReferences, selectCheckupNotes } from './analysis.checkup.selection'
 import { prepareModelCohort } from './analysis.model-cohort.prepare'
+import { resolveReferenceSelection } from '../../runtime/reference-selection'
 import { MODEL_COHORT_LIMITS, readModelCohort, modelCohortEvidence } from './analysis.model-cohort'
 import { selectHybridReferences } from './analysis.hybrid-references'
 import { scoreCheckupReferences } from './analysis.reference-scoring'
@@ -51,6 +52,7 @@ import { calculateDifferences } from './analysis.differences'
 import { calculateStructureReferences } from './analysis.structure-metrics'
 import { createAdviceEvidenceSources } from './analysis.advice'
 import { reviewAnalysisContent } from './analysis.content-review'
+import { calculateNoteScoring } from './analysis.note-scoring'
 const SHANGHAI_OFFSET_MS = 28800000
 const DATE_WIDTH = 10
 const MILLISECONDS_PER_SECOND = 1000
@@ -179,6 +181,7 @@ export async function evaluateAnalysisCheckup(
         requiresModelCohort
             ? async (fresh) =>
                   prepareModelCohort({
+                      selectionMode: await resolveReferenceSelection(input.task.userId),
                       evidence: fresh,
                       task: provisionalTask,
                       predict: input.predict ?? predictInsight,
@@ -395,15 +398,42 @@ export async function evaluateAnalysisCheckup(
         })
     const originalScore = insight
         ? insight.status === 'available' && insight.baseScore !== null && !insight.limited
-            ? roundCheckupScore(insight.baseScore)
+            ? insight.baseScore
             : null
-        : roundCheckupScore(validScores.reduce((sum, score) => sum + score, 0) / validScores.length)
+        : validScores.reduce((sum, score) => sum + score, 0) / validScores.length
+    const noteScoring = calculateNoteScoring(
+        task.contentKind,
+        structureMetrics,
+        structureReferences,
+        tracked.value.status === 'completed',
+    )
     const scorePolicy = 'consistency-weighted.v2' as const
     const mainScore = forceZero
         ? 0
         : roundCheckupScore(
-              originalScore! * contentScoreMultiplier({ ...tracked.value, scorePolicy }),
+              Math.min(
+                  checkupOutputConstraints.insightMaximumScore,
+                  originalScore! *
+                      noteScoring.noteScoringCoefficient *
+                      contentScoreMultiplier({ ...tracked.value, scorePolicy }),
+              ),
           )
+    input.log.debug(
+        {
+            event: 'analysis_note_scoring',
+            taskId: input.task.id,
+            requestId: input.requestId,
+            policy: noteScoring.noteScoringAudit.policy,
+            originalScore,
+            noteScoringCoefficient: noteScoring.noteScoringCoefficient,
+            starMultiplier: contentScoreMultiplier({ ...tracked.value, scorePolicy }),
+            finalScore: mainScore,
+            evaluatedCount: noteScoring.noteScoringAudit.evaluated.length,
+            unavailableCount: noteScoring.noteScoringAudit.unavailable.length,
+            reviewCompleted: noteScoring.noteScoringAudit.reviewCompleted,
+        },
+        '笔记评分系数已冻结',
+    )
     const frozenReference = insight?.reference
     const reference =
         frozenReference &&
@@ -421,6 +451,7 @@ export async function evaluateAnalysisCheckup(
             : null
     const result = checkupReportSchema.parse({
         schemaVersion: 'analysis-result.v7',
+        ...noteScoring,
         ...(input.plugins.referenceRequirement === 'optional'
             ? { referenceRequirement: 'optional' as const }
             : {}),

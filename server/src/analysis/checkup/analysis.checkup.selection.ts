@@ -206,9 +206,9 @@ export function excellentCheckupSamples(
 
 /** 用户仅看到有限对照，不返回采集时间或原始数据库记录。 */
 export function checkupReferences(samples: readonly SelectedCheckupNote[]): CheckupReference[] {
-    const unique = excellentCheckupSamples(samples, checkupOutputConstraints.maxReferences)
+    const unique = excellentCheckupSamples(samples, checkupSampling.legacyReferenceLimit)
         .sort((left, right) => right.similarity - left.similarity)
-        .slice(0, checkupOutputConstraints.maxReferences)
+        .slice(0, checkupSampling.legacyReferenceLimit)
     return mapCheckupReferences(unique)
 }
 

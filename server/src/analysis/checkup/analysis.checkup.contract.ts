@@ -10,6 +10,11 @@ import {
 } from './analysis.structure-metrics'
 import { radarScoresSchema } from './analysis.radar'
 import {
+    noteScoringAuditSchema,
+    noteScoringCoefficientSchema,
+    validSavedNoteScoring,
+} from './analysis.note-scoring'
+import {
     contentAnalysisSchema,
     contentRiskSchema,
     contentScoreMultiplier,
@@ -147,6 +152,8 @@ export type CheckupReference = z.infer<typeof checkupReferenceSchema>
 export const checkupReportSchema = z
     .object({
         schemaVersion: z.enum(['analysis-result.v6', 'analysis-result.v7']),
+        noteScoringCoefficient: noteScoringCoefficientSchema.optional(),
+        noteScoringAudit: noteScoringAuditSchema.optional(),
         contentAnalysis: contentAnalysisSchema.optional(),
         riskMatches: z.array(contentRiskSchema).optional(),
         referenceRequirement: z.enum(['required', 'optional']).optional(),
@@ -239,6 +246,16 @@ export const checkupReportSchema = z
     .strict()
     .superRefine((report, context) => {
         if (
+            !validSavedNoteScoring(report) ||
+            (report.noteScoringCoefficient !== undefined &&
+                report.schemaVersion !== 'analysis-result.v7')
+        )
+            context.addIssue({
+                code: 'custom',
+                path: ['noteScoringCoefficient'],
+                message: 'Invalid saved note scoring coefficient',
+            })
+        if (
             report.structureMetricsVersion === 'structure.v3' &&
             (report.structureMetrics.imageCount === undefined ||
                 report.structureReferences.imageCount === undefined ||
@@ -310,8 +327,12 @@ export const checkupReportSchema = z
                 report.contentAnalysis &&
                 !forceZero &&
                 roundCheckupScore(
-                    report.contentAnalysis.originalScore! *
-                        contentScoreMultiplier(report.contentAnalysis),
+                    Math.min(
+                        checkupOutputConstraints.insightMaximumScore,
+                        report.contentAnalysis.originalScore! *
+                            (report.noteScoringCoefficient ?? 1) *
+                            contentScoreMultiplier(report.contentAnalysis),
+                    ),
                 ) !== primary.value
             )
                 invalid()
@@ -322,10 +343,12 @@ export const checkupReportSchema = z
             const minimum = 4
             const decimals = 100
             const average =
-                Math.round(
-                    scores.reduce((sum, value) => sum + Math.round(value * decimals), 0) /
-                        scores.length,
-                ) / decimals
+                report.noteScoringCoefficient === undefined
+                    ? Math.round(
+                          scores.reduce((sum, value) => sum + Math.round(value * decimals), 0) /
+                              scores.length,
+                      ) / decimals
+                    : scores.reduce((sum, value) => sum + value, 0) / scores.length
             if (
                 report.insight !== null ||
                 scores.length < minimum ||
@@ -333,10 +356,14 @@ export const checkupReportSchema = z
                     (forceZero
                         ? 0
                         : roundCheckupScore(
-                              average *
-                                  (report.contentAnalysis
-                                      ? contentScoreMultiplier(report.contentAnalysis)
-                                      : 1),
+                              Math.min(
+                                  checkupOutputConstraints.insightMaximumScore,
+                                  average *
+                                      (report.noteScoringCoefficient ?? 1) *
+                                      (report.contentAnalysis
+                                          ? contentScoreMultiplier(report.contentAnalysis)
+                                          : 1),
+                              ),
                           )) ||
                 (report.contentAnalysis && report.contentAnalysis.originalScore !== average)
             )

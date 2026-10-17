@@ -10,6 +10,7 @@ from .content_advice import (
 )
 from .messages import safe_text
 from .report_fields import read_optional
+from .report_access import Access, allows
 
 LOCATIONS = frozenset(("title", "body", "topics", "cover", "content"))
 MAX_STARS = 5
@@ -69,9 +70,9 @@ def _findings(
 
 
 def read_content_analysis(
-    value: object, log: Optional[Callable] = None
+    value: object, log: Optional[Callable] = None, *, access: Optional[Access] = None
 ) -> Optional[dict[str, Any]]:
-    """旧报告可缺省；新报告只接受完整的受约束结构。"""
+    """旧报告可缺省；权限隐藏的一致性字段不作为损坏报告处理。"""
     if value is None:
         return None
     if not isinstance(value, dict) or value.get("status") not in (
@@ -85,14 +86,12 @@ def read_content_analysis(
     ):
         raise ValueError("invalid_content_analysis")
     consistency = value.get("consistency")
-    if not isinstance(consistency, dict):
-        raise ValueError("invalid_content_analysis")
-    stars = consistency.get("stars")
-    if (
-        type(stars) is not int
-        or not 0 <= stars <= MAX_STARS
-    ):
-        raise ValueError("invalid_content_analysis")
+    if allows(access, "contentAnalysis", "consistency"):
+        if not isinstance(consistency, dict):
+            raise ValueError("invalid_content_analysis")
+        stars = consistency.get("stars")
+        if type(stars) is not int or not 0 <= stars <= MAX_STARS:
+            raise ValueError("invalid_content_analysis")
 
     def findings(items: object, maximum: int, kind: str) -> list[dict[str, Any]]:
         if items is None:
@@ -109,7 +108,6 @@ def read_content_analysis(
             )
         ]
 
-    issues = findings(consistency.get("issues"), MAX_ISSUES, "issue")
     risks = findings(value.get("termRisks"), MAX_RISKS, "risk")
     weaknesses = findings(value.get("weaknesses"), MAX_WEAKNESSES, "weakness")
     return {
@@ -131,11 +129,11 @@ def read_content_analysis(
             if "evaluationVersion" in value
             else {}
         ),
-        "consistency": {
-            "stars": stars,
+        **({"consistency": {
+            "stars": consistency["stars"],
             "summary": _text(consistency.get("summary")),
-            "issues": issues,
-        },
+            "issues": findings(consistency.get("issues"), MAX_ISSUES, "issue"),
+        }} if allows(access, "contentAnalysis", "consistency") else {}),
         "termRisks": risks,
         "weaknesses": weaknesses,
         "weaknessesAvailable": isinstance(value.get("weaknesses"), list)
@@ -148,9 +146,11 @@ def project_content_analysis(
     prose: Callable[[object], str],
     comparisons: list[dict[str, Any]],
     log: Optional[Callable] = None,
+    *,
+    access: Optional[Access] = None,
 ) -> Optional[dict[str, Any]]:
     """说明走翻译流程；命中原文与引用标题保持原样。"""
-    analysis = read_content_analysis(value, log)
+    analysis = read_content_analysis(value, log, access=access)
     if analysis is None:
         return None
 
@@ -168,7 +168,7 @@ def project_content_analysis(
             ],
         }
 
-    consistency = analysis["consistency"]
+    consistency = analysis.get("consistency")
     weaknesses = [
         row
         for item in analysis["weaknesses"]
@@ -195,10 +195,11 @@ def project_content_analysis(
             if "evaluationVersion" in analysis
             else {}
         ),
-        "stars": consistency["stars"],
-        "summary": prose(consistency["summary"]),
-        "issues": [project(item) for item in consistency["issues"]],
-        "termRisks": [project(item) for item in analysis["termRisks"]],
+        **({
+            "stars": consistency["stars"],
+            "summary": prose(consistency["summary"]),
+            "issues": [project(item) for item in consistency["issues"]],
+        } if consistency else {}),
         "weaknesses": weaknesses,
         "weaknessesAvailable": analysis["weaknessesAvailable"]
         and len(weaknesses) == len(analysis["weaknesses"]),
@@ -230,9 +231,11 @@ def _finding_lines(item: dict[str, Any], translate: Callable[[str], str]) -> lis
 def content_analysis_rating(data: dict[str, Any]) -> str:
     """主标题使用已保存的一致性星级，不重算评分。"""
     analysis = data.get("contentAnalysis")
-    if not analysis:
+    if not analysis or not allows(data.get("reportAccess"), "contentAnalysis", "consistency"):
         return ""
-    stars = analysis["stars"]
+    stars = analysis.get("stars")
+    if type(stars) is not int:
+        return ""
     return "★" * stars + "☆" * (MAX_STARS - stars) + f" ({stars}/5)"
 
 
@@ -241,12 +244,17 @@ def content_analysis_lines(
 ) -> list[str]:
     """按固定次序渲染一致性、优化建议和参考不足。"""
     analysis = data.get("contentAnalysis")
+    access = data.get("reportAccess")
     if not analysis:
-        return [translate(data["summary"])]
-    rows = [translate("contentConsistency")]
-    if analysis["status"] == "fallback":
-        rows.append(translate("contentAnalysisFallback"))
-    rows.append(translate(analysis["summary"]))
+        return [translate(data["summary"])] if data.get("summary") and allows(
+            access, "contentAnalysis", "consistency"
+        ) else []
+    rows = []
+    if allows(access, "contentAnalysis", "consistency"):
+        rows.append(translate("contentConsistency"))
+        if analysis["status"] == "fallback":
+            rows.append(translate("contentAnalysisFallback"))
+        rows.append(translate(analysis["summary"]))
     empty_weaknesses = (
         "contentNoObviousWeaknesses"
         if analysis.get("evaluationVersion") == EVALUATION_VERSION
@@ -256,8 +264,10 @@ def content_analysis_lines(
         ("issues", None, None),
         ("weaknesses", "contentWeaknesses", empty_weaknesses),
     ):
-        if key == "weaknesses":
+        if key == "weaknesses" and allows(access, "contentAnalysis", "advice"):
             rows.extend(content_advice_lines(analysis.get("advice"), translate))
+        if not allows(access, "contentAnalysis", "consistency" if key == "issues" else key):
+            continue
         if heading:
             rows.extend(["", translate(heading)])
         if not analysis[key] and empty:

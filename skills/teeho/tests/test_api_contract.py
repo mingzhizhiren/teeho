@@ -338,7 +338,7 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(call(), data)
                 actual, route, headers, body = Handler.requests[-1]
                 self.assertEqual((actual, route), (method, "/api" + path))
-                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.5.3")
+                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.6.1")
                 (
                     self.assertEqual(json.loads(body), expected_body)
                     if expected_body is not None
@@ -390,6 +390,8 @@ class ApiContractTests(unittest.TestCase):
                         "minimumVersion": "2.2.0",
                         "latestVersion": "2.3.1",
                         "downloadPath": "/skill/download",
+                        "officialInstallUrl": "https://untrusted.example/install.md",
+                        "githubInstallUrl": "https://untrusted.example/fallback.md",
                         "message": "untrusted server prose",
                     },
                 )
@@ -402,7 +404,10 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(view["state"], "upgrade_required")
                 self.assertEqual(view["nextAction"], "upgrade_skill")
                 text = render_presentation(view)
-                self.assertIn(self.api.base_url + "/skill/download", text)
+                self.assertEqual(raised.exception.details["downloadUrl"], self.api.base_url + "/skill/download")
+                self.assertIn("https://teeho.chat/skill-install.md", text)
+                self.assertIn("https://github.com/mingzhizhiren/teeho/blob/main/docs/skill-install.md", text)
+                self.assertNotIn("untrusted.example", text)
                 self.assertIn("2.2.0", text)
                 self.assertNotIn("untrusted server prose", text)
 

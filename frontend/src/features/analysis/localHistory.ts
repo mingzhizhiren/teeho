@@ -116,7 +116,7 @@ function summarize(value: string) {
 export function createLocalHistoryName(task: AnalysisTask) {
     const candidates = [
         task.standardTask.fields.title?.value,
-        task.result?.qualitativeConclusion.summary,
+        task.result?.qualitativeConclusion?.summary,
     ]
 
     for (const candidate of candidates) {
@@ -276,7 +276,7 @@ export class LocalHistoryManager {
                 record.task.standardTask.fields.title?.value,
                 record.task.standardTask.fields.body?.value,
                 ...(record.task.standardTask.fields.topics?.value ?? []),
-                record.task.result?.qualitativeConclusion.summary,
+                record.task.result?.qualitativeConclusion?.summary,
             ]
                 .filter((value): value is string => typeof value === 'string')
                 .join('\n')

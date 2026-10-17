@@ -137,7 +137,7 @@ test('公开源码目录与 Release ZIP 使用相同的可安装文件', async (
                 await archiveFiles.get(`teeho/${relativePath}`)!.bytes(),
             )
         }
-        expect(expectedPaths).toContain('resources/risk-database.json')
+        expect(expectedPaths).not.toContain('resources/risk-database.json')
         expect(expectedPaths.some((path) => path.includes('tests/') || path.endsWith('.pyc'))).toBe(
             false,
         )
@@ -255,7 +255,7 @@ test('技能包解包后能运行帮助命令，且不包含凭据或测试', as
         expect(version).toBe(sourceMarkdown.match(/version:\s*["']([^"']+)["']/)?.[1])
         const release = JSON.parse(await files.get('teeho/release.json')!.text())
         expect(release.version).toBe(version)
-        expect(release.minimumVersion).toBe('2.4.2')
+        expect(release.minimumVersion).toBe('2.6.1')
         expect([...files.keys()].filter((path) => path.endsWith('.md')).sort()).toEqual([
             'teeho/LICENSE.md',
             'teeho/README.md',
@@ -295,11 +295,8 @@ test('技能包解包后能运行帮助命令，且不包含凭据或测试', as
         expect(files.has('teeho/tools/teeho_skill/__init__.py')).toBe(true)
         expect(files.has('teeho/tools/teeho_skill/api.py')).toBe(true)
         expect(files.has('teeho/tools/teeho_skill/http_transport.py')).toBe(true)
-        expect(JSON.parse(await files.get('teeho/resources/risk-database.json')!.text())).toEqual(
-            await Bun.file(
-                new URL('../../skills/teeho/resources/risk-database.json', import.meta.url),
-            ).json(),
-        )
+        expect(files.has('teeho/tools/teeho_skill/report_access.py')).toBe(true)
+        expect(files.has('teeho/resources/risk-database.json')).toBe(false)
         await archive.extract(root)
         const child = Bun.spawn(
             [

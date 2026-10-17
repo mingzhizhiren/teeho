@@ -16,6 +16,8 @@ import {
     createResolvedTaskFieldsFixture,
     createStandardTaskFixture,
 } from './analysisTestFixtures'
+import { tierReport, restrictedReport, paidReport, fullReportAccess } from './reportAccess.fixture'
+import { analysisResultSchema } from '@/features/analysis/analysis.contract'
 
 class MemoryStorage implements LocalHistoryStorage {
     records = new Map<string, unknown>()
@@ -89,6 +91,60 @@ function createTask(id: string, topic: string): AnalysisTask {
 }
 
 describe('LocalHistoryManager', () => {
+    test('v3 历史保留免费、Coffee、Plus 首次交付配额', async () => {
+        const manager = new LocalHistoryManager('v3-user', new MemoryStorage())
+        for (const count of [4, 8, 10] as const) {
+            const task = createAnalysisTaskFixture({
+                id: `tier-${count}`,
+                result: analysisResultSchema.parse(tierReport(count)),
+            })
+            await manager.saveTask(task)
+            const saved = (await manager.getTask(task.id))?.task.result
+            expect(saved?.comparisonNotes).toHaveLength(count)
+            expect(saved?.reportAccess?.version).toBe('report-access.v3')
+        }
+    })
+
+    test('新版八篇与旧版四篇历史保持各自权限快照和篇数', async () => {
+        const manager = new LocalHistoryManager('report-version-user', new MemoryStorage())
+        const current = createAnalysisTaskFixture({
+            id: 'paid-current',
+            result: analysisResultSchema.parse(paidReport),
+        })
+        const legacy = createAnalysisTaskFixture({
+            id: 'paid-legacy',
+            result: analysisResultSchema.parse({
+                ...paidReport,
+                reportAccess: fullReportAccess,
+                comparisonNotes: paidReport.comparisonNotes.slice(0, 4),
+            }),
+        })
+        await manager.saveTask(current)
+        await manager.saveTask(legacy)
+        expect((await manager.getTask(current.id))?.task.result?.comparisonNotes).toHaveLength(8)
+        expect((await manager.getTask(legacy.id))?.task.result?.comparisonNotes).toHaveLength(4)
+        expect((await manager.getTask(legacy.id))?.task.result?.reportAccess?.version).toBe(
+            'report-access.v1',
+        )
+    })
+
+    test('历史保存冻结的裁剪结果，不补回匿名隐藏字段或修改旧完整报告', async () => {
+        const manager = new LocalHistoryManager('report-access-user', new MemoryStorage())
+        const restricted = createAnalysisTaskFixture({
+            id: 'restricted-task',
+            result: analysisResultSchema.parse(restrictedReport),
+        })
+        const full = createAnalysisTaskFixture({ id: 'old-full-task' })
+        await manager.saveTask(restricted)
+        await manager.saveTask(full)
+        expect((await manager.getTask(restricted.id))?.task.result).toEqual(restricted.result)
+        expect(
+            (await manager.getTask(restricted.id))?.task.result?.structureMetrics.paragraphLength,
+        ).toBeUndefined()
+        expect((await manager.getTask(full.id))?.task.result).toEqual(full.result)
+        expect(await manager.searchTasks('通勤')).toHaveLength(2)
+    })
+
     test('保存最新任务、唯一结果和原始图片', async () => {
         const storage = new MemoryStorage()
         const manager = new LocalHistoryManager('user-a', storage)

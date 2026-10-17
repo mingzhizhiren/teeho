@@ -5,12 +5,16 @@ import math
 import os
 import stat
 import tempfile
+import time
 from functools import lru_cache
 from pathlib import Path
 
 from .errors import TeehoError
 
 MAX_JSON_BYTES = 32 * 1024 * 1024
+WINDOWS_REPLACE_ATTEMPTS = 20
+WINDOWS_REPLACE_DELAY_SECONDS = 0.05
+WINDOWS_REPLACE_CONFLICTS = frozenset({5, 32})
 
 
 @lru_cache(maxsize=1)
@@ -159,6 +163,22 @@ def read_json(path: Path, default: object = None) -> object:
     return value
 
 
+def _replace_json(source: Path, target: Path) -> None:
+    """Windows 短暂读取可能拒绝替换；只重试同一次本地落盘，超限保留旧文件。"""
+    for attempt in range(WINDOWS_REPLACE_ATTEMPTS):
+        try:
+            source.replace(target)
+            return
+        except PermissionError as error:
+            if (
+                os.name != "nt"
+                or getattr(error, "winerror", None) not in WINDOWS_REPLACE_CONFLICTS
+                or attempt == WINDOWS_REPLACE_ATTEMPTS - 1
+            ):
+                raise
+            time.sleep(WINDOWS_REPLACE_DELAY_SECONDS)
+
+
 def write_json(path: Path, value: object) -> None:
     """临时文件同步落盘后原子替换，失败保留旧文件。"""
     path = Path(path)
@@ -176,6 +196,6 @@ def write_json(path: Path, value: object) -> None:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        temporary_path.replace(path)
+        _replace_json(temporary_path, path)
     finally:
         temporary_path.unlink(missing_ok=True)

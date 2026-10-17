@@ -17,7 +17,6 @@ import AnalysisComparisonReport from './AnalysisComparisonReport.vue'
 import AnalysisContentAnalysis from './AnalysisContentAnalysis.vue'
 import AnalysisRiskMatches from './AnalysisRiskMatches.vue'
 import AnalysisRiskText from './AnalysisRiskText.vue'
-import { resolveRiskMatches, riskTrackCodes } from './analysis.risk-matches'
 import { formatTaskFieldValue } from './analysis.format'
 import { isAnalysisResultExpired } from './analysis.result-expiration'
 import type {
@@ -33,6 +32,7 @@ import type { ResultCopyLabels } from './resultDetails'
 import AnalysisCustomMetrics from './AnalysisCustomMetrics.vue'
 import { structureDifferenceState } from './analysis.structure-metrics'
 import { createContentAdviceLabels } from './analysis.advice'
+import { canShowContentIndicator } from './analysis.report-access'
 
 const props = defineProps<{
     task: AnalysisTask
@@ -72,15 +72,9 @@ const result = computed(() => {
     return props.task.result
 })
 const riskMatches = computed(() =>
-    resolveRiskMatches(
-        result.value.riskMatches,
-        {
-            title: props.task.standardTask.fields.title.value,
-            body: props.task.standardTask.fields.body.value,
-            topics: props.task.standardTask.fields.topics.value.join('\n'),
-        },
-        riskTrackCodes(result.value),
-    ),
+    !canShowContentIndicator(result.value.reportAccess, 'termRisks')
+        ? undefined
+        : result.value.riskMatches,
 )
 const radarReport = computed(() => visibleRadar(result.value))
 const visibleResultFields = computed(() =>
@@ -187,6 +181,7 @@ async function handleCopy(target: ResultCopyTarget) {
                 risks: t('workspace.checkup.contentAnalysis.risks'),
                 weaknesses: t('workspace.checkup.contentAnalysis.weaknesses'),
                 noRisks: t('workspace.checkup.contentAnalysis.noRisks'),
+                riskResultsMissing: t('workspace.checkup.contentAnalysis.riskResultsMissing'),
                 riskReviewUnavailable: t('workspace.checkup.contentAnalysis.riskReviewUnavailable'),
                 noWeaknesses: t('workspace.checkup.contentAnalysis.noWeaknesses'),
                 noObviousWeaknesses: t('workspace.checkup.contentAnalysis.noObviousWeaknesses'),
@@ -242,8 +237,10 @@ async function handleCopy(target: ResultCopyTarget) {
                         ? t('workspace.checkup.structureMetrics.unavailable')
                         : n(number, {
                               style: 'decimal',
+                              minimumFractionDigits:
+                                  analysisUiConstraints.structureDisplayDecimalPlaces,
                               maximumFractionDigits:
-                                  analysisUiConstraints.scoreDisplayDecimalPlaces,
+                                  analysisUiConstraints.structureDisplayDecimalPlaces,
                           })
                 const range = reference
                     ? t('workspace.checkup.structureMetrics.range', {
@@ -267,7 +264,7 @@ async function handleCopy(target: ResultCopyTarget) {
                 return `${t(`workspace.checkup.structureMetrics.fields.${name}`)}: ${savedValue}${state}${range ? `\n${range}` : ''}`
             },
         }
-        await copyResult(result.value, labels, undefined, riskMatches.value)
+        await copyResult(result.value, labels)
         await resultExtension.onCopied(target)
         copyFeedback.value = { type: 'success', target }
     } catch {
@@ -375,8 +372,8 @@ function dismissResultActionFeedback() {
                         {{ t(`workspace.checkup.metrics.${metric}`) }}
                     </dt>
                     <dd class="mt-1 text-sm font-semibold text-ink">
-                        {{ result.radar[metric]?.toFixed(2) ?? '—'
-                        }}<span v-if="result.radar[metric] !== null"> / 10</span>
+                        {{ result.radar?.[metric]?.toFixed(2) ?? '—'
+                        }}<span v-if="result.radar?.[metric] != null"> / 10</span>
                     </dd>
                 </div>
             </dl>
@@ -386,12 +383,20 @@ function dismissResultActionFeedback() {
         <AnalysisContentAnalysis :result="result">
             <template #footer>
                 <AnalysisRiskMatches
+                    v-if="canShowContentIndicator(result.reportAccess, 'termRisks')"
                     :matches="riskMatches"
                     :review-status="result.riskReviewStatus"
                 />
             </template>
         </AnalysisContentAnalysis>
         <AnalysisComparisonReport :result="result" />
+        <p
+            v-if="result.reportAccess?.footer"
+            class="text-sm text-muted"
+            data-testid="analysis-report-access-footer"
+        >
+            {{ result.reportAccess.footer }}
+        </p>
 
         <section class="rounded-2xl border border-line bg-surface">
             <button
@@ -417,7 +422,13 @@ function dismissResultActionFeedback() {
                     </dd>
                 </div>
                 <template v-for="field in visibleResultFields" :key="field.name">
-                    <div class="rounded-xl bg-surface-muted p-3">
+                    <div
+                        class="min-w-0 rounded-xl bg-surface-muted p-3"
+                        :class="{
+                            'sm:col-start-1 sm:row-start-3': field.name === 'body',
+                            'sm:col-start-2 sm:row-start-2': field.name === 'topics',
+                        }"
+                    >
                         <dt class="text-xs text-muted">{{ t(field.labelKey) }}</dt>
                         <dd class="mt-1 text-sm text-ink">
                             <AnalysisRiskText
@@ -428,7 +439,7 @@ function dismissResultActionFeedback() {
                                     )
                                 "
                                 :terms="
-                                    riskMatches
+                                    (riskMatches ?? [])
                                         .filter((risk) => risk.location === field.name)
                                         .map((risk) => risk.term)
                                 "

@@ -15,6 +15,7 @@ import {
 } from './analysis.constants'
 import { checkupSampling } from './checkup/analysis.checkup.constants'
 import { checkupReportSchema } from './checkup/analysis.checkup.contract'
+import { reportAccessPolicySchema } from './report-access/analysis.report-access.policy'
 import { checkupTopicEvidenceSchema } from './checkup/analysis.checkup.topics'
 import { MATERIAL_LIMITS, materialDescriptionSchema } from './materials/analysis.material.contract'
 import { secondaryTrackCodesSchema } from './tracks/analysis.track-selection'
@@ -305,6 +306,7 @@ const providerUsageSchema = z
 export const analysisInternalExecutionTraceSchema = z
     .object({
         schemaVersion: z.literal('execution-trace.v4'),
+        reportAccess: reportAccessPolicySchema.optional(),
         metricEvidence: z.record(metricMetadataSchema).optional(),
         pluginVersion: z
             .string()

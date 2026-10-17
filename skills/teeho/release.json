@@ -1,4 +1,8 @@
 {
-    "version": "2.5.3",
-    "minimumVersion": "2.4.2"
+    "version": "2.6.1",
+    "minimumVersion": "2.6.1",
+    "installationUrls": {
+        "official": "https://teeho.chat/skill-install.md",
+        "github": "https://github.com/mingzhizhiren/teeho/blob/main/docs/skill-install.md"
+    }
 }

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { InsightPredictor } from '../../runtime/insight'
+import type { ReferenceSelectionMode } from '../../runtime/reference-selection'
 import type { StandardAnalysisTask } from '../analysis.schema'
 import type { AnalysisEvidenceSet } from '../evidence/analysis.evidence'
 import { mapCheckupReferences, selectCheckupNotes } from './analysis.checkup.selection'
@@ -22,6 +23,7 @@ interface ModelCohortInput {
     readonly predict: InsightPredictor
     readonly modelId: string
     readonly signal: AbortSignal
+    readonly selectionMode?: ReferenceSelectionMode
     readonly onUnavailable: (category: string, durationMs: number) => void
 }
 
@@ -73,17 +75,20 @@ export async function prepareModelCohort(input: ModelCohortInput): Promise<Analy
                   {
                       noteId: reference.noteId,
                       score: reference.modelScore,
+                      likes: reference.likes,
+                      collects: reference.collects,
                       sources: identities.find((item) => item.noteId === reference.noteId)!.sources,
                   },
               ],
     )
     const cohort = {
         policy: MODEL_COHORT_POLICY,
+        selectionMode: input.selectionMode ?? 'standard',
         modelId: input.modelId,
         parentEvidenceVersion: input.evidence.evidenceVersion,
         candidates: identities,
         scored,
-        ...selectModelCohort(scored),
+        ...selectModelCohort(scored, undefined, input.selectionMode),
     }
     return {
         ...evidence,

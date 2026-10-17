@@ -3,11 +3,11 @@ import { analysisResultSchema } from '@/features/analysis/analysis.contract'
 import { checkupResult } from './checkupResult.fixture'
 import { contentAnalysisFixture } from './contentAnalysis.fixture'
 
-test('四篇混合参考及建议引用可完整读取，第五篇仍拒绝', () => {
-    const comparisonNotes = Array.from({ length: 4 }, (_, index) => ({
+test('十篇混合参考及建议引用可完整读取，第十一篇仍拒绝', () => {
+    const comparisonNotes = Array.from({ length: 10 }, (_, index) => ({
         ...checkupResult.comparisonNotes[0],
         noteId: `reference-${index}`,
-        reason: index < 2 ? 'similar_content' : 'semantic_similarity',
+        reason: index < 5 ? 'similar_content' : 'semantic_similarity',
         modelScore: index,
     }))
     const report = {
@@ -21,12 +21,12 @@ test('四篇混合参考及建议引用可完整读取，第五篇仍拒绝', ()
             weaknesses: [
                 {
                     ...contentAnalysisFixture.weaknesses[0],
-                    referenceIds: comparisonNotes.map((note) => note.noteId),
+                    referenceIds: comparisonNotes.slice(6).map((note) => note.noteId),
                 },
             ],
         },
     }
-    expect(analysisResultSchema.parse(report).comparisonNotes).toHaveLength(4)
+    expect(analysisResultSchema.parse(report).comparisonNotes).toHaveLength(10)
     expect(
         analysisResultSchema.safeParse({
             ...report,

@@ -1,8 +1,8 @@
 /** 算法及评分口径的单一版本来源。 */
 export const checkupVersions = {
     algorithm: 'radar-rules.v120.2',
-    selection: 'checkup-selection.v8',
-    score: 'insight-consistency-score.v2',
+    selection: 'checkup-selection.v9',
+    score: 'insight-structure-consistency-score.v3',
     explanation: 'content-analysis.v6',
 } as const
 
@@ -25,7 +25,7 @@ export const checkupOutputConstraints = {
     maxStrengths: 6,
     maxRisks: 12,
     maxUncertainties: 12,
-    maxReferences: 4,
+    maxReferences: 10,
     maxDifferences: 3,
     referenceTitleMaxLength: 80,
     excerptMaxLength: 300,
@@ -36,6 +36,8 @@ export const checkupOutputConstraints = {
 
 /** 私有笔记比较的明确资源和时效边界。 */
 export const checkupSampling = {
+    // 未启用模型优秀集合的旧路径仍展示四篇，不因报告容量扩大而改变选样。
+    legacyReferenceLimit: 4,
     windowsDays: [
         CHECKUP_WINDOW_DAYS.initial,
         CHECKUP_WINDOW_DAYS.expanded,

@@ -113,8 +113,8 @@ const mediaRequirementMessage = computed(() =>
         ? t(`workspace.mediaRequired.${mediaRequirement.value.messageKey}`)
         : '',
 )
-watch(mediaRequirementMessage, (_message, previous) => {
-    if (previous && formError.value === previous) formError.value = ''
+watch(mediaRequirementMessage, (message, previous) => {
+    if (previous && formError.value === previous) formError.value = message
 })
 const accessLockMessage = computed(() => access.lockMessage)
 const videoUnavailableMessage = computed(
@@ -319,6 +319,9 @@ const draftImageUpload = createDraftImageUpload(
 )
 
 function updateDraftImages(images: SharedTaskImage[]): void {
+    const selectionChanged =
+        images.length !== draft.images.length ||
+        images.some((image, index) => image.localId !== draft.images[index]?.localId)
     const previousIds = new Set(draft.images.map((image) => image.localId))
     const wasMissingCover = draft.coverLocalId?.startsWith(MISSING_COVER_PREFIX)
     draft.images = [...images]
@@ -328,7 +331,8 @@ function updateDraftImages(images: SharedTaskImage[]): void {
               draft.coverLocalId)
             : (images[0]?.localId ?? null)
     }
-    formError.value = ''
+    // 上传进度及处理轮询不是用户编辑，不清除仍然有效的表单错误。
+    if (selectionChanged) formError.value = ''
     invalidatePreview()
     void persistence.save()
 }
@@ -360,8 +364,9 @@ async function updateContentKind(contentKind: AnalysisContentKind): Promise<void
 }
 
 function updateDraftVideo(video: SharedTaskVideo | null): void {
+    const selectionChanged = (video?.localId ?? null) !== (draft.video?.localId ?? null)
     draft.video = video ? { ...video } : null
-    formError.value = ''
+    if (selectionChanged) formError.value = ''
     invalidatePreview()
     void persistence.save()
 }
@@ -488,12 +493,7 @@ async function submitDraft(): Promise<void> {
         formError.value = accessLockMessage.value
         return
     }
-    if (
-        !validateRequiredDraftFields() ||
-        !canRequestAnalysis.value ||
-        !canSubmit.value
-    )
-        return
+    if (!validateRequiredDraftFields() || !canRequestAnalysis.value || !canSubmit.value) return
     formError.value = ''
     const input = currentSubmissionInput(config)
     checkingStorage.value = true

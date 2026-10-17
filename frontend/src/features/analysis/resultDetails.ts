@@ -8,7 +8,11 @@ import { visibleRadar } from './analysis.radar-view'
 import { readPrimaryScore } from './analysis.primary-score'
 import { presentReference, type SelectionReason } from './analysis.selection-reason'
 import { contentAnalysisCopyLines, type ContentAnalysisLabels } from './analysis.content-analysis'
-import type { RiskMatch } from './analysis.risk-matches'
+import {
+    canShowContentIndicator,
+    canShowReportSection,
+    canShowStructureMetric,
+} from './analysis.report-access'
 import {
     visibleStructureMetricNames,
     type StructureMetrics,
@@ -69,11 +73,8 @@ export function useResultDetails(initialExpanded = false) {
 }
 
 /** 复制已保存的主分、差异和案例。 */
-export function buildResultCopyText(
-    result: AnalysisResult,
-    labels: ResultCopyLabels,
-    riskMatches: readonly RiskMatch[] = result.riskMatches ?? [],
-): string {
+export function buildResultCopyText(result: AnalysisResult, labels: ResultCopyLabels): string {
+    const riskMatches = result.riskMatches
     const decimals = analysisUiConstraints.scoreDisplayDecimalPlaces
     const savedReference = result.insight?.reference
     const reference =
@@ -101,7 +102,7 @@ export function buildResultCopyText(
         ...(SHOW_RADAR_REPORT && visibleRadar(result)
             ? radarMetricNames.map(
                   (metric) =>
-                      `${labels.metrics[metric]}: ${result.radar[metric]?.toFixed(decimals) ?? '\u2014'}`,
+                      `${labels.metrics[metric]}: ${result.radar?.[metric]?.toFixed(decimals) ?? '\u2014'}`,
               )
             : []),
         ...(result.customMetrics ?? []).map(
@@ -110,24 +111,35 @@ export function buildResultCopyText(
         ),
         ...contentAnalysisCopyLines(
             result.contentAnalysis,
-            result.qualitativeConclusion.summary,
+            result.qualitativeConclusion?.summary ?? '',
             result.comparisonNotes,
             labels.contentAnalysis,
+            result.reportAccess,
         ),
-        labels.contentAnalysis.risks,
-        ...(result.riskReviewStatus === 'unavailable'
-            ? [labels.contentAnalysis.riskReviewUnavailable ?? labels.contentAnalysis.fallback]
+        ...(canShowContentIndicator(result.reportAccess, 'termRisks')
+            ? [
+                  labels.contentAnalysis.risks,
+                  ...(result.riskReviewStatus === 'unavailable'
+                      ? [
+                            labels.contentAnalysis.riskReviewUnavailable ??
+                                labels.contentAnalysis.fallback,
+                        ]
+                      : []),
+                  ...(riskMatches?.length
+                      ? riskMatches.map(
+                            (item) =>
+                                `${item.term} — ${labels.contentAnalysis.locations[item.location]} · ${item.description}`,
+                        )
+                      : riskMatches === undefined
+                        ? [labels.contentAnalysis.riskResultsMissing]
+                        : result.riskReviewStatus === 'unavailable'
+                          ? []
+                          : [labels.contentAnalysis.noRisks]),
+              ]
             : []),
-        ...(riskMatches.length
-            ? riskMatches.map(
-                  (item) =>
-                      `${item.term} — ${labels.contentAnalysis.locations[item.location]} · ${item.description}`,
-              )
-            : result.riskReviewStatus === 'unavailable'
-              ? []
-              : [labels.contentAnalysis.noRisks]),
-        ...visibleStructureMetricNames(result.structureMetrics, result.structureReferences).map(
-            (name) =>
+        ...visibleStructureMetricNames(result.structureMetrics, result.structureReferences)
+            .filter((name) => canShowStructureMetric(result.reportAccess, name))
+            .map((name) =>
                 [
                     labels.structureMetric(
                         name,
@@ -145,23 +157,32 @@ export function buildResultCopyText(
                           )
                         : []),
                 ].join('\n'),
-        ),
-        ...result.comparisonNotes.map((note) => {
-            const presentation = presentReference(note, labels)
-            return [
-                note.title,
-                ...(note.modelScore != null && labels.referenceModelScore
-                    ? [`${labels.referenceModelScore}: ${note.modelScore.toFixed(decimals)} / 10`]
-                    : []),
-                note.bodyExcerpt,
-                ...(note.topics?.length ? [note.topics.map((topic) => `#${topic}`).join(' ')] : []),
-                note.url ?? labels.missingUrl,
-                ...(presentation.reason ? [presentation.reason] : []),
-                ...(['likes', 'collects', 'comments'] as const).map(
-                    (metric) => `${labels[metric]}: ${presentation.counts[metric]}`,
-                ),
-            ].join('\n')
-        }),
+            ),
+        ...(canShowReportSection(result.reportAccess, 'comparisonNotes')
+            ? result.comparisonNotes
+                  .slice(0, result.reportAccess?.sections.comparisonNotes.limit)
+                  .map((note) => {
+                      const presentation = presentReference(note, labels)
+                      return [
+                          note.title,
+                          ...(note.modelScore != null && labels.referenceModelScore
+                              ? [
+                                    `${labels.referenceModelScore}: ${note.modelScore.toFixed(decimals)} / 10`,
+                                ]
+                              : []),
+                          note.bodyExcerpt,
+                          ...(note.topics?.length
+                              ? [note.topics.map((topic) => `#${topic}`).join(' ')]
+                              : []),
+                          note.url ?? labels.missingUrl,
+                          ...(presentation.reason ? [presentation.reason] : []),
+                          ...(['likes', 'collects', 'comments'] as const).map(
+                              (metric) => `${labels[metric]}: ${presentation.counts[metric]}`,
+                          ),
+                      ].join('\n')
+                  })
+            : []),
+        ...(result.reportAccess?.footer ? [result.reportAccess.footer] : []),
     ].join('\n\n')
 }
 
@@ -170,10 +191,9 @@ export async function copyResult(
     result: AnalysisResult,
     labels: ResultCopyLabels,
     writer: ClipboardWriter | undefined = globalThis.navigator?.clipboard,
-    riskMatches: readonly RiskMatch[] = result.riskMatches ?? [],
 ): Promise<void> {
     if (!writer) {
         throw new Error('clipboard_unavailable')
     }
-    await writer.writeText(buildResultCopyText(result, labels, riskMatches))
+    await writer.writeText(buildResultCopyText(result, labels))
 }

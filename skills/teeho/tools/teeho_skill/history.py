@@ -7,6 +7,7 @@ from typing import Any, Optional, Union
 
 from .errors import TeehoError
 from .storage import ensure_private_directory, read_json, write_json
+from .report_access import allows, project_access_result, read_report_access
 
 IDENTIFIER = re.compile(r"[a-f0-9-]{36}", re.IGNORECASE)
 REPORT_FILE = re.compile(r"[a-f0-9-]{36}\.json", re.IGNORECASE)
@@ -51,6 +52,25 @@ def _report(value: object, task_id: str) -> dict[str, Any]:
         raise TeehoError("历史报告不可读取")
     local_media(value.get("localMedia"))
     return value
+
+
+def _history_summary(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    try:
+        access = read_report_access(value)
+    except ValueError as error:
+        raise TeehoError("历史报告不可读取") from error
+    result = project_access_result(value, access)
+    conclusion = result.get("qualitativeConclusion")
+    summary = conclusion.get("summary", "") if isinstance(conclusion, dict) else ""
+    if not summary and access and allows(access, "contentAnalysis", "consistency"):
+        analysis = result.get("contentAnalysis")
+        consistency = analysis.get("consistency") if isinstance(analysis, dict) else None
+        summary = consistency.get("summary", "") if isinstance(consistency, dict) else ""
+    if not isinstance(summary, str):
+        raise TeehoError("历史报告不可读取")
+    return summary
 
 
 class HistoryTools:
@@ -124,11 +144,7 @@ class HistoryTools:
                 "localMedia": local_media(None), "unavailable": True,
                 "summary": "This local report is damaged or unavailable. Other reports are unaffected.",
             }
-        result = report["task"].get("result")
-        conclusion = result.get("qualitativeConclusion") if isinstance(result, dict) else None
-        summary = conclusion.get("summary", "") if isinstance(conclusion, dict) else ""
-        if not isinstance(summary, str):
-            raise TeehoError("历史报告不可读取")
+        summary = _history_summary(report["task"].get("result"))
         return {
             "id": report["task"]["id"],
             "savedAt": report["savedAt"],

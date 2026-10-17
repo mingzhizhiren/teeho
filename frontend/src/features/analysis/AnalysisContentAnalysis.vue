@@ -4,16 +4,23 @@ import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/icons/AppIcon.vue'
 import type { AnalysisResult } from './analysis.contract'
 import AnalysisOptimizationAdvice from './AnalysisOptimizationAdvice.vue'
+import { canShowContentIndicator, canShowReportSection } from './analysis.report-access'
 
 const props = defineProps<{ result: AnalysisResult }>()
 const { t } = useI18n()
 const analysis = computed(() => props.result.contentAnalysis)
+const consistency = computed(() =>
+    canShowContentIndicator(props.result.reportAccess, 'consistency')
+        ? analysis.value?.consistency
+        : undefined,
+)
 const MAXIMUM_STARS = 5
 const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index + 1)
 </script>
 
 <template>
     <section
+        v-if="canShowReportSection(result.reportAccess, 'contentAnalysis')"
         class="rounded-3xl border border-line bg-surface p-5 sm:p-6"
         data-testid="analysis-content-analysis"
     >
@@ -25,12 +32,12 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                 <span class="break-words">{{ t('workspace.checkup.contentAnalysis.title') }}</span>
             </span>
             <span
-                v-if="analysis"
+                v-if="consistency"
                 class="inline-flex min-w-0 flex-wrap items-center gap-2"
                 role="img"
                 :aria-label="
                     t('workspace.checkup.contentAnalysis.consistencyRating', {
-                        count: analysis.consistency.stars,
+                        count: consistency.stars,
                     })
                 "
                 data-testid="analysis-consistency-stars"
@@ -42,21 +49,19 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                         name="star"
                         size="sm"
                         :class="
-                            position <= analysis.consistency.stars
-                                ? 'fill-current text-brand'
-                                : 'text-muted'
+                            position <= consistency.stars ? 'fill-current text-brand' : 'text-muted'
                         "
                     />
                 </span>
                 <span class="text-sm font-semibold text-ink" aria-hidden="true">{{
                     t('workspace.checkup.contentAnalysis.stars', {
-                        count: analysis.consistency.stars,
+                        count: consistency.stars,
                     })
                 }}</span>
             </span>
         </h2>
         <template v-if="analysis">
-            <div class="mt-5">
+            <div v-if="consistency" class="mt-5">
                 <h3 class="text-sm font-semibold text-ink">
                     {{ t('workspace.checkup.contentAnalysis.consistency') }}
                 </h3>
@@ -68,11 +73,11 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                     {{ t('workspace.checkup.contentAnalysis.fallback') }}
                 </p>
                 <p class="mt-3 whitespace-pre-line break-words text-sm leading-6 text-ink">
-                    {{ analysis.consistency.summary }}
+                    {{ consistency.summary }}
                 </p>
-                <ul v-if="analysis.consistency.issues.length" class="mt-4 space-y-3">
+                <ul v-if="consistency.issues.length" class="mt-4 space-y-3">
                     <li
-                        v-for="issue in analysis.consistency.issues"
+                        v-for="issue in consistency.issues"
                         :key="`${issue.location}:${issue.evidence}:${issue.description}`"
                         class="rounded-xl bg-surface-muted p-3 text-sm leading-6"
                     >
@@ -91,15 +96,19 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                 </ul>
             </div>
             <template v-if="analysis.status === 'completed'">
-                <AnalysisOptimizationAdvice v-if="analysis.advice" :advice="analysis.advice" />
+                <AnalysisOptimizationAdvice
+                    v-if="analysis.advice && canShowContentIndicator(result.reportAccess, 'advice')"
+                    :advice="analysis.advice"
+                />
                 <div
+                    v-if="canShowContentIndicator(result.reportAccess, 'weaknesses')"
                     class="mt-5 border-t border-line pt-5"
                     data-testid="analysis-reference-weaknesses"
                 >
                     <h3 class="text-sm font-semibold text-ink">
                         {{ t('workspace.checkup.contentAnalysis.weaknesses') }}
                     </h3>
-                    <ul v-if="analysis.weaknesses.length" class="mt-3 space-y-3">
+                    <ul v-if="analysis.weaknesses?.length" class="mt-3 space-y-3">
                         <li
                             v-for="weakness in analysis.weaknesses"
                             :key="`${weakness.location}:${weakness.evidence}:${weakness.description}`"
@@ -121,7 +130,10 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                                 {{ weakness.description }}
                             </p>
                             <p
-                                v-if="weakness.suggestion"
+                                v-if="
+                                    weakness.suggestion &&
+                                        canShowContentIndicator(result.reportAccess, 'advice')
+                                "
                                 class="mt-2 whitespace-pre-line break-words text-ink"
                                 data-testid="analysis-improvement-direction"
                             >
@@ -164,7 +176,13 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                 </div>
             </template>
         </template>
-        <p v-else class="mt-4 whitespace-pre-line break-words text-sm leading-6 text-ink">
+        <p
+            v-else-if="
+                canShowContentIndicator(result.reportAccess, 'consistency') &&
+                    result.qualitativeConclusion
+            "
+            class="mt-4 whitespace-pre-line break-words text-sm leading-6 text-ink"
+        >
             {{ result.qualitativeConclusion.summary }}
         </p>
         <slot name="footer" />

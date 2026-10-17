@@ -1,11 +1,14 @@
 """使用 owner.json 标记持有者的跨进程目录锁。"""
 
 import os
+import hashlib
+import sys
 import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Optional
 
 from .errors import TeehoError
 from .storage import (
@@ -19,6 +22,47 @@ from .storage import (
 STALE_INITIALIZATION_SECONDS = 60
 RELEASE_LOCK_ATTEMPTS = 20
 RELEASE_LOCK_DELAY_SECONDS = 0.01
+
+
+def log_lock_event(log: Optional[Callable], event: str, fields: dict) -> None:
+    """诊断输出失败不能留下已获取的锁或掩盖原业务错误。"""
+    if not log:
+        return
+    try:
+        log(event, fields)
+    except Exception:
+        try:
+            sys.stderr.write(
+                '{"level":"debug","event":"lock_diagnostics_unavailable"}\n'
+            )
+        except (OSError, ValueError):
+            pass  # stderr 也关闭时仍必须允许锁正常释放。
+
+
+def lock_debug_fields(path: Path) -> dict:
+    """仅用于观测，读取失败不改变锁判定；不输出账号路径和 owner token。"""
+    fields = {
+        "lockKind": {
+            "identity.lock": "identity",
+            "operation.lock": "operation",
+            "observations.lock": "observations",
+        }.get(path.name, "other"),
+        "lockKeyHash": hashlib.sha256(
+            os.path.normcase(str(path.absolute())).encode()
+        ).hexdigest(),
+    }
+    try:
+        # Windows 不能删除仍被诊断读取打开的 owner 文件；读取也必须服从释放守卫。
+        # 守卫繁忙就省略 ownerPid，不为记录日志等待或干扰业务锁。
+        with _acquisition_guard(path):
+            if not is_link(path) and not is_link(path / "owner.json"):
+                owner = read_json(path / "owner.json")
+                pid = owner.get("pid") if isinstance(owner, dict) else None
+                if type(pid) is int and pid > 0:
+                    return {**fields, "ownerPid": pid}
+    except (OSError, TeehoError):
+        pass  # 诊断读取竞态不影响实际锁的获取或释放。
+    return fields
 
 
 def _lock_guard(acquire: Callable[[], None], wait: bool) -> None:
@@ -43,7 +87,9 @@ def _acquisition_guard(path: Path, wait: bool = False) -> Iterator[None]:
             import msvcrt
 
             stream.seek(0)
-            _lock_guard(lambda: msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1), wait)
+            _lock_guard(
+                lambda: msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1), wait
+            )
             try:
                 yield
             finally:
@@ -52,7 +98,9 @@ def _acquisition_guard(path: Path, wait: bool = False) -> Iterator[None]:
         else:
             import fcntl
 
-            _lock_guard(lambda: fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB), wait)
+            _lock_guard(
+                lambda: fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB), wait
+            )
             try:
                 yield
             finally:
@@ -118,19 +166,39 @@ def _acquire(path: Path) -> None:
 
 
 @contextmanager
-def lock_directory(path: Path) -> Iterator[None]:
+def lock_directory(path: Path, *, log: Optional[Callable] = None) -> Iterator[None]:
     """持锁执行；只释放本次令牌所属的目录。"""
     path = Path(path)
+    started = time.monotonic()
     ensure_private_directory(path.parent)
     owner = {"pid": os.getpid(), "token": str(uuid.uuid4())}
-    with _acquisition_guard(path):
-        _acquire(path)
-        try:
-            write_json(path / "owner.json", owner)
-        except BaseException:
-            (path / "owner.json").unlink(missing_ok=True)
-            path.rmdir()
-            raise
+    try:
+        with _acquisition_guard(path):
+            _acquire(path)
+            try:
+                write_json(path / "owner.json", owner)
+            except BaseException:
+                (path / "owner.json").unlink(missing_ok=True)
+                path.rmdir()
+                raise
+    except TeehoError as error:
+        if log and error.code == "identity_busy":
+            log_lock_event(
+                log,
+                "lock_busy",
+                {
+                    **lock_debug_fields(path),
+                    "waitMs": round((time.monotonic() - started) * 1000),
+                },
+            )
+        raise
+    acquired = time.monotonic()
+    context = lock_debug_fields(path) if log else {}
+    log_lock_event(
+        log,
+        "lock_acquired",
+        {**context, "waitMs": round((acquired - started) * 1000)},
+    )
     try:
         yield
     finally:
@@ -139,3 +207,8 @@ def lock_directory(path: Path) -> Iterator[None]:
             if read_json(path / "owner.json") == owner:
                 (path / "owner.json").unlink(missing_ok=True)
                 path.rmdir()
+                log_lock_event(
+                    log,
+                    "lock_released",
+                    {**context, "holdMs": round((time.monotonic() - acquired) * 1000)},
+                )

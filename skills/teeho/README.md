@@ -6,13 +6,15 @@ Agent 的日常调用协议集中在 [SKILL.md](SKILL.md)，[卸载](references/
 
 技能的 `diagnose` 每次明确调用都会重新上传并创建新提交，不查询或复用旧任务。只有本次提交结果未知时保留原提交 ID 并要求 `resume`；`task`／`wait` 继续用于结果查询。此规则仅作用于技能，网页端复用逻辑不变。
 
-本目录是题火 Skill 的唯一源码，运行资源位于 `resources/`，无需同步或构建即可复制安装。版本身份与最低兼容版本统一维护在 `release.json`；`SKILL.md` 的 `metadata.version` 必须一致，打包时校验。
+提交接口返回有效业务信封、明确以 HTTP 400 拒绝参数时，解除本次未确认提交标记，允许用户修正输入后重新诊断。断线、服务错误或无法解析的响应仍保留原提交标识，通过原任务对账；即使损坏响应的 HTTP 状态为 400，也不据此假定没有受理。
 
-当前发布版本为 `2.5.3`，最低兼容版本保留 `2.4.2`。按用户要求，后续 BUG 修复、功能调整或打包均不自行修改技能版本号；只有用户再次明确要求调整时才变更。网站版本与技能版本分别维护。
+本目录是题火 Skill 的唯一源码，运行入口及 Python 实现位于 `tools/`，无需同步或构建即可复制安装。版本身份与最低兼容版本统一维护在 `release.json`；`SKILL.md` 的 `metadata.version` 必须一致，打包时校验。
+
+当前发布版本与最低兼容版本均为 `2.6.1`。按用户要求，后续 BUG 修复、功能调整或打包均不自行修改技能版本号；只有用户再次明确要求调整时才变更。网站版本与技能版本分别维护。
 
 技能从 `/release-notes/en` 读取最新一版题火更新日志，英文逐行进入现有翻译与 render 流程，最终显示在正文顶部。成功输出最终文本后，在按服务和账号隔离的本机展示目录保存 `release-notes-seen.json`；预览、进度和失败不会消耗公告。日志获取失败不影响业务结果，换设备或删除该记录后可能再次展示。此记录表示已输出给宿主，不代表用户确实阅读；与网页已读记录独立。
 
-每个业务 API 请求由 `api.py` 自动携带 `X-Teeho-Skill-Version`。服务端返回 HTTP 400、业务 `code=4260`、`data.reason=skill_upgrade_required`，并提供最低/最新版本和本站下载路径；旧 `1.14.1` 只能显示既有固定参数错误提示。新工具优先识别该码，输出 `state=upgrade_required` 和 `nextAction=upgrade_skill`。缺失或非法版本同样拦截；真实身份仍须独立验证。网页 Cookie 请求不受技能版本门槛影响。
+每个业务 API 请求由 `api.py` 自动携带 `X-Teeho-Skill-Version`。服务端返回 HTTP 400、业务 `code=4260`、`data.reason=skill_upgrade_required`，并提供最低/最新版本、官网与 GitHub 备用安装说明以及本站下载路径。新工具优先识别该码，输出 `state=upgrade_required` 和 `nextAction=upgrade_skill`；两个展示链接只读取随包 `release.json` 的 `installationUrls`，不采用响应中的任意 URL。旧升级快照由新版工具重渲染时使用这两个可信入口；尚未更新的旧客户端仍按自身代码展示。缺失或非法版本同样拦截；真实身份仍须独立验证。网页 Cookie 请求不受技能版本门槛影响。
 
 `GET /api/skill/version` 与 `/api/skill/download` 始终可访问。开始授权、匿名创建、续期及已鉴权业务调用均检查版本；退出、浏览器审批和撤销入口不拦截。普通网络失败不转换成升级错误。升级只替换安装文件，已提交任务继续执行，本机身份、历史和待恢复记录保持原样。
 
@@ -42,6 +44,10 @@ bun run package:skill
 
 报告解析严格检查任务身份、最终主分的基本类型与 0～10 范围、必要总结及链接安全。技能不复算分数，不要求 `schemaVersion` 或 `scorePolicy` 完全匹配；可选字段局部损坏时保留其他有效内容，未知来源使用通用标签。`report_optional_field_skipped` 记录字段路径，`report_core_invalid` 记录核心报告错误，均不记录报告原文。
 
+新报告可携带服务端冻结的 `reportAccess`，按“结果项 → 指标”控制展示。隐藏内容在翻译投影前移除，不生成锁定占位，也不通过本地风险词重算补回；受限报告允许缺少旧版混合总结。`report-access.v3` 的 Coffee 报告最多显示八篇对照笔记，Plus 最多十篇（语义与 SQL 各五篇），免费版最多四篇，三者均开放全部指标；匿名 Skill 报告最多一篇，隐藏问题与优化建议、图片数量、视频时长、平均段落长度和平均话题长度，末尾原样保留服务端登录提示。具体权限在服务端集中配置，技能不根据当前登录状态另算档位，也不重新抽样或排序。本机历史及公开匿名历史保留首次交付内容；`report-access.v1` 保持四篇、`report-access.v2` 保持八篇上限及各自原有完整度口径，缺少权限字段的旧报告沿用已有展示，损坏的权限字段不会回退成全部开放。
+
+风险词库只由后端维护和执行，不随 Skill 分发。技能只展示报告中已保存的 `riskMatches`，不会从原笔记重新扫描，不按当前赛道、风险等级或位置再次筛选，也不使用 `contentAnalysis.termRisks` 代替。旧报告缺少 `riskMatches` 时显示“未提供风险检测结果”，空列表表示确认无命中；若服务端标记审核未完成，保留已保存命中并显示不可用提示。翻译与历史重渲染沿用该份已保存结果。
+
 用户运行时只需 Python 3.9+ 标准库；开发和测试由根 Bun 脚本编排。`test:skill` 使用标准库 unittest，Python 由 `tools/release/python-runtime.ts` 选择，也可通过 `TEEHO_PYTHON` 指定可执行文件路径。
 
 `tools/teeho.py` 是统一入口，`tools/teeho_skill/` 是随包分发的实现：
@@ -51,18 +57,36 @@ bun run package:skill
 - `help_content.py`：六项公开功能和单项用法的唯一目录；总览、登录结果及旧帮助快照共用固定编号，帮助查询仅接受目录内的主题。
 - `render` 从本机快照回填译文，不请求业务接口；日常展示遵循入口中的统一输出流程。
 
+鉴权业务请求先在身份锁内读取、核对凭据并按需续期，取得原账号的凭据快照后释放锁，再发送 HTTP 请求。普通慢查询不会在等待响应期间占用身份锁。仅明确 401 可重试一次：重试前重新持锁核对账号与设备授权；其他进程已刷新则复用有效新凭据，已退出、切换账号或重新登录时停止旧请求的授权恢复。登录、退出和凭据续期继续使用原有身份互斥，网络超时或提交结果未知不自动重发业务请求。
+
+宿主对同一任务接续同一个 `wait` 执行会话，直到进程退出，再处理最终状态与报告。执行会话 ID 与题火任务 ID 分开使用；五分钟窗口从 `wait` 开始计时，只有原等待进程明确返回 `processing` 和 `wait_for_user` 时才交付稍后查询提示。
+
 ## 配置与数据
 
 下载服务生成 `endpoint.json`，工具相对安装位置读取；开发可用 `TEEHO_API_URL` 覆盖。服务仅允许 HTTPS 或本机回环 HTTP。`TEEHO_HOME` 可替代默认数据根 `~/.teeho`。
 
 数据按服务地址摘要及账号隔离，同一服务和账号跨客户端共享；公共帮助和安装说明使用 `presentations/public/`，账号快照保存在各自命名空间。正式登录后的展示快照归新身份，供下一进程渲染。
 
+每个展示命名空间保留最近写入的 64 份快照，按文件修改时间淘汰旧快照；随机生成的 `presentationId` 不参与判断新旧。提交响应丢失后，`task`／`wait` 找回服务端任务时同时按原 `submissionId` 关联素材位置，再保存首次历史；查询不改写待恢复记录或重复提交。
+
 数据目录独立于源码和安装目录，更新技能保留既有数据。凭据独立保存且不返回 Agent；历史只保存完整报告及本次采用的封面、图片和视频原始位置字符串，不复制素材；素材移动或删除后位置不会自动更新，清理历史也不会删除原素材。旧版已保存的封面副本仍兼容读取和清理。测试使用临时数据与本地服务，不读取真实凭据。
+
+Windows 下，JSON 原子替换遇到可能由短暂读取占用造成的 `WinError 5/32` 时，最多尝试 20 次，间隔 50 毫秒。重试只针对同一次本地落盘，凭据续期和业务请求不随之重发；持续拒绝访问仍返回原错误、保留旧文件并清理临时写入文件。
 
 ## 调试
 
 本机回环服务默认开启调试，正式站关闭；下载配置的 `debug` 可控制开关。调试输出写入 stderr 和服务数据目录 `logs/`，stdout 始终为业务 JSON 信封。
 
+Skill 专用调试输出的级别统一为 `debug`，包括命令开始／结束、网络异常、锁竞争和诊断输出自身失败。业务结果仍通过 `state`、`errorCode` 和退出码表达，不把调试事件写成 `info`、`warn` 或 `error`；未开启调试时保持不输出。
+
 按 `runId` 查 `command_started → request_started → response_headers_received → api_response_parsed → output_rendered → command_finished`。响应头到达不代表 JSON 已读完；任务恢复看 `task_resume_checked`，状态变化看 `task_status_changed`，保存失败看 `report_save_failed`。
+
+网络失败的 `request_failed` 现在保留 `exceptionType`、`causeType`、`networkReason` 及可用的 `errno`／`winerror`；TLS 校验和代理隧道错误另有安全的结构化代码。`phase` 区分响应头尚未到达、上传请求体产出中、请求体产出完成后等待响应头、读取响应体。结合 `bodyBytesProduced`、`requestBodyComplete`、`responseHeadersReceived`、`responseBytesRead` 和耗时定位中断点；产出字节只是请求库消费的数据，不能证明远端已接收或上传已成功。`request_completed` 才表示本次响应读取完成，仍以服务端业务确认判断成功。
+
+目标只记录无查询串 URL 的 `targetHash` 和主机的 `targetHostHash`，不记录 URL、私有路径、签名参数、代理地址、文件名或异常原文。`proxyConfigured` 仅表示请求库配置了相应协议代理，不证明实际经过代理。响应头仅允许记录有效 UUID 格式的 `sb-request-id` 为 `upstreamRequestId`。
+
+本机锁通过 `lockKind`、`lockKeyHash`、当前进程 `pid`、持有者 `ownerPid` 关联；`lock_acquired`／`lock_released` 记录等待和持有耗时。身份锁竞争只在开始等待及超时时记录 `lock_wait_started`／`lock_wait_timeout`，避免每次轮询刷日志；操作锁冲突记录 `lock_busy`。锁指纹可区分两个进程是否竞争同一把锁，不公开账号目录或 owner token。未启用 debug 时不输出这些诊断；新增日志不改变锁范围、重试次数和业务状态。
+
+诊断读取 `owner.json` 与锁创建、释放共用守卫，避免 Windows 删除被并发读取占用的文件时抛出 `WinError 32`。守卫繁忙时诊断立即省略 `ownerPid`，保留锁种类和指纹；字段缺失不代表没有持有者，也不应被解释为账号权限失败。
 
 `scripts_loaded` 的源码摘要用于核对运行版本；代码更新但安装副本未变化时，重新打包、重启下载后端并更新安装。日志不记录凭据、授权码、完整笔记或原始敏感响应；日志写入失败不影响业务，调试信息不转发给用户。

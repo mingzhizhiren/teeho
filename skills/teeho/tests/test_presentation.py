@@ -36,6 +36,26 @@ SECOND_ID = "00000000-0000-4000-8000-000000000002"
 
 
 class PresentationTests(unittest.TestCase):
+    def test_structure_labels_use_three_deviation_levels(self) -> None:
+        for severity, prefix in (('minor', 'Slightly '), ('moderate', ''),
+                                 ('major', ''), ('critical', 'Too ')):
+            for name, value, normal, extreme in (
+                ('bodyLength', 1, 'Shorter', 'short'),
+                ('videoDurationSeconds', 30, 'Longer', 'long'),
+                ('imageCount', 1, 'Fewer', 'few'),
+                ('topicCount', 30, 'More', 'many'),
+            ):
+                with self.subTest(severity=severity, metric=name):
+                    data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
+                    result = data['task']['result']
+                    result['structureMetrics'] = {name: value}
+                    result['structureReferences'] = {
+                        name: {'low': 10, 'high': 20, 'sampleCount': 3, 'severity': severity},
+                    }
+                    view = create_presentation('task', data)
+                    expected = prefix + (extreme if severity == 'critical' else normal.lower()) if prefix else normal
+                    self.assertIn(' · ' + expected, render_presentation(view))
+
     def test_model_maintenance_http_response_keeps_safe_reason(self) -> None:
         transport = Mock()
         transport.request.return_value = HttpResponse(503, json.dumps({
@@ -88,13 +108,13 @@ class PresentationTests(unittest.TestCase):
         self.assertEqual([row['name'] for row in view['data']['structureMetrics']], list(metrics))
         text = render_presentation(view)
         self.assertIn('Key note metrics', text)
-        self.assertIn('Title length: 10 · Within range', text)
-        self.assertIn('Body length: 192 · Longer', text)
-        self.assertIn('Characters per paragraph: 95 · Longer', text)
-        self.assertIn('Paragraph count: 2 · Fewer', text)
-        self.assertIn('Topic count: 25 · More', text)
-        self.assertIn('Average topic length: 4.13 · Shorter', text)
-        self.assertIn('Typical comparable range: 5 ~ 20.25', text)
+        self.assertIn('Title length: 10.0 · Within range', text)
+        self.assertIn('Body length: 192.0 · Longer', text)
+        self.assertIn('Characters per paragraph: 95.0 · Longer', text)
+        self.assertIn('Paragraph count: 2.0 · Fewer', text)
+        self.assertIn('Topic count: 25.0 · More', text)
+        self.assertIn('Average topic length: 4.1 · Shorter', text)
+        self.assertIn('Typical comparable range: 5.0 ~ 20.3', text)
         self.assertNotIn('Title emoji ratio', text)
         self.assertNotIn('List / step item count', text)
         self.assertEqual(text.count('🟠 '), 6)
@@ -106,9 +126,9 @@ class PresentationTests(unittest.TestCase):
             'metricInRange': '范围内', 'metricShorter': '偏短', 'metricLonger': '偏长',
             'metricFewer': '偏少', 'metricMore': '偏多',
         })
-        for expected in ('标题长度: 10 · 范围内', '正文长度: 192 · 偏长',
-                         '正文段落数: 2 · 偏少', '话题数量: 25 · 偏多',
-                         '平均话题长度: 4.13 · 偏短'):
+        for expected in ('标题长度: 10.0 · 范围内', '正文长度: 192.0 · 偏长',
+                         '正文段落数: 2.0 · 偏少', '话题数量: 25.0 · 偏多',
+                         '平均话题长度: 4.1 · 偏短'):
             self.assertIn(expected, chinese)
 
     def test_topic_length_without_topics_is_not_a_zero_or_range_comparison(self) -> None:
@@ -149,11 +169,11 @@ class PresentationTests(unittest.TestCase):
         self.assertNotIn('Image count:', text)
 
     def test_media_metrics_render_saved_references_including_zero(self) -> None:
-        for name, label, value in (
-            ('imageCount', 'Image count', 0),
-            ('imageCount', 'Image count', 3),
-            ('videoDurationSeconds', 'Video duration (seconds)', 0),
-            ('videoDurationSeconds', 'Video duration (seconds)', 15.25),
+        for name, label, value, expected in (
+            ('imageCount', 'Image count', 0, '0.0'),
+            ('imageCount', 'Image count', 3, '3.0'),
+            ('videoDurationSeconds', 'Video duration (seconds)', 0, '0.0'),
+            ('videoDurationSeconds', 'Video duration (seconds)', 15.25, '15.3'),
         ):
             with self.subTest(metric=name, value=value):
                 data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
@@ -164,8 +184,8 @@ class PresentationTests(unittest.TestCase):
                 view = create_presentation('task', data)
                 before = copy.deepcopy(view)
                 text = render_presentation(view)
-                self.assertIn(f'{label}: {value}', text)
-                self.assertIn('0 ~ 20', text)
+                self.assertIn(f'{label}: {expected}', text)
+                self.assertIn('0.0 ~ 20.0', text)
                 self.assertEqual(view, before)
 
     def test_cached_media_without_references_is_hidden_before_translation(self) -> None:
@@ -188,15 +208,18 @@ class PresentationTests(unittest.TestCase):
                 self.assertNotIn(label, rendered['displayText'])
         self.assertEqual(view, before)
 
-    def test_typed_reference_keeps_central_range_and_identifies_weighted_statistics(self) -> None:
+    def test_typed_reference_keeps_values_without_weighted_labels(self) -> None:
         data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))
         data['task']['result']['insight']['reference'] = {
             'sampleCount': 25, 'contentType': 'image', 'aggregation': 'weighted_tracks',
             'mean': 5, 'median': 4.36, 'min': 0.26, 'max': 9.2, 'p10': 2.5, 'p90': 7.5,
         }
         text = render_presentation(create_presentation('task', data))
-        self.assertIn('Track-weighted reference range: 2.50 ~ 7.50', text)
-        self.assertIn('Track-weighted maximum reference: 9.20', text)
+        self.assertIn('Track reference range: 2.50 ~ 7.50', text)
+        self.assertIn('Track median reference: 4.36', text)
+        self.assertIn('Track maximum reference: 9.20', text)
+        self.assertIn('Track minimum reference: 0.26', text)
+        self.assertNotIn('Track-weighted', text)
 
     def test_historical_metrics_remain_readable_without_inventing_new_values(self) -> None:
         data = copy.deepcopy(next(case['result'] for case in FIXTURES if case['name'] == 'report'))

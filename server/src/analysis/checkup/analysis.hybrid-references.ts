@@ -1,6 +1,6 @@
 import type { StandardAnalysisTask } from '../analysis.schema'
 import type { AnalysisEvidenceSet } from '../evidence/analysis.evidence'
-import { checkupOutputConstraints } from './analysis.checkup.constants'
+import { checkupSampling } from './analysis.checkup.constants'
 import type { CheckupReference } from './analysis.checkup.contract'
 import {
     checkupReferences,
@@ -23,14 +23,17 @@ export function selectHybridReferences(
     const sql = checkupReferences(samples)
     const semanticEvidence = readSemanticReferenceEvidence(evidence)
     const semanticSamples = semanticEvidence ? semanticReferenceSamples(semanticEvidence, task) : []
-    const semantic = mapCheckupReferences(semanticSamples, 'semantic_similarity')
+    const semantic = mapCheckupReferences(
+        semanticSamples.slice(0, checkupSampling.legacyReferenceLimit),
+        'semantic_similarity',
+    )
     const sqlFirst = sql.slice(0, SOURCE_QUOTA)
     const sqlIds = new Set(sqlFirst.map((note) => note.noteId))
     const semanticFirst = semantic.filter((note) => !sqlIds.has(note.noteId)).slice(0, SOURCE_QUOTA)
     const ordered = [...sqlFirst, ...semanticFirst, ...sql, ...semantic]
     const references = ordered
         .filter((note, index) => ordered.findIndex((item) => item.noteId === note.noteId) === index)
-        .slice(0, checkupOutputConstraints.maxReferences)
+        .slice(0, checkupSampling.legacyReferenceLimit)
     return {
         references,
         // 评分绑定最终入选来源的快照；统计和差异计算继续使用原始 evidence。

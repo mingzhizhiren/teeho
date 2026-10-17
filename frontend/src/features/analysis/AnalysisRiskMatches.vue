@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { RiskMatch } from './analysis.risk-matches'
-defineProps<{ matches: readonly RiskMatch[]; reviewStatus?: 'completed' | 'unavailable' }>()
+defineProps<{ matches?: readonly RiskMatch[]; reviewStatus?: 'completed' | 'unavailable' }>()
 const { t } = useI18n()
 </script>
 
@@ -13,7 +13,7 @@ const { t } = useI18n()
         <p v-if="reviewStatus === 'unavailable'" class="mt-2 text-sm leading-6 text-muted">
             {{ t('workspace.checkup.contentAnalysis.riskReviewUnavailable') }}
         </p>
-        <ul v-if="matches.length" class="mt-2 space-y-1.5">
+        <ul v-if="matches?.length" class="mt-2 space-y-1.5">
             <li
                 v-for="risk in matches"
                 :key="`${risk.location}:${risk.term}:${risk.category}`"
@@ -26,6 +26,9 @@ const { t } = useI18n()
                 >
             </li>
         </ul>
+        <p v-else-if="matches === undefined" class="mt-2 text-sm leading-6 text-muted">
+            {{ t('workspace.checkup.contentAnalysis.riskResultsMissing') }}
+        </p>
         <p v-else-if="reviewStatus !== 'unavailable'" class="mt-2 text-sm leading-6 text-muted">
             {{ t('workspace.checkup.contentAnalysis.noRisks') }}
         </p>

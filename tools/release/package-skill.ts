@@ -24,6 +24,8 @@ async function collectPythonTools(directory: string): Promise<string[]> {
 }
 
 type SkillEntry = readonly [path: string, content: Buffer]
+type SkillArchiveLayout = 'directory' | 'contents'
+const SKILL_DIRECTORY_PREFIX = 'teeho/'
 
 /** 收集发布包与公开源码目录共用的完整 Skill 文件。 */
 export async function collectSkillEntries(source = 'github'): Promise<SkillEntry[]> {
@@ -39,12 +41,12 @@ export async function collectSkillEntries(source = 'github'): Promise<SkillEntry
         'endpoint.json',
         'release.json',
         'references/uninstall.md',
-        'resources/risk-database.json',
         ...toolFiles,
     ]
     const toolEntries = await Promise.all(
         names.map(
-            async (name) => ['teeho/' + name, await readFile(join(skillRoot, name))] as const,
+            async (name) =>
+                [SKILL_DIRECTORY_PREFIX + name, await readFile(join(skillRoot, name))] as const,
         ),
     )
     return toolEntries.map(([path, content]) => [
@@ -55,8 +57,12 @@ export async function collectSkillEntries(source = 'github'): Promise<SkillEntry
     ])
 }
 
-/** 只打包显式公开的技能资料和运行工具，排除测试与用户数据。 */
-export async function packageSkill(output: string, source = 'github'): Promise<string> {
+/** 打包公开技能资料；默认保留安装器所需目录，渠道上传可只打包目录内容。 */
+export async function packageSkill(
+    output: string,
+    source = 'github',
+    layout: SkillArchiveLayout = 'directory',
+): Promise<string> {
     const skillMarkdown = await readFile(join(skillRoot, 'SKILL.md'), 'utf8')
     const frontmatter = skillMarkdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1]
     const version = frontmatter?.match(
@@ -85,7 +91,12 @@ export async function packageSkill(output: string, source = 'github'): Promise<s
     )
     child.stdin.write(
         JSON.stringify(
-            Object.fromEntries(entries.map(([name, bytes]) => [name, bytes.toString('base64')])),
+            Object.fromEntries(
+                entries.map(([name, bytes]) => [
+                    layout === 'contents' ? name.slice(SKILL_DIRECTORY_PREFIX.length) : name,
+                    bytes.toString('base64'),
+                ]),
+            ),
         ),
     )
     child.stdin.end()

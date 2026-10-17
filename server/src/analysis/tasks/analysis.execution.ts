@@ -65,6 +65,7 @@ import {
     type ClaimedAnalysisTask,
 } from './analysis.queue.repository'
 import { insertAnalysisResult } from './analysis.result.repository'
+import { saveAnalysisResultWithAccess } from '../report-access/analysis.report-access.service'
 import { startAnalysisTaskLeaseMonitor } from './analysis.task-lease-monitor'
 
 /** 单次分析尝试的执行模块；调度生命周期由 Worker 模块负责。 */
@@ -143,7 +144,7 @@ export const postgresAnalysisTaskExecutionPersistence: AnalysisTaskExecutionPers
     freezeEvidenceSet: freezeAnalysisEvidenceSet,
     hasActiveTaskLease: hasActiveAnalysisTaskLease,
     renewTaskLease: (...args) => renewAnalysisTaskLease(db, ...args),
-    insertResult: insertAnalysisResult,
+    insertResult: saveAnalysisResultWithAccess,
     chargePoints: (...args) => getTaskPolicy().settle(...args),
     releasePoints: (...args) => getTaskPolicy().release(...args),
     resetVideoStarts: resetVideoStartEventsForAnalysisSuccess,

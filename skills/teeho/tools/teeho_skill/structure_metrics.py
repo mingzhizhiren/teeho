@@ -62,14 +62,18 @@ def _difference_status(row: dict[str, Any]) -> str:
     if reference["low"] <= value <= reference["high"]:
         return "metricInRange"
     is_count = row["name"] in ("paragraphCount", "topicCount", "imageCount")
-    if value < reference["low"]:
-        return "metricFewer" if is_count else "metricShorter"
-    return "metricMore" if is_count else "metricLonger"
+    direction = (("Few" if is_count else "Short") if value < reference["low"]
+                 else ("Many" if is_count else "Long"))
+    if reference["severity"] == "minor":
+        return "metricSlightly" + direction
+    if reference["severity"] == "critical":
+        return "metricToo" + direction
+    return {"Few": "metricFewer", "Short": "metricShorter",
+            "Many": "metricMore", "Long": "metricLonger"}[direction]
 
 
 def structure_metric_lines(
     rows: list[dict[str, Any]], translate: Callable[[str], str],
-    number: Callable[[float], str],
 ) -> list[str]:
     lines = []
     indexed = {row["name"]: row for row in rows}
@@ -84,8 +88,8 @@ def structure_metric_lines(
     for row in frozen_rows:
         name, value, reference = row["name"], row["value"], row["reference"]
         def formatted(item: float) -> str:
-            rounded = Decimal(str(item)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            return number(float(rounded))
+            rounded = Decimal(str(item)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+            return format(rounded, ".1f")
         level = _difference_status(row)
         icon = LEVEL_ICONS[reference["severity"]] if value is not None and reference else "⚪"
         has_no_topics = value is None and (name == "maxTopicLength" or (name == "topicLength" and topic_count == 0))

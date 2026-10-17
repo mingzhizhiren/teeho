@@ -3,6 +3,10 @@ import { sql } from 'drizzle-orm'
 import { db, type DatabaseExecutor } from '../../db/database'
 import { logger } from '../../utils/logger'
 import { getTaskPolicy } from '../../runtime/task-policy'
+import {
+    reportAccessPolicySchema,
+    type ReportAccessPolicy,
+} from '../report-access/analysis.report-access.policy'
 import { analysisExecutionConstraints } from '../analysis.constants'
 import type { AnalysisFingerprints } from '../analysis.fingerprints'
 import { analysisFingerprintConstraints } from '../analysis.fingerprints.constants'
@@ -21,6 +25,9 @@ import {
 
 /** API 可读取的持久化分析任务；只包含最新成功结果。 */
 export interface AnalysisTaskRecord {
+    /** 仅供服务端出站投影使用，HTTP 不直接返回这两个内部属性。 */
+    savedReportAccess?: ReportAccessPolicy
+    anonymousReportOwner?: boolean
     id: string
     inputMode: AnalysisInputMode
     inputFingerprint: string
@@ -66,6 +73,8 @@ interface AnalysisTaskDatabaseRow extends Record<string, unknown> {
     completedAt: Date | string | null
     resultVersion: number | string | null
     checkupReport: unknown
+    savedReportAccess?: unknown
+    anonymousReportOwner?: boolean
 }
 
 /** 插入排队任务所需的持久化参数。 */
@@ -104,6 +113,17 @@ function toIsoString(value: Date | string) {
 
 /** 把数据库任务记录映射为领域对象 */
 function mapAnalysisTask(row: AnalysisTaskDatabaseRow): AnalysisTaskRecord | null {
+    const savedAccess =
+        row.savedReportAccess == null
+            ? null
+            : reportAccessPolicySchema.safeParse(row.savedReportAccess)
+    if (savedAccess && !savedAccess.success) {
+        logger.warn(
+            { event: 'stored_report_access_unreadable', taskId: row.id },
+            '已隔离权限快照不合法的分析报告',
+        )
+        return null
+    }
     const standardTask = standardAnalysisTaskSchema.parse(row.standardTask)
     const failure =
         row.failureCode === null
@@ -129,6 +149,8 @@ function mapAnalysisTask(row: AnalysisTaskDatabaseRow): AnalysisTaskRecord | nul
     const result = parsedResult?.success ? parsedResult.data : null
 
     return {
+        ...(savedAccess?.success ? { savedReportAccess: savedAccess.data } : {}),
+        anonymousReportOwner: row.anonymousReportOwner === true,
         id: row.id,
         inputMode: analysisInputModeSchema.parse(row.inputMode),
         inputFingerprint: row.inputFingerprint,
@@ -356,7 +378,13 @@ function analysisTaskSelect(
             task.updated_at AS "updatedAt",
             task.completed_at AS "completedAt",
             result.result_version AS "resultVersion",
-            result.checkup_report AS "checkupReport"
+            result.checkup_report AS "checkupReport",
+            result.internal_execution_trace -> 'reportAccess' AS "savedReportAccess",
+            EXISTS (
+                SELECT 1 FROM auth.users AS owner
+                WHERE owner.id = task.user_id
+                    AND owner.raw_app_meta_data -> 'teeho_skill_anonymous' = 'true'::jsonb
+            ) AS "anonymousReportOwner"
         FROM selected_tasks AS task
         LEFT JOIN LATERAL (
             SELECT result.*

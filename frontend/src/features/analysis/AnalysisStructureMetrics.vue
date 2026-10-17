@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { computed } from 'vue'
+import { analysisUiConstraints } from './analysis.constants'
 import {
     visibleStructureMetricNames,
     structureDifferenceState,
@@ -8,17 +9,21 @@ import {
     type StructureReferences,
     type StructureLocations,
 } from './analysis.structure-metrics'
+import { canShowStructureMetric, type ReportAccess } from './analysis.report-access'
 
 interface Props {
-    metrics: StructureMetrics
-    references: StructureReferences
-    locations?: StructureLocations
+    metrics: Partial<StructureMetrics>
+    references: Partial<StructureReferences>
+    locations?: Partial<StructureLocations>
+    reportAccess?: ReportAccess
 }
 
 const props = defineProps<Props>()
 const { t, n } = useI18n()
 const metricNames = computed(() =>
-    visibleStructureMetricNames(props.metrics, props.references),
+    visibleStructureMetricNames(props.metrics, props.references).filter((metric) =>
+        canShowStructureMetric(props.reportAccess, metric),
+    ),
 )
 const statusColors = {
     aligned: 'text-emerald-700 dark:text-emerald-300',
@@ -33,7 +38,8 @@ function formatValue(value: number | null | undefined): string {
         ? t('workspace.checkup.structureMetrics.unavailable')
         : n(value, {
               style: 'decimal',
-              maximumFractionDigits: 2,
+              minimumFractionDigits: analysisUiConstraints.structureDisplayDecimalPlaces,
+              maximumFractionDigits: analysisUiConstraints.structureDisplayDecimalPlaces,
           })
 }
 
@@ -54,6 +60,7 @@ function differenceText(metric: keyof StructureMetrics): string {
 
 <template>
     <section
+        v-if="metricNames.length"
         class="rounded-3xl border border-line bg-surface p-5 sm:p-6"
         data-testid="analysis-structure-metrics"
     >
@@ -125,7 +132,7 @@ function differenceText(metric: keyof StructureMetrics): string {
                         }}
                     </dd>
                     <dd
-                        v-if="metric === 'maxTopicLength' && locations?.topics.length"
+                        v-if="metric === 'maxTopicLength' && locations?.topics?.length"
                         class="w-full break-words text-sm text-muted"
                     >
                         <p v-for="item in locations.topics" :key="`topic-${item.index}`">
@@ -133,7 +140,7 @@ function differenceText(metric: keyof StructureMetrics): string {
                         </p>
                     </dd>
                     <dd
-                        v-if="metric === 'maxParagraphLength' && locations?.paragraphs.length"
+                        v-if="metric === 'maxParagraphLength' && locations?.paragraphs?.length"
                         class="w-full break-words text-sm text-muted"
                     >
                         <p v-for="item in locations.paragraphs" :key="`paragraph-${item.index}`">

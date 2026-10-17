@@ -20,6 +20,8 @@ from .radar import radar_plot
 from .content_analysis import content_analysis_lines, content_analysis_rating
 from .risk_matches import risk_match_lines
 from .structure_metrics import project_structure_metrics, structure_metric_lines
+from .report_access import CONTENT_INDICATORS, allows
+from .version import installation_urls
 
 PANEL_WIDTH = 40
 COMPARISON_EXCERPT_LENGTH = 20
@@ -260,6 +262,7 @@ def _report_heading(data: View, translate: Translate) -> list[str]:
 
 def _report_lines(view: View, translate: Translate) -> list[str]:
     data = view["data"]
+    access = data.get("reportAccess")
     rows = _report_heading(data, translate)
     for item in data.get("customMetrics", []):
         value = (
@@ -268,17 +271,20 @@ def _report_lines(view: View, translate: Translate) -> list[str]:
             else translate("unavailable")
         )
         rows.extend(["", item["name"] + ": " + value, item["description"]])
-    rows.extend(
-        _section("contentAnalysis", translate, suffix=content_analysis_rating(data))
-    )
-    rows.extend(content_analysis_lines(data, translate))
-    rows.extend(["", "⚠️ " + translate("contentTermRisks")])
-    rows.extend(risk_match_lines(data, translate))
-    rows.extend(_section("differences", translate))
-    rows.extend(structure_metric_lines(
-        data.get("structureMetrics", project_structure_metrics({})), translate, _plain_number,
-    ))
-    if data["comparisons"]:
+    if any(allows(access, "contentAnalysis", name) for name in CONTENT_INDICATORS):
+        rows.extend(
+            _section("contentAnalysis", translate, suffix=content_analysis_rating(data))
+        )
+        rows.extend(content_analysis_lines(data, translate))
+        if allows(access, "contentAnalysis", "termRisks"):
+            rows.extend(["", "⚠️ " + translate("contentTermRisks")])
+            rows.extend(risk_match_lines(data, translate))
+    if allows(access, "structureMetrics") and (access is None or data.get("structureMetrics")):
+        rows.extend(_section("differences", translate))
+        rows.extend(structure_metric_lines(
+            data.get("structureMetrics", project_structure_metrics({})), translate,
+        ))
+    if allows(access, "comparisonNotes") and data["comparisons"]:
         rows.extend(_section("comparable", translate))
         rows.extend(
             line
@@ -299,6 +305,7 @@ def _report_lines(view: View, translate: Translate) -> list[str]:
         ],
         *_billing_lines(data["billing"], translate),
         *(["\U0001f4c1 " + translate("saved")] if data["saved"] else []),
+        *(["", access["footer"]] if access and access.get("footer") else []),
     ]
 
 
@@ -418,6 +425,7 @@ def _render_lines(view: View, translate: Translate) -> list[str]:
     if kind == "help":
         return help_lines(data.get("topic"), translate)
     if kind == "upgrade":
+        install_links = installation_urls()
         return [
             translate("skillUpgradeRequired"),
             translate("skillUpgradeMessage"),
@@ -426,7 +434,8 @@ def _render_lines(view: View, translate: Translate) -> list[str]:
                 for key in ("currentVersion", "minimumVersion", "latestVersion")
                 if data.get(key)
             ],
-            translate("skillDownload") + ": " + data["downloadUrl"],
+            translate("skillOfficialInstall") + ": " + install_links["officialInstallUrl"],
+            translate("skillGithubInstall") + ": " + install_links["githubInstallUrl"],
         ]
     if kind == "report":
         return _report_lines(view, translate)
@@ -711,11 +720,14 @@ class PresentationStore:
     def _records(self) -> list[Path]:
         try:
             return sorted(
-                path
-                for path in self.root.iterdir()
-                if RECORD_NAME.fullmatch(path.name)
-                and not path.is_symlink()
-                and path.is_file()
+                (
+                    path
+                    for path in self.root.iterdir()
+                    if RECORD_NAME.fullmatch(path.name)
+                    and not path.is_symlink()
+                    and path.is_file()
+                ),
+                key=lambda path: (path.stat().st_mtime_ns, path.name),
             )
         except FileNotFoundError:
             return []
@@ -724,7 +736,7 @@ class PresentationStore:
         """只修剪展示缓存；保留身份与历史。"""
         records = self._records()
         for path in records[: max(0, len(records) - MAX_RECORDS + 1)]:
-            path.unlink()
+            path.unlink(missing_ok=True)
 
     def clear(self) -> None:
         """仅删除当前账号目录内的已知普通快照文件。"""

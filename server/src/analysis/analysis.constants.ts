@@ -19,8 +19,8 @@ const conversationRetryTimeoutSeconds = 60
 /** 共享草稿素材上传的账号级滚动窗口。 */
 export const analysisMediaUploadAdmissionRules = {
     windowMs: TIME_MS.MINUTE,
-    maximumImages: 50,
-    maximumVideos: 5,
+    maximumImages: 100,
+    maximumVideos: 10,
 } as const
 
 /** 分析草稿和标准任务字段的集中输入约束。 */
@@ -71,6 +71,8 @@ export const analysisMediaConstraints = {
     processingPollIntervalMs: 500,
     processingConcurrency: 3,
     downloadConcurrency: 4,
+    storageAccessMaxAttempts: 3,
+    storageAccessRetryDelayMs: 250,
     processingLeaseSeconds: processingLeaseMinutes * secondsPerMinute,
     maxProcessingAttempts: 2,
     cleanupBatchSize: 100,

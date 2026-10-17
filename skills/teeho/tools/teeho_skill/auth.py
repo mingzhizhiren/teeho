@@ -11,7 +11,7 @@ from typing import Optional
 
 from .device import machine_identifier as detect_machine
 from .errors import TeehoError
-from .locking import lock_directory
+from .locking import lock_debug_fields, lock_directory, log_lock_event
 from .storage import read_json, write_json
 from .public_history import publish_anonymous_history
 
@@ -45,25 +45,55 @@ class AuthSession:
         self.root = Path(root)
         self.public_api = public_api
         self.base_url = base_url
-        self.log = log.log if hasattr(log, "log") else (log or (lambda *args, **kwargs: None))
+        self.log = (
+            log.log if hasattr(log, "log") else (log or (lambda *args, **kwargs: None))
+        )
         self.machine_identifier = machine_identifier or detect_machine
         self.now = now or time.time
 
     @contextmanager
     def _locked(self) -> Iterator[None]:
+        path = self.root / "identity.lock"
+        started = time.monotonic()
         for attempt in range(LOCK_ATTEMPTS):
-            manager = lock_directory(self.root / "identity.lock")
+            manager = lock_directory(path)
             try:
                 manager.__enter__()
                 break
             except TeehoError as error:
+                if error.code == "identity_busy" and attempt in (0, LOCK_ATTEMPTS - 1):
+                    log_lock_event(
+                        self.log,
+                        "lock_wait_started" if attempt == 0 else "lock_wait_timeout",
+                        {
+                            **lock_debug_fields(path),
+                            "attempt": attempt + 1,
+                            "waitMs": round((time.monotonic() - started) * 1000),
+                        },
+                    )
                 if error.code != "identity_busy" or attempt == LOCK_ATTEMPTS - 1:
                     raise
                 time.sleep(LOCK_DELAY_SECONDS)
+        acquired = time.monotonic()
+        context = lock_debug_fields(path)
+        log_lock_event(
+            self.log,
+            "lock_acquired",
+            {
+                **context,
+                "waitMs": round((acquired - started) * 1000),
+                "attempt": attempt + 1,
+            },
+        )
         try:
             yield
         finally:
             manager.__exit__(None, None, None)
+            log_lock_event(
+                self.log,
+                "lock_released",
+                {**context, "holdMs": round((time.monotonic() - acquired) * 1000)},
+            )
 
     def read_identity(self) -> Optional[dict]:
         identity = read_json(self.root / "identity.json")
@@ -74,7 +104,9 @@ class AuthSession:
         if identity.get("baseUrl") != self.base_url:
             raise TeehoError("identity_server_mismatch")
         user = identity.get("user")
-        if user is not None and (not isinstance(user, dict) or not isinstance(user.get("id"), str)):
+        if user is not None and (
+            not isinstance(user, dict) or not isinstance(user.get("id"), str)
+        ):
             raise TeehoError("invalid_local_data")
         if user is not None:
             try:
@@ -152,9 +184,10 @@ class AuthSession:
         self.log("credential_refresh_completed", {"stage": stage})
         return updated
 
-    def authorized(
-        self, operation: Callable[[str], dict], expected_user_id: Optional[str] = None
+    def _credential_snapshot(
+        self, expected_user_id: Optional[str], rejected: Optional[dict] = None
     ) -> dict:
+        """持锁取得凭据快照；401 后只续接原账号、原设备授权。"""
         with self._locked():
             identity = self.read_identity()
             if not identity or not identity.get("user"):
@@ -162,19 +195,43 @@ class AuthSession:
             user_id = identity["user"]["id"]
             if expected_user_id and user_id != expected_user_id:
                 raise TeehoError("账号已切换，请使用原账号查询任务")
-            if _expiration(identity.get("accessExpiresAt")) <= self.now() + TOKEN_MARGIN_SECONDS:
-                identity = self._refresh(identity, "expiry", user_id)
+            if rejected is not None and identity.get("deviceToken") != rejected.get(
+                "deviceToken"
+            ):
+                raise TeehoError("账号已切换，请使用原账号查询任务")
+            expired = (
+                _expiration(identity.get("accessExpiresAt"))
+                <= self.now() + TOKEN_MARGIN_SECONDS
+            )
+            rejected_current = rejected is not None and identity.get(
+                "accessToken"
+            ) == rejected.get("accessToken")
+            if expired or rejected_current:
+                identity = self._refresh(
+                    identity,
+                    "unauthorized" if rejected is not None else "expiry",
+                    user_id,
+                )
             token = identity.get("accessToken")
             if not isinstance(token, str) or not token:
                 raise TeehoError("login_required")
-            try:
-                return operation(token)
-            except TeehoError as error:
-                if error.code == "skill_upgrade_required" or error.status != 401:
-                    raise
-                # 仅明确未通过鉴权的请求重试一次；超时与其他写入失败由业务恢复。
-                identity = self._refresh(identity, "unauthorized", user_id)
-                return operation(identity["accessToken"])
+            return identity
+
+    def authorized(
+        self, operation: Callable[[str], dict], expected_user_id: Optional[str] = None
+    ) -> dict:
+        """业务请求使用原身份快照并在锁外执行；仅明确 401 可重试一次。"""
+        identity = self._credential_snapshot(expected_user_id)
+        try:
+            return operation(identity["accessToken"])
+        except TeehoError as error:
+            if error.code == "skill_upgrade_required" or error.status != 401:
+                raise
+            # 其他进程已续期就复用；退出、换号或重新登录后不恢复旧授权。
+            refreshed = self._credential_snapshot(
+                identity["user"]["id"], rejected=identity
+            )
+            return operation(refreshed["accessToken"])
 
     def _sign_out(self, identity: Optional[dict]) -> dict:
         if not identity or not identity.get("user"):

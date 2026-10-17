@@ -2,6 +2,7 @@
 
 import http.client
 import re
+import socket
 import ssl
 import time
 import uuid
@@ -14,6 +15,13 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 from .errors import TeehoError
+from .http_diagnostics import (
+    network_error_fields,
+    request_debug_fields,
+    traced_body,
+    transfer_trace,
+    upstream_request_id,
+)
 
 REQUEST_TIMEOUT_SECONDS = 30
 # 与后端视频上传窗口及自建 Storage 的 600 秒签名有效期保持一致。
@@ -21,6 +29,28 @@ UPLOAD_TIMEOUT_SECONDS = 600
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 STREAM_CHUNK_BYTES = 64 * 1024
 MEDIA_TYPE_PATTERN = re.compile(r"[a-zA-Z0-9.+-]+/[a-zA-Z0-9.+-]+")
+
+
+def _network_reason(error: BaseException) -> str:
+    if isinstance(error, socket.gaierror):
+        return "dns"
+    if isinstance(error, ssl.SSLCertVerificationError):
+        return "tls_certificate"
+    if isinstance(error, ssl.SSLError):
+        return "tls"
+    if isinstance(error, (TimeoutError, socket.timeout)):
+        return "timeout"
+    if isinstance(error, http.client.RemoteDisconnected):
+        return "remote_disconnected"
+    if isinstance(error, ConnectionResetError):
+        return "connection_reset"
+    if isinstance(error, ConnectionRefusedError):
+        return "connection_refused"
+    if isinstance(error, BrokenPipeError):
+        return "broken_pipe"
+    if isinstance(error, http.client.IncompleteRead):
+        return "incomplete_response"
+    return "unknown"
 
 
 def validate_http_url(value: object) -> str:
@@ -90,7 +120,9 @@ def _check_deadline(deadline: float) -> None:
         raise TimeoutError("request_deadline")
 
 
-def _read_body(response: object, deadline: float) -> bytes:
+def _read_body(
+    response: object, deadline: float, on_bytes: Optional[Callable[[int], None]] = None
+) -> bytes:
     """read1 每次接收后检查总期限，滴流不能无限延长响应。"""
     parts: list[bytes] = []
     total = 0
@@ -101,6 +133,8 @@ def _read_body(response: object, deadline: float) -> bytes:
         if not chunk:
             return b"".join(parts)
         total += len(chunk)
+        if on_bytes:
+            on_bytes(total)
         if total > MAX_RESPONSE_BYTES:
             raise TeehoError("invalid_response", response.status)
         parts = [*parts, chunk]
@@ -131,6 +165,8 @@ class HttpTransport:
         validate_http_url(url)
         started = time.monotonic()
         context = {"requestId": str(uuid.uuid4()), "route": route, "method": method}
+        context = {**context, **request_debug_fields(url, self.opener)}
+        trace, update = transfer_trace()
         request_headers = {**(headers or {})}
         if route != "external" and getattr(self.logger, "enabled", False):
             request_headers = {**request_headers, "x-request-id": context["requestId"]}
@@ -139,39 +175,64 @@ class HttpTransport:
             {
                 **context,
                 **({"bodyBytes": len(data)} if isinstance(data, bytes) else {}),
+                "timeoutSeconds": timeout,
             },
         )
+        if data is not None and not isinstance(data, bytes):
+            data = traced_body(data, update)
         request = Request(url, data=data, headers=request_headers, method=method)
-        return self._send(request, timeout, started, context)
+        return self._send(request, timeout, started, context, trace, update)
+
+    def _open_response(self, request: Request, timeout: float) -> object:
+        try:
+            return self.opener.open(request, timeout=timeout)
+        except HTTPError as error:
+            return error
 
     def _send(
-        self, request: Request, timeout: float, started: float, context: dict
+        self,
+        request: Request,
+        timeout: float,
+        started: float,
+        context: dict,
+        trace: Callable[[], dict],
+        update: Callable[..., None],
     ) -> HttpResponse:
         try:
-            try:
-                response = self.opener.open(request, timeout=timeout)
-            except HTTPError as error:
-                response = error
+            response = self._open_response(request, timeout)
             with response:
+                update(responseHeadersReceived=True, httpStatus=response.status)
                 self.log(
                     "response_headers_received",
                     {
                         **context,
-                        "httpStatus": response.status,
+                        **trace(),
+                        "upstreamRequestId": upstream_request_id(
+                            getattr(response, "headers", None)
+                        ),
                         "durationMs": round((time.monotonic() - started) * 1000),
                     },
                 )
-                body = _read_body(response, started + timeout)
+                body = _read_body(
+                    response,
+                    started + timeout,
+                    lambda total: update(responseBytesRead=total),
+                )
                 details = {
                     **context,
                     "durationMs": round((time.monotonic() - started) * 1000),
                 }
+                self.log(
+                    "request_completed", {**details, **trace(), "phase": "completed"}
+                )
                 return HttpResponse(response.status, body, details, started)
         except (OSError, URLError, http.client.HTTPException, ValueError) as error:
             self.log(
                 "request_failed",
                 {
                     **context,
+                    **trace(),
+                    **network_error_fields(error, _network_reason),
                     "durationMs": round((time.monotonic() - started) * 1000),
                     "errorCode": "network_error",
                 },

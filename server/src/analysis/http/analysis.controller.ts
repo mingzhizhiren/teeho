@@ -30,6 +30,7 @@ import {
 } from './analysis.http-events'
 import { domainErrorResponse } from './analysis.http-errors'
 import { parseAnalysisRequest } from './analysis.http-input'
+import { deliverAnalysisTask } from '../report-access/analysis.report-access.service'
 
 const taskIdSchema = z.string().uuid()
 
@@ -60,7 +61,10 @@ async function handleTaskMutation(userId: string, taskId: unknown, mutation: Tas
     try {
         const config = taskMutationConfig[mutation]
         const task = await config.mutate(userId, parsedTaskId.data)
-        return { status: 200, response: ok({ task }, config.successMessage) }
+        return {
+            status: 200,
+            response: ok({ task: deliverAnalysisTask(task) }, config.successMessage),
+        }
     } catch (error) {
         return domainErrorResponse(error)
     }
@@ -131,7 +135,7 @@ export async function handleSubmitAnalysisTask(
         return {
             status: outcome.task ? HTTP_STATUS.CREATED : HTTP_STATUS.OK,
             response: ok(
-                outcome,
+                { ...outcome, task: deliverAnalysisTask(outcome.task) },
                 outcome.task ? '任务已进入后台分析' : (outcome.acceptance.message ?? '任务未受理'),
             ),
         }
@@ -153,7 +157,7 @@ export async function handleGetLatestAnalysisTask(
 ) {
     const task = await getLatestAnalysisTask(userId)
     await recordReportReturned(userId, task, source)
-    return { status: 200, response: ok({ task }) }
+    return { status: 200, response: ok({ task: deliverAnalysisTask(task) }) }
 }
 
 /** 提交响应未知时按幂等身份恢复已成立任务；不存在时明确返回空。 */
@@ -171,13 +175,13 @@ export async function handleGetAnalysisTaskAdmission(
     }
     const task = await getAnalysisTaskAdmission(userId, parsedSubmissionId.data)
     await recordReportReturned(userId, task, source)
-    return { status: 200, response: ok({ task }) }
+    return { status: 200, response: ok({ task: deliverAnalysisTask(task) }) }
 }
 
 /** 读取当前用户最近任务列表 */
 export async function handleGetAnalysisTasks(userId: string) {
     const tasks = await getAnalysisTasks(userId)
-    return { status: 200, response: ok({ tasks }) }
+    return { status: 200, response: ok({ tasks: tasks.map(deliverAnalysisTask) }) }
 }
 
 /** 校验任务标识并读取当前用户自己的任务 */
@@ -203,7 +207,7 @@ export async function handleGetAnalysisTask(
     }
 
     await recordReportReturned(userId, task, source)
-    return { status: 200, response: ok({ task }) }
+    return { status: 200, response: ok({ task: deliverAnalysisTask(task) }) }
 }
 
 /** 放弃资料搜集、等待、执行或重试中的任务。 */
@@ -262,7 +266,10 @@ export async function handleReanalyzeAnalysisTask(
         )
         if (task) await recordTaskAccepted(userId, task.id, source)
         await recordReportReturned(userId, task, source)
-        return { status: HTTP_STATUS.OK, response: ok({ task }, '已受理再次体检') }
+        return {
+            status: HTTP_STATUS.OK,
+            response: ok({ task: deliverAnalysisTask(task) }, '已受理再次体检'),
+        }
     } catch (error) {
         return domainErrorResponse(error)
     }

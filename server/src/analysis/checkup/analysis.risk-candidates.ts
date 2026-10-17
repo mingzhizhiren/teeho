@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import databaseJson from '../../../../skills/teeho/resources/risk-database.json'
+import databaseJson from './risk-database.json'
 import type { AgentResultGenerationInput } from '../providers/analysis.provider'
 import type { ContentLocation } from './analysis.content-analysis'
 import { resolveAnalysisTrackCode } from '../tracks/analysis.tracks'

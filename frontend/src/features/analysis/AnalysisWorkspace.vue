@@ -215,7 +215,7 @@ const filteredTasks = computed(() => {
             localHistoryNames.value.get(historyTask.id) ?? createLocalHistoryName(historyTask),
             historyTask.standardTask.rawText,
             historyTask.standardTask.fields.title.value,
-            historyTask.result?.qualitativeConclusion.summary,
+            historyTask.result?.qualitativeConclusion?.summary,
             ...(historyTask.standardTask.fields.topics.value ?? []),
         ]
             .filter((value): value is string => typeof value === 'string')

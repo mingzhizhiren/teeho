@@ -106,6 +106,7 @@ export default {
                 risks: 'High-risk terms',
                 weaknesses: 'Shortcomings compared with reference notes',
                 noRisks: 'No matching high-risk terms were found.',
+                riskResultsMissing: 'No risk detection results were provided.',
                 riskReviewUnavailable: 'The high-risk term check could not be completed.',
                 noWeaknesses:
                     'The available reference data does not establish specific shortcomings.',
@@ -201,6 +202,14 @@ export default {
                 paragraphLocation: 'Paragraph {number}: {text}',
                 positions: {
                     within: 'Within range',
+                    slightly_short: 'Slightly shorter',
+                    slightly_long: 'Slightly longer',
+                    slightly_few: 'Slightly fewer',
+                    slightly_many: 'Slightly more',
+                    too_short: 'Too short',
+                    too_long: 'Too long',
+                    too_few: 'Too few',
+                    too_many: 'Too many',
                     short: 'Shorter',
                     long: 'Longer',
                     few: 'Fewer',

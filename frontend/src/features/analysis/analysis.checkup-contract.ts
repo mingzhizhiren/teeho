@@ -1,16 +1,26 @@
 import { z } from 'zod'
 import { customMetricSchema, customMetricLimits } from './analysis.custom-metrics'
 import {
+    noteScoringAuditSchema,
+    noteScoringCoefficientSchema,
+    validSavedNoteScoring,
+} from './analysis.note-scoring'
+import {
     structureMetricsSchema,
     structureReferencesSchema,
     structureLocationsSchema,
+    currentStructureMetricsSchema,
+    currentStructureReferencesSchema,
 } from './analysis.structure-metrics'
+import { hasFullReportAccess, reportAccessSchema } from './analysis.report-access'
+import { validateProjectedReportAccess } from './analysis.report-projection'
 const INSIGHT_MAX_SCORE = 10
 import { analysisUiConstraints } from './analysis.constants'
 import {
     contentAnalysisSchema,
     expectedContentScore,
     riskMatchSchema,
+    projectedContentAnalysisSchema,
 } from './analysis.content-analysis'
 
 /** 浏览器独立维护的六维体检评分顺序。 */
@@ -105,9 +115,11 @@ const topicSupportSchema = z
     .strict()
 
 /** 完整体检报告。拒绝混入已退役的内容生成方案。 */
-export const analysisResultSchema = z
+const analysisResultShapeSchema = z
     .object({
         schemaVersion: z.enum(['analysis-result.v6', 'analysis-result.v7']),
+        noteScoringCoefficient: noteScoringCoefficientSchema.optional(),
+        noteScoringAudit: noteScoringAuditSchema.optional(),
         customMetrics: z.array(customMetricSchema).max(customMetricLimits.count).optional(),
         structureMetrics: structureMetricsSchema,
         structureReferences: structureReferencesSchema,
@@ -209,111 +221,177 @@ export const analysisResultSchema = z
             .max(analysisUiConstraints.referenceSourcesMaximum),
     })
     .strict()
+
+/** 未裁剪的历史与完整报告继续校验原始评分、系数和引用关系。 */
+export const fullAnalysisResultSchema = analysisResultShapeSchema.superRefine((report, context) => {
+    if (
+        !validSavedNoteScoring(report) ||
+        (report.noteScoringCoefficient !== undefined &&
+            report.schemaVersion !== 'analysis-result.v7')
+    )
+        context.addIssue({
+            code: 'custom',
+            path: ['noteScoringCoefficient'],
+            message: 'Invalid saved note scoring coefficient',
+        })
+    if (
+        report.structureMetricsVersion === 'structure.v3' &&
+        (report.structureMetrics.imageCount === undefined ||
+            report.structureReferences.imageCount === undefined ||
+            report.structureMetrics.videoDurationSeconds === undefined ||
+            report.structureReferences.videoDurationSeconds === undefined)
+    )
+        context.addIssue({
+            code: 'custom',
+            path: ['structureMetrics'],
+            message: 'Incomplete structure v3 report',
+        })
+    if (
+        report.structureMetricsVersion !== undefined &&
+        (report.structureMetrics.maxTopicLength === undefined ||
+            report.structureMetrics.maxParagraphLength == null ||
+            report.structureReferences.maxTopicLength === undefined ||
+            report.structureReferences.maxParagraphLength === undefined ||
+            !report.structureLocations)
+    )
+        context.addIssue({
+            code: 'custom',
+            path: ['structureMetrics'],
+            message: 'Incomplete structure v2 report',
+        })
+    const primary = report.primaryScore
+    const isBlocked =
+        report.contentAnalysis?.status === 'completed' &&
+        report.contentAnalysis.consistency.stars === 0
+    if (
+        (!isBlocked || report.contentAnalysis?.scorePolicy === 'consistency-weighted.v2') &&
+        report.referenceRequirement !== 'optional' &&
+        report.comparisonNotes.length === 0
+    ) {
+        context.addIssue({
+            code: 'custom',
+            path: ['comparisonNotes'],
+            message: 'Missing reference notes',
+        })
+    }
+    const invalid = () =>
+        context.addIssue({
+            code: 'custom',
+            message: 'Invalid primary score source',
+            path: ['primaryScore'],
+        })
+    if (
+        isBlocked &&
+        ((primary && primary.value !== 0) || (report.insight && report.insight.score !== 0))
+    ) {
+        invalid()
+    }
+    if (report.contentAnalysis) {
+        const savedScore = primary?.value ?? report.insight?.score
+        if (
+            savedScore !==
+            expectedContentScore(report.contentAnalysis, report.noteScoringCoefficient)
+        )
+            invalid()
+        const referenceIds = new Set(report.comparisonNotes.map((note) => note.noteId))
+        if (
+            report.contentAnalysis.weaknesses.some((item) =>
+                item.referenceIds.some((id) => !referenceIds.has(id)),
+            )
+        ) {
+            context.addIssue({
+                code: 'custom',
+                path: ['contentAnalysis', 'weaknesses'],
+                message: 'Unknown reference note',
+            })
+        }
+    }
+    if (report.schemaVersion === 'analysis-result.v6') {
+        if (
+            !report.insight ||
+            primary?.source === 'radar_average' ||
+            (primary && primary.value !== report.insight.score)
+        )
+            invalid()
+        return
+    }
+    if (!primary) {
+        invalid()
+        return
+    }
+    if (primary.source === 'insight') {
+        if (!report.insight || primary.value !== report.insight.score) invalid()
+    } else {
+        const scores = Object.values(report.radar).filter(
+            (score): score is number => score !== null,
+        )
+        const minimum = 4
+        const decimals = 100
+        const average =
+            report.noteScoringCoefficient === undefined
+                ? Math.round(
+                      scores.reduce((sum, value) => sum + Math.round(value * decimals), 0) /
+                          scores.length,
+                  ) / decimals
+                : scores.reduce((sum, value) => sum + value, 0) / scores.length
+        if (
+            report.insight !== null ||
+            scores.length < minimum ||
+            primary.value !==
+                (report.contentAnalysis
+                    ? expectedContentScore(report.contentAnalysis, report.noteScoringCoefficient)
+                    : average)
+        )
+            invalid()
+        if (report.contentAnalysis && report.contentAnalysis.originalScore !== average) invalid()
+    }
+})
+
+const fullResultWithAccessSchema = fullAnalysisResultSchema
+    .safeExtend({
+        reportAccess: reportAccessSchema.optional(),
+    })
     .superRefine((report, context) => {
-        if (
-            report.structureMetricsVersion === 'structure.v3' &&
-            (report.structureMetrics.imageCount === undefined ||
-                report.structureReferences.imageCount === undefined ||
-                report.structureMetrics.videoDurationSeconds === undefined ||
-                report.structureReferences.videoDurationSeconds === undefined)
-        )
+        if (report.reportAccess && !hasFullReportAccess(report.reportAccess)) {
             context.addIssue({
                 code: 'custom',
-                path: ['structureMetrics'],
-                message: 'Incomplete structure v3 report',
+                path: ['reportAccess'],
+                message: 'Restricted report requires projection',
             })
+        }
         if (
-            report.structureMetricsVersion !== undefined &&
-            (report.structureMetrics.maxTopicLength === undefined ||
-                report.structureMetrics.maxParagraphLength == null ||
-                report.structureReferences.maxTopicLength === undefined ||
-                report.structureReferences.maxParagraphLength === undefined ||
-                !report.structureLocations)
-        )
-            context.addIssue({
-                code: 'custom',
-                path: ['structureMetrics'],
-                message: 'Incomplete structure v2 report',
-            })
-        const primary = report.primaryScore
-        const isBlocked =
-            report.contentAnalysis?.status === 'completed' &&
-            report.contentAnalysis.consistency.stars === 0
-        if (
-            (!isBlocked || report.contentAnalysis?.scorePolicy === 'consistency-weighted.v2') &&
-            report.referenceRequirement !== 'optional' &&
-            report.comparisonNotes.length === 0
+            report.reportAccess &&
+            report.comparisonNotes.length > report.reportAccess.sections.comparisonNotes.limit
         ) {
             context.addIssue({
                 code: 'custom',
                 path: ['comparisonNotes'],
-                message: 'Missing reference notes',
+                message: 'Too many visible reference notes',
             })
-        }
-        const invalid = () =>
-            context.addIssue({
-                code: 'custom',
-                message: 'Invalid primary score source',
-                path: ['primaryScore'],
-            })
-        if (
-            isBlocked &&
-            ((primary && primary.value !== 0) || (report.insight && report.insight.score !== 0))
-        ) {
-            invalid()
-        }
-        if (report.contentAnalysis) {
-            const savedScore = primary?.value ?? report.insight?.score
-            if (savedScore !== expectedContentScore(report.contentAnalysis)) invalid()
-            const referenceIds = new Set(report.comparisonNotes.map((note) => note.noteId))
-            if (
-                report.contentAnalysis.weaknesses.some((item) =>
-                    item.referenceIds.some((id) => !referenceIds.has(id)),
-                )
-            ) {
-                context.addIssue({
-                    code: 'custom',
-                    path: ['contentAnalysis', 'weaknesses'],
-                    message: 'Unknown reference note',
-                })
-            }
-        }
-        if (report.schemaVersion === 'analysis-result.v6') {
-            if (
-                !report.insight ||
-                primary?.source === 'radar_average' ||
-                (primary && primary.value !== report.insight.score)
-            )
-                invalid()
-            return
-        }
-        if (!primary) {
-            invalid()
-            return
-        }
-        if (primary.source === 'insight') {
-            if (!report.insight || primary.value !== report.insight.score) invalid()
-        } else {
-            const scores = Object.values(report.radar).filter(
-                (score): score is number => score !== null,
-            )
-            const minimum = 4
-            const decimals = 100
-            const average =
-                Math.round(
-                    scores.reduce((sum, value) => sum + Math.round(value * decimals), 0) /
-                        scores.length,
-                ) / decimals
-            if (
-                report.insight !== null ||
-                scores.length < minimum ||
-                primary.value !==
-                    (report.contentAnalysis
-                        ? expectedContentScore(report.contentAnalysis)
-                        : average)
-            )
-                invalid()
-            if (report.contentAnalysis && report.contentAnalysis.originalScore !== average)
-                invalid()
         }
     })
+
+/** 展示 DTO 独立校验权限裁剪；不使用缺失的内部数据重新计算最终分。 */
+export const projectedAnalysisResultSchema = analysisResultShapeSchema
+    .extend({
+        reportAccess: reportAccessSchema,
+        structureMetrics: currentStructureMetricsSchema.partial(),
+        structureReferences: currentStructureReferencesSchema.partial(),
+        structureLocations: structureLocationsSchema.partial().optional(),
+        contentAnalysis: projectedContentAnalysisSchema.optional(),
+        noteScoringCoefficient: z.never().optional(),
+        noteScoringAudit: z.never().optional(),
+        customMetrics: z.never().optional(),
+        radar: z.never().optional(),
+        differences: z.never().optional(),
+        qualitativeConclusion: z.never().optional(),
+        topicSupport: z.never().optional(),
+        riskMatches: z.array(riskMatchSchema).optional(),
+    })
+    .superRefine(validateProjectedReportAccess)
+
+/** 接口与本地历史接受完整报告或带明确权限快照的裁剪报告。 */
+export const analysisResultSchema = z.union([
+    fullResultWithAccessSchema,
+    projectedAnalysisResultSchema,
+])

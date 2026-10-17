@@ -451,7 +451,7 @@ class CommandRunner:
             "input_read",
             {
                 "titleCharacters": len(value["title"]),
-                "bodyCharacters": len(value["body"]),
+                "bodyCharacters": len(value.get("body") or ""),
                 "imageCount": len(value.get("images") or []),
                 "videoCount": len(value.get("videos") or []),
                 "topicCount": len(value["topics"]),

@@ -518,8 +518,8 @@ class RuntimeTests(unittest.TestCase):
         text = "".join(rows)
         self.assertNotIn("PRIVATE", text)
         self.assertTrue(json.loads(rows[-1])["hasRadar"])
-        self.assertEqual(command_log_level("authorization_pending"), "info")
-        self.assertEqual(command_log_level("failed"), "error")
+        self.assertEqual(command_log_level("authorization_pending"), "debug")
+        self.assertEqual(command_log_level("failed"), "debug")
 
     def test_network_parse_logs_keep_request_correlation(self) -> None:
         rows = []

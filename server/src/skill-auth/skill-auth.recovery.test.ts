@@ -22,7 +22,7 @@ describe('Skill 授权结果恢复 HTTP', () => {
                 new Request('http://localhost/skill/auth/' + path, {
                     method: 'POST',
                     headers: {
-                        'x-teeho-skill-version': '2.4.2',
+                        'x-teeho-skill-version': '2.6.1',
                         'content-type': 'application/json',
                         origin: 'http://localhost',
                         cookie: 'teeho_access_token=' + owner,

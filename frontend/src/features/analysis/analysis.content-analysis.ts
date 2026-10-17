@@ -4,6 +4,11 @@ import {
     contentAdviceCopyLines,
     type ContentAdviceLabels,
 } from './analysis.advice'
+import {
+    canShowContentIndicator,
+    canShowReportSection,
+    type ReportAccess,
+} from './analysis.report-access'
 
 const CONTENT_ANALYSIS_LIMITS = {
     stars: 5,
@@ -38,7 +43,7 @@ export const riskMatchSchema = findingSchema
     .strict()
 
 /** 已保存的内容一致性、词句风险和参考不足分析。 */
-export const contentAnalysisSchema = z
+export const contentAnalysisShapeSchema = z
     .object({
         status: z.enum(['completed', 'fallback']),
         evaluationVersion: z.literal('content-evaluation.v2').optional(),
@@ -79,50 +84,61 @@ export const contentAnalysisSchema = z
         originalScore: z.number().finite().min(0).max(CONTENT_ANALYSIS_LIMITS.score).nullable(),
     })
     .strict()
-    .superRefine((analysis, context) => {
-        if (
-            analysis.originalScore === null &&
-            !(analysis.status === 'completed' && analysis.consistency.stars === 0)
-        ) {
-            context.addIssue({
-                code: 'custom',
-                path: ['originalScore'],
-                message: 'Missing original score requires zero consistency',
-            })
-        }
-        if (
-            analysis.status === 'fallback' &&
-            analysis.consistency.stars !== CONTENT_ANALYSIS_LIMITS.fallbackStars
-        ) {
-            context.addIssue({
-                code: 'custom',
-                path: ['consistency', 'stars'],
-                message: 'Invalid fallback stars',
-            })
-        }
-        if (
-            analysis.status === 'fallback' &&
-            (analysis.consistency.issues.length ||
-                analysis.termRisks.length ||
-                analysis.weaknesses.length)
-        ) {
-            context.addIssue({
-                code: 'custom',
-                message: 'Fallback must not claim analysis findings',
-            })
-        }
-        if (
-            analysis.status === 'completed' &&
-            analysis.consistency.stars === 0 &&
-            !analysis.consistency.issues.length
-        ) {
-            context.addIssue({
-                code: 'custom',
-                path: ['consistency', 'issues'],
-                message: 'Missing inconsistency evidence',
-            })
-        }
-    })
+
+export const contentAnalysisSchema = contentAnalysisShapeSchema.superRefine((analysis, context) => {
+    if (
+        analysis.originalScore === null &&
+        !(analysis.status === 'completed' && analysis.consistency.stars === 0)
+    ) {
+        context.addIssue({
+            code: 'custom',
+            path: ['originalScore'],
+            message: 'Missing original score requires zero consistency',
+        })
+    }
+    if (
+        analysis.status === 'fallback' &&
+        analysis.consistency.stars !== CONTENT_ANALYSIS_LIMITS.fallbackStars
+    ) {
+        context.addIssue({
+            code: 'custom',
+            path: ['consistency', 'stars'],
+            message: 'Invalid fallback stars',
+        })
+    }
+    if (
+        analysis.status === 'fallback' &&
+        (analysis.consistency.issues.length ||
+            analysis.termRisks.length ||
+            analysis.weaknesses.length)
+    ) {
+        context.addIssue({
+            code: 'custom',
+            message: 'Fallback must not claim analysis findings',
+        })
+    }
+    if (
+        analysis.status === 'completed' &&
+        analysis.consistency.stars === 0 &&
+        !analysis.consistency.issues.length
+    ) {
+        context.addIssue({
+            code: 'custom',
+            path: ['consistency', 'issues'],
+            message: 'Missing inconsistency evidence',
+        })
+    }
+})
+
+/** 已经由服务端裁剪的内容分析，不把隐藏项补成空结果。 */
+export const projectedContentAnalysisSchema = contentAnalysisShapeSchema.partial({
+    consistency: true,
+    termRisks: true,
+    weaknesses: true,
+    originalScore: true,
+})
+
+export type ProjectedContentAnalysis = z.infer<typeof projectedContentAnalysisSchema>
 
 export type ContentAnalysis = z.infer<typeof contentAnalysisSchema>
 export type ContentFinding = ContentAnalysis['consistency']['issues'][number]
@@ -136,14 +152,22 @@ export function contentScoreRetention(analysis: ContentAnalysis | undefined): nu
 }
 
 /** 校验保存的最终分；不重新评分或改变历史报告。 */
-export function expectedContentScore(analysis: ContentAnalysis): number | null {
+export function expectedContentScore(
+    analysis: ContentAnalysis,
+    noteScoringCoefficient?: number,
+): number | null {
     if (analysis.status === 'completed' && analysis.consistency.stars === 0) return 0
     const percent = contentScoreRetention(analysis)
-    if (percent === null || analysis.originalScore === null) return analysis.originalScore
+    if (analysis.originalScore === null) return null
+    if (percent === null && noteScoringCoefficient === undefined) return analysis.originalScore
     const percentageScale = 100
     const roundingPrecision = 12
     const precision = 100
-    const value = (analysis.originalScore * percent) / percentageScale
+    const value = Math.min(
+        CONTENT_ANALYSIS_LIMITS.score,
+        (analysis.originalScore * (noteScoringCoefficient ?? 1) * (percent ?? percentageScale)) /
+            percentageScale,
+    )
     return Math.round(Number(`${value.toFixed(roundingPrecision)}e2`)) / precision
 }
 
@@ -154,6 +178,7 @@ export interface ContentAnalysisLabels {
     risks: string
     weaknesses: string
     noRisks: string
+    riskResultsMissing: string
     riskReviewUnavailable?: string
     noWeaknesses: string
     noObviousWeaknesses: string
@@ -175,39 +200,57 @@ export function formatContentFinding(
 
 /** 与网页顺序一致地复制已保存分析，不重新评估。 */
 export function contentAnalysisCopyLines(
-    analysis: ContentAnalysis | undefined,
+    analysis: ContentAnalysis | ProjectedContentAnalysis | undefined,
     legacySummary: string,
     notes: ReadonlyArray<{ noteId: string; title: string }>,
     labels: ContentAnalysisLabels,
+    access?: ReportAccess,
 ): string[] {
-    if (!analysis) return [labels.title, legacySummary]
-    const consistency = [
-        `${labels.title} · ${labels.consistency}: ${labels.stars(analysis.consistency.stars)}`,
-        labels.consistency,
-        ...(analysis.status === 'fallback' ? [labels.fallback] : []),
-        analysis.consistency.summary,
-        ...analysis.consistency.issues.map((item) => formatContentFinding(item, labels)),
-    ]
+    if (!canShowReportSection(access, 'contentAnalysis')) return []
+    if (!analysis)
+        return legacySummary && canShowContentIndicator(access, 'consistency')
+            ? [labels.title, legacySummary]
+            : [labels.title]
+    const savedConsistency = canShowContentIndicator(access, 'consistency')
+        ? analysis.consistency
+        : undefined
+    const consistency = savedConsistency
+        ? [
+              `${labels.title} · ${labels.consistency}: ${labels.stars(savedConsistency.stars)}`,
+              labels.consistency,
+              ...(analysis.status === 'fallback' ? [labels.fallback] : []),
+              savedConsistency.summary,
+              ...savedConsistency.issues.map((item) => formatContentFinding(item, labels)),
+          ]
+        : [labels.title]
     if (analysis.status === 'fallback') return consistency
     return [
         ...consistency,
-        ...contentAdviceCopyLines(analysis.advice, labels.advice),
-        labels.weaknesses,
-        ...(analysis.weaknesses.length
-            ? analysis.weaknesses.map((item) =>
-                  [
-                      formatContentFinding(item, labels),
-                      ...(item.suggestion ? [item.suggestion] : []),
-                      `${labels.references} ${notes
-                          .filter((note) => item.referenceIds.includes(note.noteId))
-                          .map((note) => note.title)
-                          .join(' / ')}`,
-                  ].join('\n'),
-              )
-            : [
-                  analysis.evaluationVersion === 'content-evaluation.v2'
-                      ? labels.noObviousWeaknesses
-                      : labels.noWeaknesses,
-              ]),
+        ...(canShowContentIndicator(access, 'advice')
+            ? contentAdviceCopyLines(analysis.advice, labels.advice)
+            : []),
+        ...(canShowContentIndicator(access, 'weaknesses')
+            ? [
+                  labels.weaknesses,
+                  ...(analysis.weaknesses?.length
+                      ? analysis.weaknesses.map((item) =>
+                            [
+                                formatContentFinding(item, labels),
+                                ...(item.suggestion && canShowContentIndicator(access, 'advice')
+                                    ? [item.suggestion]
+                                    : []),
+                                `${labels.references} ${notes
+                                    .filter((note) => item.referenceIds.includes(note.noteId))
+                                    .map((note) => note.title)
+                                    .join(' / ')}`,
+                            ].join('\n'),
+                        )
+                      : [
+                            analysis.evaluationVersion === 'content-evaluation.v2'
+                                ? labels.noObviousWeaknesses
+                                : labels.noWeaknesses,
+                        ]),
+              ]
+            : []),
     ]
 }

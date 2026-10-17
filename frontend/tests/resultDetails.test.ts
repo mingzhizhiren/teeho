@@ -16,6 +16,7 @@ const labels: ResultCopyLabels = {
         risks: 'Wording risks',
         weaknesses: 'Shortcomings',
         noRisks: 'No wording risks',
+        riskResultsMissing: 'No risk detection results were provided.',
         noWeaknesses: 'No supported shortcomings',
         noObviousWeaknesses: 'No obvious shortcomings',
         advice: {
@@ -135,6 +136,46 @@ test('复制新报告使用冻结结构指标且不重复旧差异范围', () =>
 })
 
 describe('复制已完成的笔记体检报告', () => {
+    test('只复制后端 canonical 风险结果，缺失与已检查无命中保持区别', () => {
+        const report = { ...checkupResult, contentAnalysis: contentAnalysisFixture }
+        const missing = buildResultCopyText(report, labels)
+        expect(missing).toContain(labels.contentAnalysis.riskResultsMissing)
+        expect(missing).not.toContain(labels.contentAnalysis.noRisks)
+        expect(missing).not.toContain('最佳')
+        const empty = buildResultCopyText({ ...report, riskMatches: [] }, labels)
+        expect(empty).toContain(labels.contentAnalysis.noRisks)
+        expect(empty).not.toContain(labels.contentAnalysis.riskResultsMissing)
+        expect(empty).not.toContain('最佳')
+    })
+
+    test('保存的风险不按赛道、级别或位置重筛，未完成状态也不丢失已有命中', () => {
+        const risks = (['high', 'medium', 'low'] as const).map((riskLevel, index) => ({
+            term: `server-term-${riskLevel}`,
+            category: '后端历史分类',
+            evidence: '后端证据',
+            description: '后端风险说明',
+            location: (['body', 'cover', 'content'] as const)[index]!,
+            riskLevel,
+        }))
+        const copied = buildResultCopyText(
+            {
+                ...checkupResult,
+                primaryTrack: 4,
+                secondaryTracks: [],
+                contentAnalysis: { ...contentAnalysisFixture, termRisks: [] },
+                riskMatches: risks,
+                riskReviewStatus: 'unavailable',
+            },
+            labels,
+        )
+        for (const item of risks) expect(copied).toContain(item.term)
+        expect(copied).toContain(
+            labels.contentAnalysis.riskReviewUnavailable ?? labels.contentAnalysis.fallback,
+        )
+        expect(copied).not.toContain(labels.contentAnalysis.noRisks)
+        expect(copied).not.toContain(labels.contentAnalysis.riskResultsMissing)
+    })
+
     test('omits one/two-star retention details from copied reports', () => {
         for (const [stars, value, percent] of [
             [1, 1.75, 25],

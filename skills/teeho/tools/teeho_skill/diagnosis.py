@@ -143,7 +143,9 @@ class DiagnosisTools:
         if task.get("result"):
             try:
                 state = self._pending(scope)
-                matching = state if state and state.get("taskId") == task_id else None
+                matching = state if state and (
+                    state.get("taskId") or state.get("submissionId")
+                ) == task_id else None
                 media = local_media(matching)
             except TeehoError:
                 # 权威结果已取得，本地恢复记录损坏不能阻止交付；保留原文件供恢复。
@@ -239,7 +241,7 @@ class DiagnosisTools:
         """每次显式诊断重新上传并创建新提交；仅保护结果未知的本次提交。"""
         note = normalize_note(value)
         scope = self._scope()
-        with lock_directory(scope.root / "operation.lock"):
+        with lock_directory(scope.root / "operation.lock", log=self.log):
             self._check_unconfirmed_submission(scope)
             self._check_points(scope, len(note["images"]), bool(note["video"]))
             self._media(scope).check(note["images"], note["video"])
@@ -298,7 +300,7 @@ class DiagnosisTools:
     def resume(self) -> dict:
         """恢复当前账号的同一提交，网络失败不产生新提交标识。"""
         scope = self._scope()
-        with lock_directory(scope.root / "operation.lock"):
+        with lock_directory(scope.root / "operation.lock", log=self.log):
             return self._resume(scope)
 
     def _resume(self, scope: AccountScope) -> dict:
@@ -362,7 +364,13 @@ class DiagnosisTools:
         payload = build_task_payload(state)
         state = {**state, "submitting": True}
         write_json(scope.root / "pending.json", state)
-        result = self.api.submit_task(payload, expected_user_id=scope.user_id)
+        try:
+            result = self.api.submit_task(payload, expected_user_id=scope.user_id)
+        except TeehoError as error:
+            # 仅有效业务响应明确拒绝参数时解除保护；断线或损坏响应仍须原身份对账。
+            if error.status == 400 and error.code == "题火请求参数无效，请更新技能后重试":
+                write_json(scope.root / "pending.json", {**state, "submitting": False})
+            raise
         task = result.get("task")
         if not isinstance(task, dict):
             raise TeehoError("任务结果未确认，请恢复查询")

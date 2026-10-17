@@ -6,6 +6,7 @@ import { env } from '../../config/env'
 import { logger } from '../../utils/logger'
 import { analysisMediaConstraints } from '../analysis.constants'
 import { AnalysisAssetExpiredError } from '../analysis.errors'
+import { retryAnalysisStorageAccess } from './analysis.storage-retry'
 
 export interface AnalysisObjectInfo {
     size: number | null
@@ -104,37 +105,58 @@ export async function createAnalysisMediaPreviewUrl(
 /** Supabase Storage 生产适配器。 */
 export const supabaseAnalysisObjectStorage: AnalysisObjectStorage = {
     async createSignedUpload(path) {
-        const { data, error } = await createStorageClient().createSignedUploadUrl(path, {
-            upsert: false,
-        })
-        if (error || !data?.signedUrl || !data.token) {
-            throw error ?? new Error('Storage 未返回上传资格')
-        }
-        return { signedUrl: data.signedUrl, token: data.token }
+        return retryAnalysisStorageAccess(
+            async () => {
+                const { data, error } = await createStorageClient().createSignedUploadUrl(path, {
+                    upsert: false,
+                })
+                if (error || !data?.signedUrl || !data.token) {
+                    throw error ?? new Error('Storage 未返回上传资格')
+                }
+                return { signedUrl: data.signedUrl, token: data.token }
+            },
+            {
+                operation: 'sign_upload',
+                readId: crypto.randomUUID(),
+                objectKeyHash: createHash('sha256').update(path).digest('hex'),
+            },
+        )
     },
 
     async info(path) {
-        const { data, error } = await createStorageClient().info(path)
-        if (error) {
-            if ('status' in error && error.status === HTTP_STATUS.NOT_FOUND) {
-                return null
-            }
-            return null
+        const context = {
+            operation: 'info' as const,
+            readId: crypto.randomUUID(),
+            objectKeyHash: createHash('sha256').update(path).digest('hex'),
         }
-        const metadata = data.metadata as Record<string, unknown> | null
-        return {
-            size:
-                typeof metadata?.size === 'number'
-                    ? metadata.size
-                    : typeof data.size === 'number'
-                      ? data.size
-                      : null,
-            contentType:
-                typeof metadata?.mimetype === 'string'
-                    ? metadata.mimetype
-                    : typeof data.contentType === 'string'
-                      ? data.contentType
-                      : null,
+        try {
+            return await retryAnalysisStorageAccess(async () => {
+                const { data, error } = await createStorageClient().info(path)
+                if (error?.status === HTTP_STATUS.NOT_FOUND) return null
+                if (error) throw error
+                const metadata = data.metadata as Record<string, unknown> | null
+                return {
+                    size:
+                        typeof metadata?.size === 'number'
+                            ? metadata.size
+                            : typeof data.size === 'number'
+                              ? data.size
+                              : null,
+                    contentType:
+                        typeof metadata?.mimetype === 'string'
+                            ? metadata.mimetype
+                            : typeof data.contentType === 'string'
+                              ? data.contentType
+                              : null,
+                }
+            }, context)
+        } catch (error: unknown) {
+            logger.warn(
+                { event: 'analysis_storage_info_failed', ...context },
+                '图片存储信息暂时无法读取',
+            )
+            // HTTP 确认接口会展示该消息，不向用户透出 Storage 原始响应。
+            throw new Error('图片存储暂不可用，请稍后重试', { cause: error })
         }
     },
 
@@ -146,9 +168,18 @@ export const supabaseAnalysisObjectStorage: AnalysisObjectStorage = {
         const startedAt = performance.now()
         logger.debug({ event: 'analysis_storage_download_started', ...trace }, '开始读取图片存储')
         try {
-            const { data, error } = await createStorageClient(trace).download(path)
-            if (error || !data) throw error ?? new Error('读取私有图片失败')
-            const content = new Uint8Array(await data.arrayBuffer())
+            const content = await retryAnalysisStorageAccess(
+                async () => {
+                    const { data, error } = await createStorageClient(trace).download(path)
+                    if (error || !data) throw error ?? new Error('读取私有图片失败')
+                    return new Uint8Array(await data.arrayBuffer())
+                },
+                {
+                    operation: 'download',
+                    readId: trace.downloadId,
+                    objectKeyHash: trace.objectKeyHash,
+                },
+            )
             logger.debug(
                 {
                     event: 'analysis_storage_download_completed',

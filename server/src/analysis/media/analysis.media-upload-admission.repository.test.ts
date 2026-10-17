@@ -14,7 +14,7 @@ describe('analysis media upload admission repository', () => {
         const execute = vi
             .fn()
             .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([{ imageCount: 49, videoCount: 5 }])
+            .mockResolvedValueOnce([{ imageCount: 99, videoCount: 10 }])
 
         await expect(
             admitAnalysisMediaUpload({ execute } as never, userId, { kind: 'image', count: 1 }),
@@ -32,7 +32,7 @@ describe('analysis media upload admission repository', () => {
         const execute = vi
             .fn()
             .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([{ imageCount: 50, videoCount: 0 }])
+            .mockResolvedValueOnce([{ imageCount: 100, videoCount: 0 }])
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce([])
             .mockResolvedValueOnce([

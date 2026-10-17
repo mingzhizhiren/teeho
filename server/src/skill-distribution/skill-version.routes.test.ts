@@ -73,9 +73,12 @@ describe('Skill upgrade protocol before authorization', () => {
             code: 0,
             message: 'ok',
             data: {
-                minimumVersion: '2.4.2',
-                latestVersion: '2.5.3',
+                minimumVersion: '2.6.1',
+                latestVersion: '2.6.1',
                 downloadPath: '/skill/download',
+                officialInstallUrl: 'https://teeho.chat/skill-install.md',
+                githubInstallUrl:
+                    'https://github.com/mingzhizhiren/teeho/blob/main/docs/skill-install.md',
             },
         })
         expect(info.headers.get('cache-control')).toBe('no-store')

@@ -24,34 +24,23 @@ NUMBER_FIELDS = frozenset(
     (
         "durationMs httpStatus bodyBytes responseBytes characters lines imageCount "
         "videoCount titleCharacters bodyCharacters topicCount translatedFields "
-        "fallbackFields exitCode pollAfterMs"
+        "fallbackFields exitCode pollAfterMs bodyBytesProduced responseBytesRead "
+        "timeoutSeconds errno winerror tlsVerifyCode proxyStatus waitMs holdMs ownerPid attempt"
     ).split()
 )
 BOOLEAN_FIELDS = frozenset(
-    "anonymous saved hasRadar translationAvailable hasTask submitting".split()
+    "anonymous saved hasRadar translationAvailable hasTask submitting "
+    "requestBodyComplete responseHeadersReceived proxyConfigured".split()
 )
 STRING_FIELDS = frozenset(
-    "command method route state nextAction template errorCode stage fieldPath".split()
+    "command method route state nextAction template errorCode stage fieldPath "
+    "exceptionType causeType networkReason phase scheme tlsReason lockKind mediaType".split()
 )
 
 
 def command_log_level(state: str) -> str:
-    if state in {"failed", "invalid_response", "unavailable", "service_unavailable", "local_error"}:
-        return "error"
-    if state in {
-        "upgrade_required",
-        "anonymous_limit",
-        "invalid_input",
-        "invalid_request",
-        "permission_required",
-        "rate_limited",
-        "conflict",
-        "access_denied",
-        "account_changed",
-        "invalid_configuration",
-    }:
-        return "warn"
-    return "info"
+    """专用调试日志统一 debug，业务成功与失败由 state 和退出码表达。"""
+    return "debug"
 
 
 def _safe_value(key: str, value: object) -> bool:
@@ -60,10 +49,18 @@ def _safe_value(key: str, value: object) -> bool:
     if key in BOOLEAN_FIELDS:
         return type(value) is bool
     if key in STRING_FIELDS:
-        return isinstance(value, str) and bool(re.fullmatch(r"[a-zA-Z0-9_:/.-]{1,100}", value))
-    if key in {"taskId", "presentationId", "requestId"}:
+        return isinstance(value, str) and bool(
+            re.fullmatch(r"[a-zA-Z0-9_:/.-]{1,100}", value)
+        )
+    if key in {"taskId", "presentationId", "requestId", "upstreamRequestId"}:
         return isinstance(value, str) and bool(re.fullmatch(r"[a-fA-F0-9-]{36}", value))
-    if key in {"displayHash", "scriptHash"}:
+    if key in {
+        "displayHash",
+        "scriptHash",
+        "targetHostHash",
+        "targetHash",
+        "lockKeyHash",
+    }:
         return isinstance(value, str) and bool(re.fullmatch(r"[a-f0-9]{64}", value))
     return False
 
@@ -107,7 +104,7 @@ class DebugLogger:
                 json.dumps(
                     {
                         "time": datetime.now(timezone.utc).isoformat(),
-                        "level": "warn",
+                        "level": "debug",
                         "event": "debug_log_write_failed",
                         "runId": self.run_id,
                         "pid": os.getpid(),
@@ -168,7 +165,7 @@ class DebugLogger:
             json.dumps(
                 {
                     "time": datetime.now(timezone.utc).isoformat(),
-                    "level": level,
+                    "level": "debug",
                     "event": event,
                     "runId": self.run_id,
                     "pid": os.getpid(),

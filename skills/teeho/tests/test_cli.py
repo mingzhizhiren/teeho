@@ -493,7 +493,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(rendered[-1]["nextAction"], "upgrade_skill")
         self.assertEqual(len(self.fixture.calls), calls)
-        self.assertIn(self.base + "/skill/download", rendered[-1]["displayText"])
+        self.assertIn("https://teeho.chat/skill-install.md", rendered[-1]["displayText"])
+        self.assertIn("https://github.com/mingzhizhiren/teeho/blob/main/docs/skill-install.md", rendered[-1]["displayText"])
         self.fixture.mode = "normal"
         code, lines, _ = self.run_cli("resume")
         self.assertEqual(code, 0)
@@ -596,9 +597,10 @@ class CliTests(unittest.TestCase):
         self.assertEqual(self.fixture.calls, ["/api/skill/auth/anonymous"])
         self.assertEqual(self.fixture.submissions, [])
         self.assertEqual(
-            [log["event"] for log in logs if log["level"] == "error"],
+            [log["event"] for log in logs if log["event"] == "command_finished"],
             ["command_finished"],
         )
+        self.assertTrue(all(log["level"] == "debug" for log in logs))
 
     def test_task_failure_and_translation_do_not_resubmit_or_leak(self) -> None:
         self.identity()
@@ -656,16 +658,17 @@ class CliTests(unittest.TestCase):
         self.fixture.pending = True
         _, pending, logs = self.run_cli("login-status")
         self.assertEqual(pending[0]["state"], "authorization_pending")
-        self.assertFalse(any(log["level"] in ("error", "warn") for log in logs))
+        self.assertTrue(all(log["level"] == "debug" for log in logs))
         before = len(self.fixture.calls)
         self.assertEqual(self.run_cli("diagnose", self.note)[1][0]["state"], "authorization_pending")
         self.assertEqual(len(self.fixture.calls), before)
         self.fixture.mode = "html"
         _, _, failed_logs = self.run_cli("login-status")
         self.assertEqual(
-            [log["event"] for log in failed_logs if log["level"] == "error"],
+            [log["event"] for log in failed_logs if log["event"] == "command_finished"],
             ["command_finished"],
         )
+        self.assertTrue(all(log["level"] == "debug" for log in failed_logs))
         self.fixture.mode = "normal"
         self.fixture.pending = False
         self.assertEqual(self.run_cli("login-status")[1][0]["state"], "authenticated")

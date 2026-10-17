@@ -10,6 +10,8 @@ interface SkillVersionInformation {
     readonly minimumVersion: string
     readonly latestVersion: string
     readonly downloadPath: string
+    readonly officialInstallUrl: string
+    readonly githubInstallUrl: string
 }
 
 interface SkillUpgradeInformation extends SkillVersionInformation {
@@ -34,6 +36,8 @@ export function skillVersionInformation(): SkillVersionInformation {
         minimumVersion: release.minimumVersion,
         latestVersion: release.version,
         downloadPath: '/skill/download',
+        officialInstallUrl: release.installationUrls.official,
+        githubInstallUrl: release.installationUrls.github,
     }
 }
 
@@ -44,7 +48,7 @@ export function requireCompatibleSkill(
     if (isCompatibleSkillVersion(request.headers.get(SKILL_VERSION_HEADER))) return null
     return fail(
         API_CODES.SKILL_UPGRADE_REQUIRED,
-        '题火技能版本过旧或无效，请升级技能后继续；原任务和本机数据会保留。',
+        `题火技能版本过旧或无效，请升级技能后继续；原任务和本机数据会保留。官网安装说明：${release.installationUrls.official}；GitHub 备用：${release.installationUrls.github}`,
         {
             reason: 'skill_upgrade_required',
             ...skillVersionInformation(),

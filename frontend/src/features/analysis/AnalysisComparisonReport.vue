@@ -1,13 +1,22 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed } from 'vue'
+import { computed, ref, useId } from 'vue'
 import type { AnalysisResult } from './analysis.contract'
 import { presentReference } from './analysis.selection-reason'
 import AnalysisStructureMetrics from './AnalysisStructureMetrics.vue'
+import { canShowReportSection } from './analysis.report-access'
 const props = defineProps<{ result: AnalysisResult }>()
 const { t } = useI18n()
+const comparisonsExpanded = ref(false)
+const comparisonsId = useId()
 const referenceNotes = computed(() =>
-    props.result.comparisonNotes.map((note) => ({
+    (canShowReportSection(props.result.reportAccess, 'comparisonNotes')
+        ? props.result.comparisonNotes.slice(
+              0,
+              props.result.reportAccess?.sections.comparisonNotes.limit,
+          )
+        : []
+    ).map((note) => ({
         note,
         presentation: presentReference(note, {
             semanticReference: t('workspace.checkup.semanticReference'),
@@ -23,17 +32,34 @@ const referenceNotes = computed(() =>
 
 <template>
     <AnalysisStructureMetrics
+        v-if="canShowReportSection(result.reportAccess, 'structureMetrics')"
         :metrics="result.structureMetrics"
         :references="result.structureReferences"
         :locations="result.structureLocations"
+        :report-access="result.reportAccess"
     />
     <section
-        v-if="result.comparisonNotes.length"
-        class="rounded-3xl border border-line bg-surface p-5 sm:p-6"
+        v-if="referenceNotes.length"
+        class="rounded-2xl border border-line bg-surface"
         data-testid="analysis-comparison-notes"
     >
-        <h2 class="text-lg font-semibold text-ink">{{ t('workspace.checkup.comparisons') }}</h2>
-        <ul class="mt-4 space-y-4">
+        <h2>
+            <button
+                class="flex min-h-12 w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-semibold text-ink"
+                type="button"
+                :aria-expanded="comparisonsExpanded"
+                :aria-controls="comparisonsId"
+                @click="comparisonsExpanded = !comparisonsExpanded"
+            >
+                {{ t('workspace.checkup.comparisons') }}
+                <span aria-hidden="true">{{ comparisonsExpanded ? '−' : '+' }}</span>
+            </button>
+        </h2>
+        <ul
+            v-show="comparisonsExpanded"
+            :id="comparisonsId"
+            class="space-y-4 border-t border-line p-5"
+        >
             <li
                 v-for="{ note, presentation } in referenceNotes"
                 :id="`reference-${note.noteId}`"
