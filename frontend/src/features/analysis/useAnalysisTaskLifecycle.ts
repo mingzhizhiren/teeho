@@ -42,7 +42,9 @@ export function useAnalysisTaskLifecycle(
     const actionBusy = ref(false)
     const sessionTaskIds = new Set<string>()
     const sessionOnlyTaskIds = new Set<string>()
+    const remoteSessionTaskIds = new Set<string>()
     const historyRemovalTaskIds = new Set<string>()
+    const deletedTaskIds = new Set<string>()
     const refreshGate = new LatestRequestGate()
     let lifecycleGeneration = 0
 
@@ -81,6 +83,7 @@ export function useAnalysisTaskLifecycle(
 
     /** 判断任务完成后是否需要保存到本地。 */
     function shouldPersist(task: AnalysisTask) {
+        if (deletedTaskIds.has(task.id)) return false
         const submissionIntent = findSubmissionIntent(task)
         if (submissionIntent) {
             return submissionIntent.persistHistory
@@ -116,6 +119,7 @@ export function useAnalysisTaskLifecycle(
 
     /** 按任务 ID 插入或更新响应式任务列表 */
     function upsert(updatedTask: AnalysisTask, settings: { persist?: boolean } = {}) {
+        if (deletedTaskIds.has(updatedTask.id)) return
         remoteTasks.value = [
             updatedTask,
             ...remoteTasks.value.filter((candidate) => candidate.id !== updatedTask.id),
@@ -138,9 +142,15 @@ export function useAnalysisTaskLifecycle(
         if (!isCurrent()) {
             return
         }
+        // 同账号的活动任务可临时跟踪，完成后留在当前页面，不自动变成本地历史。
+        for (const task of serverTasks) {
+            if (!isActiveTask(task) || deletedTaskIds.has(task.id)) continue
+            remoteSessionTaskIds.add(task.id)
+        }
         const trackedTaskIds = new Set([
             ...options.historyRecords.value.map((record) => record.taskId),
             ...sessionTaskIds,
+            ...remoteSessionTaskIds,
             // 从远端恢复的当前任务可能没有本地提交意图，仍须接收它的终态。
             ...(currentTask.value ? [currentTask.value.id] : []),
         ])
@@ -149,13 +159,15 @@ export function useAnalysisTaskLifecycle(
         )
         const trackedTasks = serverTasks.filter(
             (task) =>
-                isActiveTask(task) ||
-                trackedTaskIds.has(task.id) ||
-                options.submissionIntents.value.some((intent) => intent.submissionId === task.id) ||
-                (isActiveTask(task) && trackedFingerprints.has(task.inputFingerprint)),
+                !deletedTaskIds.has(task.id) &&
+                (isActiveTask(task) ||
+                    trackedTaskIds.has(task.id) ||
+                    options.submissionIntents.value.some(
+                        (intent) => intent.submissionId === task.id,
+                    ) ||
+                    (isActiveTask(task) && trackedFingerprints.has(task.inputFingerprint))),
         )
-        // 同账号远端任务均可展示；本地保存和提交对账仍只处理本浏览器跟踪的任务。
-        remoteTasks.value = [...serverTasks]
+        remoteTasks.value = trackedTasks
 
         for (const trackedTask of trackedTasks) {
             if (!isCurrent()) {
@@ -353,16 +365,29 @@ export function useAnalysisTaskLifecycle(
         },
 
         /**
-         * 删除本地历史后继续在当前会话展示对应远端任务。
+         * 删除终态任务的本地历史和当前会话记录，阻止迟到响应重新展示或保存。
          * @param deletedTask 刚从本地历史删除的任务
          */
-        retainAfterLocalDelete(deletedTask: AnalysisTask) {
-            sessionTaskIds.add(deletedTask.id)
-            sessionOnlyTaskIds.add(deletedTask.id)
-            remoteTasks.value = [
-                deletedTask,
-                ...remoteTasks.value.filter((candidate) => candidate.id !== deletedTask.id),
-            ]
+        async deleteLocalHistory(deletedTask: AnalysisTask): Promise<void> {
+            if (isActiveTask(deletedTask)) return
+            const isCurrent = captureOwner()
+            refreshGate.invalidate()
+            deletedTaskIds.add(deletedTask.id)
+            try {
+                await options.removeHistory(deletedTask)
+            } catch (error) {
+                deletedTaskIds.delete(deletedTask.id)
+                throw error
+            }
+            if (!isCurrent()) return
+            refreshGate.invalidate()
+            sessionTaskIds.delete(deletedTask.id)
+            sessionOnlyTaskIds.delete(deletedTask.id)
+            remoteSessionTaskIds.delete(deletedTask.id)
+            remoteTasks.value = remoteTasks.value.filter(
+                (candidate) => candidate.id !== deletedTask.id,
+            )
+            if (currentTask.value?.id === deletedTask.id) currentTask.value = null
         },
 
         /**
@@ -370,11 +395,13 @@ export function useAnalysisTaskLifecycle(
          * @param taskId 目标分析任务 ID
          */
         async openTrackedTask(taskId: string) {
+            if (deletedTaskIds.has(taskId)) return null
             const isCurrent = captureOwner()
             let selectedTask = tasks.value.find((candidate) => candidate.id === taskId)
             if (!selectedTask?.result) {
                 selectedTask = await adapter.getTask(taskId)
-                if (!isCurrent()) return null
+                if (!isCurrent() || deletedTaskIds.has(taskId)) return null
+                remoteSessionTaskIds.add(taskId)
                 upsert(selectedTask)
             }
             return selectedTask.result ? selectedTask : null

@@ -91,6 +91,32 @@ function createTask(id: string, topic: string): AnalysisTask {
 }
 
 describe('LocalHistoryManager', () => {
+    test('删除等待已经开始的历史保存完成，防止迟到写入恢复记录', async () => {
+        let release!: () => void
+        let started!: () => void
+        const blocked = new Promise<void>((resolve) => {
+            release = resolve
+        })
+        const writing = new Promise<void>((resolve) => {
+            started = resolve
+        })
+        class PausedStorage extends MemoryStorage {
+            override async saveRecord<T>(id: string, value: T) {
+                started()
+                await blocked
+                return super.saveRecord(id, value)
+            }
+        }
+        const manager = new LocalHistoryManager('delete-race', new PausedStorage())
+        const task = createTask('delete-race-task', '正在保存的报告')
+        const saving = manager.saveTask(task)
+        await writing
+        const deleting = manager.deleteTask(task.id)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        release()
+        await Promise.all([saving, deleting])
+        expect(await manager.listTasks()).toEqual([])
+    })
     test('v3 历史保留免费、Coffee、Plus 首次交付配额', async () => {
         const manager = new LocalHistoryManager('v3-user', new MemoryStorage())
         for (const count of [4, 8, 10] as const) {

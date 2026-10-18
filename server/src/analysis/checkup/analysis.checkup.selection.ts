@@ -212,6 +212,19 @@ export function checkupReferences(samples: readonly SelectedCheckupNote[]): Chec
     return mapCheckupReferences(unique)
 }
 
+/** 保留现有UTF-16长度上限，截断位置只落在完整码点之后。 */
+function truncateReferenceText(value: string, maximumLength: number): string {
+    if (value.length <= maximumLength) return value
+    const ellipsis = '…'
+    const budget = maximumLength - ellipsis.length
+    let end = 0
+    for (const character of value) {
+        if (end + character.length > budget) break
+        end += character.length
+    }
+    return value.slice(0, end) + ellipsis
+}
+
 /** 已通过资格的参考只映射展示字段，不再次筛选表现、赛道或年龄。 */
 export function mapCheckupReferences(
     samples: readonly SelectedCheckupNote[],
@@ -219,10 +232,7 @@ export function mapCheckupReferences(
 ): CheckupReference[] {
     return samples.slice(0, checkupOutputConstraints.maxReferences).map(({ note, latest }) => ({
         noteId: note.noteId,
-        title:
-            note.title.length > checkupOutputConstraints.referenceTitleMaxLength
-                ? note.title.slice(0, checkupOutputConstraints.referenceTitleMaxLength - 1) + '…'
-                : note.title,
+        title: truncateReferenceText(note.title, checkupOutputConstraints.referenceTitleMaxLength),
         bodyExcerpt: referenceBodyExcerpt(note),
         topics: [...note.topics],
         likes: latest.likes!,
@@ -247,9 +257,7 @@ function referenceBodyExcerpt(note: EvidenceNote): string {
             return text.replace(token, '')
         }, note.body)
         .trim()
-    return body.length > checkupOutputConstraints.excerptMaxLength
-        ? body.slice(0, checkupOutputConstraints.excerptMaxLength - 1) + '…'
-        : body
+    return truncateReferenceText(body, checkupOutputConstraints.excerptMaxLength)
 }
 
 /** 原文地址保留访问参数，只允许来源平台的 HTTPS 地址。 */

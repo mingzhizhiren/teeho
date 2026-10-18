@@ -419,8 +419,7 @@ function requestDeleteCurrentLocalHistory() {
         !selectedTask ||
         !canDeleteAnalysisLocalHistory(selectedTask.status) ||
         !analysisLocalHistory.available.value ||
-        deletingHistoryTaskId.value ||
-        !isTaskSavedLocally(selectedTask.id)
+        deletingHistoryTaskId.value
     ) {
         return
     }
@@ -449,8 +448,11 @@ async function confirmDeleteCurrentLocalHistory() {
     historyActionError.value = ''
     const cloudCleanupRequest = cleanupAnalysisTaskAssets(selectedTask.id).catch(() => null)
     try {
-        await analysisLocalHistory.remove(selectedTask.id)
-        taskLifecycle.retainAfterLocalDelete(selectedTask)
+        await taskLifecycle.deleteLocalHistory(selectedTask)
+        if (parseCompletionResultTarget(route.query.task)?.taskId === selectedTask.id) {
+            await router.replace({ name: 'workspace' })
+        }
+        if (!task.value) await openComposer()
         await cloudCleanupRequest
     } catch {
         historyActionError.value = localHistoryErrorMessage('write')
@@ -473,6 +475,10 @@ async function openTaskFromRoute() {
             return
         }
         selectTask(selectedTask, 'current')
+        // 通知链接只负责本次打开，刷新不能再次取回未保存或已清理的报告。
+        if (parseCompletionResultTarget(route.query.task)?.taskId === target.taskId) {
+            await router.replace({ query: { ...route.query, task: undefined } })
+        }
     } catch (error) {
         workspaceError.value = getApiRequestErrorMessage(error, t('workspace.genericError'))
     }
@@ -524,12 +530,15 @@ async function forgetTaskSubmissionIntents(taskToForget: AnalysisTask) {
 /** 排除不应进入历史的任务，并清除可能已完成的并发保存。 */
 async function excludeHistoryTask(taskToExclude: AnalysisTask) {
     historyExcludedTaskIds = new Set([...historyExcludedTaskIds, taskToExclude.id])
-    await Promise.all([
-        analysisLocalHistory.isSaved(taskToExclude.id)
-            ? analysisLocalHistory.remove(taskToExclude.id)
-            : Promise.resolve(),
-        forgetTaskSubmissionIntents(taskToExclude),
-    ])
+    try {
+        await analysisLocalHistory.remove(taskToExclude.id)
+        await forgetTaskSubmissionIntents(taskToExclude)
+    } catch (error) {
+        historyExcludedTaskIds = new Set(
+            [...historyExcludedTaskIds].filter((id) => id !== taskToExclude.id),
+        )
+        throw error
+    }
 }
 
 /** 保存仍符合历史条件的任务，并处理保存期间收到的排除状态。 */
@@ -561,6 +570,7 @@ async function persistHistoryTask(
             throw error
         }
     }
+    if (!isCurrent() || historyExcludedTaskIds.has(taskToPersist.id)) return
     if (sourceTaskId) await analysisLocalHistory.saveFromTask(taskToPersist, sourceTaskId)
     else await analysisLocalHistory.save(taskToPersist, originalImages)
     if (!isCurrent()) return
@@ -892,7 +902,10 @@ onBeforeUnmount(() => {
                                         {{ t('workspace.newTask') }}
                                     </AppButton>
                                     <AppButton
-                                        v-if="isTaskSavedLocally(task.id)"
+                                        v-if="
+                                            isTaskSavedLocally(task.id) ||
+                                                !currentLocalHistoryDeleteBlocked
+                                        "
                                         variant="danger"
                                         size="md"
                                         icon="trash"

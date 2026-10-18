@@ -309,6 +309,8 @@ export class LocalHistoryManager {
     async deleteTask(taskId: string) {
         try {
             const validTaskId = z.string().min(1).parse(taskId)
+            // 清理先于旧保存完成时会复活历史；等待同任务已排队的写入后再删。
+            await this.taskWrites.get(validTaskId)?.catch(() => undefined)
             const record = await this.storage.getRecord(
                 historyRecordId(validTaskId),
                 localHistoryRecordSchema,

@@ -253,6 +253,10 @@ flowchart LR
 
 安装步骤见[自部署指南](docs/deployment/install.md)。源码不包含下述线上服务的私有洞察模型、爬取数据或商业运营系统；Agent Skill 仍可独立安装。
 
+- 首次搭建：按自部署指南先完成图文诊断，再配置 HTTPS 和正式进程。
+- 使用自己的数据与评分规则：[插件定制实操](docs/deployment/customization.md)。
+- 已有实例更新、素材清理与回滚：[运维与恢复](docs/deployment/operations.md)。
+
 
 如果我做的工具可以帮助到你，那将是我的荣幸👍
 

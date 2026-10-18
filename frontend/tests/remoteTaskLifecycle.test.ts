@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useAnalysisTaskLifecycle } from '../src/features/analysis/useAnalysisTaskLifecycle'
 import type { AnalysisTask } from '../src/features/analysis/analysis.contract'
 import { createAnalysisTaskFixture } from './analysisTestFixtures'
+import type { LocalHistoryRecord } from '../src/features/analysis/localHistory'
 
 function setup(initialTasks: AnalysisTask[] = []) {
     const task = createAnalysisTaskFixture()
@@ -11,14 +12,18 @@ function setup(initialTasks: AnalysisTask[] = []) {
     const persistHistory = mock(async () => undefined)
     const forgetSubmissionIntent = mock(async () => undefined)
     const owner = ref('owner-a')
+    const historyRecords = ref<LocalHistoryRecord[]>([])
+    const removeHistory = mock(async (task: AnalysisTask) => {
+        historyRecords.value = historyRecords.value.filter((record) => record.taskId !== task.id)
+    })
     const lifecycle = useAnalysisTaskLifecycle(
         {
             ownerUserId: () => owner.value,
-            historyRecords: ref([]),
+            historyRecords,
             submissionIntents: ref([]),
             persistHistory,
             forgetSubmissionIntent,
-            removeHistory: async () => undefined,
+            removeHistory,
             setError: () => undefined,
             formatError: () => 'request failed',
             reanalysisIntents: {
@@ -39,30 +44,52 @@ function setup(initialTasks: AnalysisTask[] = []) {
             reanalyzeTask: getTask,
         },
     )
-    return { lifecycle, listTasks, getTask, persistHistory, forgetSubmissionIntent, owner, task }
+    return {
+        lifecycle,
+        listTasks,
+        getTask,
+        persistHistory,
+        forgetSubmissionIntent,
+        owner,
+        task,
+        historyRecords,
+        removeHistory,
+    }
 }
 
 describe('同账号远端任务与本地历史独立', () => {
-    test('初始化展示未在本浏览器提交的完成任务，不自动保存或清除提交意图', async () => {
+    test('初始化不把未保存的云端完成任务重新变成本地历史', async () => {
         const completed = createAnalysisTaskFixture()
         const context = setup([completed])
         await context.lifecycle.initialize()
-        expect(context.lifecycle.tasks.value).toEqual([completed])
+        expect(context.lifecycle.tasks.value).toEqual([])
         expect(context.persistHistory).not.toHaveBeenCalled()
         expect(context.forgetSubmissionIntent).not.toHaveBeenCalled()
     })
 
-    test('事件刷新接收新的 Skill 完成任务，不抢走用户正在查看的报告', async () => {
+    test('Skill 活动任务到完成在当前会话连续展示，刷新页面后不恢复未保存报告', async () => {
         const first = createAnalysisTaskFixture()
         const newest = { ...first, id: 'remote-new', createdAt: '2026-10-16T15:37:00Z' }
         const context = setup([first])
+        context.lifecycle.registerSubmitted(first, false)
         await context.lifecycle.initialize()
         context.lifecycle.select(first)
+        context.listTasks.mockResolvedValue([
+            { ...newest, status: 'processing', result: null },
+            first,
+        ])
+        await context.lifecycle.refresh(true)
+        expect(context.lifecycle.tasks.value.find((task) => task.id === newest.id)?.status).toBe(
+            'processing',
+        )
         context.listTasks.mockResolvedValue([newest, first])
         await context.lifecycle.refresh(true)
         expect(context.lifecycle.tasks.value.map((task) => task.id)).toContain(newest.id)
         expect(context.lifecycle.currentTask.value?.id).toBe(first.id)
         expect(context.persistHistory).not.toHaveBeenCalled()
+        const reloaded = setup([newest, first])
+        await reloaded.lifecycle.initialize()
+        expect(reloaded.lifecycle.tasks.value).toEqual([])
     })
 
     test('通知指向列表之外的任务时通过服务端所有权校验读取，不要求本地记录', async () => {
@@ -99,17 +126,68 @@ describe('同账号远端任务与本地历史独立', () => {
         expect(context.lifecycle.tasks.value).toEqual([])
     })
 
-    test('已放弃及积分不足仍不展示，删除本地历史后刷新不重新保存', async () => {
+    test('删除后清除列表与当前报告，刷新不能拉回或重新保存', async () => {
         const context = setup()
         context.lifecycle.registerSubmitted(context.task, true)
-        context.lifecycle.retainAfterLocalDelete(context.task)
+        await context.lifecycle.deleteLocalHistory(context.task)
         context.listTasks.mockResolvedValue([
             context.task,
             { ...context.task, id: 'abandoned', status: 'abandoned' },
             { ...context.task, id: 'insufficient', status: 'insufficient_points' },
         ])
         await context.lifecycle.refresh()
-        expect(context.lifecycle.tasks.value).toEqual([context.task])
+        expect(context.lifecycle.tasks.value).toEqual([])
+        expect(context.lifecycle.currentTask.value).toBeNull()
+        expect(context.removeHistory).toHaveBeenCalledTimes(1)
         expect(context.persistHistory).not.toHaveBeenCalled()
+    })
+
+    test.each(['queued', 'processing', 'retrying'] as const)(
+        '清空后刷新仍能恢复同账号%s任务',
+        async (status) => {
+            const active = createAnalysisTaskFixture({ status, result: null })
+            const context = setup([active, { ...active, id: 'old', status: 'succeeded' }])
+            await context.lifecycle.initialize()
+            expect(context.lifecycle.tasks.value).toEqual([active])
+            expect(context.lifecycle.currentTask.value?.id).toBe(active.id)
+            expect(context.persistHistory).not.toHaveBeenCalled()
+        },
+    )
+
+    test('删除期间迟到的列表和通知响应不能恢复该报告', async () => {
+        const context = setup()
+        context.lifecycle.registerSubmitted({ ...context.task, result: null }, false)
+        let resolveList!: (tasks: AnalysisTask[]) => void
+        let resolveTask!: (task: AnalysisTask) => void
+        context.listTasks.mockImplementation(
+            () =>
+                new Promise((done) => {
+                    resolveList = done
+                }),
+        )
+        context.getTask.mockImplementation(
+            () =>
+                new Promise((done) => {
+                    resolveTask = done
+                }),
+        )
+        const refreshing = context.lifecycle.refresh()
+        const opening = context.lifecycle.openTrackedTask(context.task.id)
+        await context.lifecycle.deleteLocalHistory(context.task)
+        resolveList([context.task])
+        resolveTask(context.task)
+        await refreshing
+        expect(await opening).toBeNull()
+        expect(context.lifecycle.tasks.value).toEqual([])
+        expect(context.lifecycle.currentTask.value).toBeNull()
+    })
+
+    test('删除失败保留报告和重试入口，不能假装成功', async () => {
+        const context = setup()
+        context.lifecycle.registerSubmitted(context.task, false)
+        context.removeHistory.mockRejectedValueOnce(new Error('storage failure'))
+        await expect(context.lifecycle.deleteLocalHistory(context.task)).rejects.toThrow()
+        expect(context.lifecycle.tasks.value).toEqual([context.task])
+        expect(context.lifecycle.currentTask.value?.id).toBe(context.task.id)
     })
 })

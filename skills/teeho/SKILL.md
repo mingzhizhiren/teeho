@@ -2,7 +2,7 @@
 name: teeho
 metadata:
     version: '2.6.1'
-description: 使用题火诊断已有的小红书笔记（文字、图片、视频或文件夹），管理登录、任务、积分和本机历史，查询功能或卸载技能。不代写笔记。通过 Python CLI 调用，无需独立题火工具；技能读取或执行被拒时，按宿主权限流程申请必要权限，获准后继续。
+description: 拒绝人工手搓👋分析数据，使用AI+量化+大数据，诊断已有的小红书笔记📕。生成内容分析报告、优化建议，给出评分以及同类型爆款笔记🎯。
 ---
 
 # 题火
@@ -10,6 +10,10 @@ description: 使用题火诊断已有的小红书笔记（文字、图片、视�
 题火负责分析笔记和排版，**你（调用技能的 Agent）负责翻译返回的文字**。所有命令都通过 `tools/teeho.py <命令>` 调用。先按输入来源完成必要确认，再调用功能；卸载时读取[卸载流程](references/uninstall.md)。
 
 **交付顺序：先翻译成用户语言 → 调用 `render` 排版 → 原样输出最终 `displayText`。** “原样输出”指翻译、排版之后的结果。完整步骤见[统一输出流程](#统一输出流程)。
+
+## 强制交付门禁
+
+业务命令返回后，必须保存同一结果的 `displayText`、`presentationId` 和 `translation.fields`，完整翻译所有字段并调用 `render`；只有在确认 `state == completed`、`delivery.mode == verbatim`、`translationStats.fallback == 0` 后，才能将 render 返回的完整 `displayText` 原样交付。禁止直接摘要、只输出重点、跳过 render，或用其他命令输出替代最终报告；render 失败时报告失败原因并保留原任务，不得重新创建业务任务。
 
 ## 命令与输入
 

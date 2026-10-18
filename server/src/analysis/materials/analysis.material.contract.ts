@@ -8,21 +8,20 @@ export const MATERIAL_LIMITS = { description: 1800, summary: 4000, maximumTrack:
 export const materialPromptVersions = {
     cover: 'material-cover.v2',
     content: 'material-content.v2',
-    classification: 'material-classification.v3',
+    classification: 'material-classification.v4',
 } as const
 export const materialDescriptionSchema = z
     .object({ description: z.string().trim().min(1).max(MATERIAL_LIMITS.description) })
     .strict()
 export const materialClassificationSchema = z
     .object({
-        primaryTrack: z.number().int().min(0).max(MATERIAL_LIMITS.maximumTrack),
+        primaryTrack: z.number().int().min(1).max(MATERIAL_LIMITS.maximumTrack),
         secondaryTracks: secondaryTrackCodesSchema.optional(),
         intent: z.enum(['daily', 'guide', 'story', 'review', 'other']),
     })
     .strict()
-/** Provider 声明允许未分类与多给次赛道，由宿主统一归一化后再保存。 */
+/** Provider 必须选择有效主赛道；多给的次赛道由宿主归一化。 */
 export const materialClassificationProviderSchema = materialClassificationSchema.extend({
-    primaryTrack: materialClassificationSchema.shape.primaryTrack.nullable(),
     secondaryTracks: z.array(z.number().int().min(1).max(MATERIAL_LIMITS.maximumTrack)),
 })
 export const understoodMaterialsSchema = z
@@ -36,24 +35,19 @@ export const understoodMaterialsSchema = z
     .strict()
 export type UnderstoodMaterials = z.infer<typeof understoodMaterialsSchema>
 
-/** 分类边界容忍多给、漏给和非法赛道，不将次赛道提升为主赛道。 */
+/** 主赛道必须有效；次赛道仍容忍多给、漏给和非法值，不提升为主赛道。 */
 export function normalizeMaterialClassification(
     value: unknown,
 ): z.infer<typeof materialClassificationSchema> {
     const object = z
         .object({
-            primaryTrack: z.unknown().optional(),
+            primaryTrack: materialClassificationSchema.shape.primaryTrack,
             secondaryTracks: z.unknown().optional(),
             intent: z.unknown().optional(),
         })
-        .safeParse(value)
-    const selection = normalizeAnalysisTrackSelection(
-        object.success ? object.data.primaryTrack : null,
-        object.success ? object.data.secondaryTracks : null,
-    )
-    const intent = materialClassificationSchema.shape.intent.safeParse(
-        object.success ? object.data.intent : null,
-    )
+        .parse(value)
+    const selection = normalizeAnalysisTrackSelection(object.primaryTrack, object.secondaryTracks)
+    const intent = materialClassificationSchema.shape.intent.safeParse(object.intent)
     return {
         ...selection,
         secondaryTracks: [...selection.secondaryTracks],
