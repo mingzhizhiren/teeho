@@ -189,6 +189,13 @@ export default {
             collectPerformance: 'Relative saves performance',
             similarReference: 'A reference note with related content.',
             missingNoteUrl: 'Note address is missing',
+            noteScanNotice: {
+                title: 'Before opening Xiaohongshu',
+                description:
+                    'After opening the Xiaohongshu page, you will need to scan the code with the Xiaohongshu app to view this note. This is required by Xiaohongshu.',
+                confirm: 'Confirm',
+                cancel: 'Cancel',
+            },
             referenceModelScore: 'Model score',
             semanticReference: 'Related content',
             differencesTitle: 'Key differences from comparable successful notes',

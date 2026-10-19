@@ -13,10 +13,12 @@ const props = withDefaults(
         cancelLabel: string
         tone?: 'default' | 'danger'
         busy?: boolean
+        teleportDisabled?: boolean
     }>(),
     {
         tone: 'default',
         busy: false,
+        teleportDisabled: false,
         notice: undefined,
     },
 )
@@ -121,7 +123,7 @@ onBeforeUnmount(restorePage)
 </script>
 
 <template>
-    <Teleport to="body">
+    <Teleport to="body" :disabled="teleportDisabled">
         <Transition
             enter-active-class="transition duration-200 ease-out"
             enter-from-class="opacity-0"
@@ -138,7 +140,7 @@ onBeforeUnmount(restorePage)
             >
                 <section
                     ref="dialog"
-                    class="ui-dialog-surface w-full max-w-md rounded-3xl border border-line bg-surface p-6 shadow-2xl sm:p-7"
+                    class="ui-dialog-surface max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-line bg-surface p-6 shadow-2xl sm:p-7"
                     role="dialog"
                     aria-modal="true"
                     :aria-labelledby="titleId"
@@ -146,13 +148,15 @@ onBeforeUnmount(restorePage)
                     data-testid="confirm-dialog"
                     @keydown="handleKeydown"
                 >
-                    <div
-                        class="flex h-12 w-12 items-center justify-center rounded-2xl"
-                        :class="iconClass"
-                        aria-hidden="true"
-                    >
-                        <AppIcon name="warning" size="lg" />
-                    </div>
+                    <slot name="illustration">
+                        <div
+                            class="flex h-12 w-12 items-center justify-center rounded-2xl"
+                            :class="iconClass"
+                            aria-hidden="true"
+                        >
+                            <AppIcon name="warning" size="lg" />
+                        </div>
+                    </slot>
 
                     <h2 :id="titleId" class="mt-5 text-xl font-semibold tracking-tight text-ink">
                         {{ title }}

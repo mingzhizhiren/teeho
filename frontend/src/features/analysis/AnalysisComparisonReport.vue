@@ -5,10 +5,13 @@ import type { AnalysisResult } from './analysis.contract'
 import { presentReference } from './analysis.selection-reason'
 import AnalysisStructureMetrics from './AnalysisStructureMetrics.vue'
 import { canShowReportSection } from './analysis.report-access'
+import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
+import { getComparisonNoteUrl, useComparisonNoteLink } from './useComparisonNoteLink'
 const props = defineProps<{ result: AnalysisResult }>()
 const { t } = useI18n()
 const comparisonsExpanded = ref(false)
 const comparisonsId = useId()
+const { isNoticeOpen, requestOpen, confirmOpen, cancelOpen } = useComparisonNoteLink()
 const referenceNotes = computed(() =>
     (canShowReportSection(props.result.reportAccess, 'comparisonNotes')
         ? props.result.comparisonNotes.slice(
@@ -18,6 +21,7 @@ const referenceNotes = computed(() =>
         : []
     ).map((note) => ({
         note,
+        url: getComparisonNoteUrl(note.url),
         presentation: presentReference(note, {
             semanticReference: t('workspace.checkup.semanticReference'),
             selectionReasons: {
@@ -61,17 +65,19 @@ const referenceNotes = computed(() =>
             class="space-y-4 border-t border-line p-5"
         >
             <li
-                v-for="{ note, presentation } in referenceNotes"
+                v-for="{ note, url, presentation } in referenceNotes"
                 :id="`reference-${note.noteId}`"
                 :key="note.noteId"
                 class="scroll-mt-24 rounded-2xl border border-line p-4"
             >
                 <a
-                    v-if="note.url"
-                    :href="note.url"
+                    v-if="url"
+                    :href="url"
                     target="_blank"
                     rel="noopener noreferrer"
                     class="break-words font-semibold text-brand underline underline-offset-4"
+                    @click="requestOpen($event, url)"
+                    @auxclick="requestOpen($event, url)"
                 >{{ note.title }}</a
                 >
                 <p v-else class="font-semibold text-ink">{{ note.title }}</p>
@@ -83,7 +89,7 @@ const referenceNotes = computed(() =>
                     {{ t('workspace.checkup.referenceModelScore') }} ·
                     {{ note.modelScore.toFixed(2) }} / 10
                 </p>
-                <p v-if="!note.url" class="mt-1 text-xs text-muted">
+                <p v-if="!url" class="mt-1 text-xs text-muted">
                     {{ t('workspace.checkup.missingNoteUrl') }}
                 </p>
                 <p
@@ -119,4 +125,23 @@ const referenceNotes = computed(() =>
             </li>
         </ul>
     </section>
+    <AppConfirmDialog
+        v-model:open="isNoticeOpen"
+        :title="t('workspace.checkup.noteScanNotice.title')"
+        :description="t('workspace.checkup.noteScanNotice.description')"
+        :confirm-label="t('workspace.checkup.noteScanNotice.confirm')"
+        :cancel-label="t('workspace.checkup.noteScanNotice.cancel')"
+        @confirm="confirmOpen"
+        @cancel="cancelOpen"
+    >
+        <template #illustration>
+            <img
+                src="/images/art/mascot-scan-notice.webp"
+                alt=""
+                width="128"
+                height="128"
+                class="mx-auto h-28 w-28 object-contain sm:h-32 sm:w-32"
+            />
+        </template>
+    </AppConfirmDialog>
 </template>

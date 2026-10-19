@@ -16,6 +16,7 @@ const appConfigSchema = z.object({
     locale: appLocaleSchema,
     theme: appThemeSchema,
     analysisInputMode: analysisInputModeSchema,
+    hasAcknowledgedNoteScanNotice: z.boolean(),
 })
 
 const storedAppConfigSchema = appConfigSchema.partial()
@@ -30,6 +31,7 @@ export const defaultAppConfig: Readonly<AppConfig> = Object.freeze({
     locale: 'zh-CN',
     theme: 'system',
     analysisInputMode: 'custom',
+    hasAcknowledgedNoteScanNotice: false,
 })
 
 /** 从 localStorage 读取配置，并用默认值补齐旧版本缺少的字段 */

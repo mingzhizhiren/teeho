@@ -163,6 +163,13 @@ export default {
             collectPerformance: '同类收藏相对表现',
             similarReference: '与当前笔记内容相关的参考样本',
             missingNoteUrl: '笔记地址已丢失',
+            noteScanNotice: {
+                title: '查看小红书笔记前',
+                description:
+                    '进入小红书页面后，需要使用APP扫描才能查看此笔记，这是小红书平台的规定',
+                confirm: '确定',
+                cancel: '取消',
+            },
             referenceModelScore: '模型评分',
             semanticReference: '内容相关',
             differencesTitle: '与同类优秀笔记的关键差异',
