@@ -203,6 +203,8 @@ ENGLISH = MappingProxyType(
         "connection": "Connection failed",
         "connectionMessage": "Unable to connect to Teeho. The service may be under maintenance, or your local network may be unavailable.",
         "serviceUnavailable": "Service temporarily unavailable",
+        "agentBusyWaiting": "Teeho Agent is busy. Waiting to retry.",
+        "agentBusyFailed": "Teeho Agent is busy. Please submit the analysis again later. No credits were charged.",
         "modelServiceMaintenance": "The server is under maintenance",
         "serviceUnavailableMessage": "Teeho returned a server error. The service or one of its dependencies is temporarily unavailable. Try again later; if a diagnosis was already submitted, check the existing task before submitting another one.",
         "error": "Unable to complete this operation",

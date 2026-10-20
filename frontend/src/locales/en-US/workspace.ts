@@ -237,6 +237,8 @@ export default {
             },
             savedReport: 'Report saved locally',
             failures: {
+                agent_busy:
+                    'Teeho Agent is busy. Please submit the analysis again later. No credits were charged.',
                 model_service_unavailable: 'The server is under maintenance',
                 media_preparation_failed:
                     'Media preparation failed before analysis started. Check your media and try again.',
@@ -660,6 +662,7 @@ export default {
             'Submit your finished note to see content dimensions, key differences, reference notes and a model score.',
         technicalFailureTitle: 'This task hit a technical failure',
         statuses: {
+            agent_busy_waiting: 'Waiting to retry',
             media_preparing: 'Preparing media',
             no_reference_notes: 'Failed',
             researching: 'Preparing context',
@@ -674,6 +677,7 @@ export default {
             maintenance_cancelled: 'Cancelled for maintenance',
         },
         statusTitles: {
+            agent_busy_waiting: 'Waiting for Teeho Agent',
             media_preparing: 'Preparing media',
             no_reference_notes: 'Analysis failed',
             researching: 'Preparing analysis context',
@@ -681,13 +685,14 @@ export default {
             processing: 'The Agent is analyzing',
             retrying: 'The first technical attempt failed; retrying automatically',
             succeeded: 'Analysis complete',
-            technical_failed: 'The automatic retry also failed',
+            technical_failed: 'Analysis could not be completed',
             insufficient_points: 'Analysis did not start',
             abandoned: 'Analysis abandoned',
             cancelled: 'Task cancelled',
             maintenance_cancelled: 'Task cancelled for Teeho maintenance',
         },
         statusDescriptions: {
+            agent_busy_waiting: 'Teeho Agent is busy. Waiting to retry.',
             media_preparing:
                 'Your files are uploaded. Analysis will start automatically when the media is ready. Refreshing or signing out will not stop this task.',
             researching:

@@ -279,6 +279,7 @@ def _task_presentation(command: str, result: View, log: Optional[Callable] = Non
         view = _notice(
             "failed",
             {
+                "agent_busy": "agentBusyFailed",
                 "model_service_unavailable": "modelServiceMaintenance",
                 "insight_unavailable": "insightFailure",
                 "radar_unavailable": "radarFailure",
@@ -298,7 +299,9 @@ def _task_presentation(command: str, result: View, log: Optional[Callable] = Non
         has_waited = command == "wait"
         view = _notice(
             "processing",
-            "waiting" if has_waited else "waitingAutomatic",
+            "agentBusyWaiting" if task.get("agentRetryWaiting") is True
+            and status in {"processing", "retrying"}
+            else "waiting" if has_waited else "waitingAutomatic",
             "wait_for_user" if has_waited else "wait",
         )
     else:

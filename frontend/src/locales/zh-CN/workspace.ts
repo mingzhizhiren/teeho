@@ -211,6 +211,7 @@ export default {
             },
             savedReport: '报告已保存到本地',
             failures: {
+                agent_busy: '题火Agent正在忙碌，请稍候重新提交分析，本次未扣费',
                 model_service_unavailable: '服务器正在维护',
                 media_preparation_failed: '素材处理失败，分析未开始。请检查素材后重试。',
                 media_preparation_timeout: '等待素材准备超时，分析未开始。请稍后重试。',
@@ -609,6 +610,7 @@ export default {
         emptyResultDescription: '提交完整笔记后，查看六维特征、关键差异、参考笔记和模型评分。',
         technicalFailureTitle: '本次任务发生技术故障',
         statuses: {
+            agent_busy_waiting: '等待重试',
             media_preparing: '素材准备中',
             no_reference_notes: '失败',
             researching: '准备依据',
@@ -623,6 +625,7 @@ export default {
             maintenance_cancelled: '维护取消',
         },
         statusTitles: {
+            agent_busy_waiting: '等待Agent重试',
             media_preparing: '素材准备中',
             no_reference_notes: '任务失败',
             researching: '正在完善分析依据',
@@ -630,13 +633,14 @@ export default {
             processing: 'Agent 正在分析',
             retrying: '第一次技术失败，正在自动重试',
             succeeded: '分析完成',
-            technical_failed: '自动重试后仍未完成',
+            technical_failed: '分析未完成',
             insufficient_points: '任务未开始分析',
             abandoned: '已放弃分析',
             cancelled: '任务已取消',
             maintenance_cancelled: '题火维护，任务已取消',
         },
         statusDescriptions: {
+            agent_busy_waiting: '题火Agent正在忙碌，正在等待重试',
             media_preparing:
                 '文件已上传，正在准备分析素材。就绪后会自动开始分析，刷新页面或退出登录不影响任务。',
             researching: '题火正在补充分析所需的最新依据，任务会在后台继续。',

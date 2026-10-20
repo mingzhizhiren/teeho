@@ -26,6 +26,11 @@ import {
 } from './analysis.comparison-explanation'
 import { contentScoreMultiplier } from './analysis.content-analysis'
 
+import {
+    isAgentBusy,
+    withAgentBusyRetry,
+    type AgentRetryObserver,
+} from '../providers/analysis.agent-busy'
 const MAX_REVIEW_ATTEMPTS = 2
 type CoreExplanation = ReturnType<typeof readContentExplanation>
 type FailureReason = ContentAdviceValidationError['reason'] | 'provider' | 'core_fallback'
@@ -34,6 +39,7 @@ interface RetainedCore {
     metadata: AgentProviderExecutionMetadata | null
 }
 interface ContentReviewInput {
+    onAgentRetryWaiting?: AgentRetryObserver
     userId: string
     taskId: string
     requestId: string
@@ -55,6 +61,7 @@ async function invoke(input: ContentReviewInput, adviceRetry: boolean): Promise<
         return result
     } catch (error) {
         if (input.signal.aborted || error instanceof AgentCancelledError) throw error
+        if (isAgentBusy(error)) throw error
         if (!adviceRetry) {
             if (error instanceof AgentProviderError) throw error
             throw new AgentProviderError('capability', { cause: error })
@@ -134,38 +141,49 @@ function fallback(
 /** 共享两次生成预算；第一份有效核心被冻结，后续仅替换独立建议。 */
 export async function reviewAnalysisContent(input: ContentReviewInput): Promise<RetainedCore> {
     input.signal.throwIfAborted()
+    let usageAttempt = 0
     let retained: RetainedCore | null = null
     let reason: FailureReason | null = null
     const currentCore = (): RetainedCore | null => retained
     for (let attempt = 1; attempt <= MAX_REVIEW_ATTEMPTS; attempt += 1) {
         const adviceRetry = currentCore() !== null
         try {
-            const tracked = await input.agent.usage.execute({
-                userId: input.userId,
-                association: { kind: 'task', id: input.taskId },
-                requestId: input.requestId,
-                stage: 'generate_result',
-                provider: input.agent.descriptor,
-                promptVersion: checkupVersions.explanation,
-                attemptNumber: attempt,
-                media: { imageInputCount: 0, videoFrameInputCount: 0 },
-                invoke: () => invoke(input, adviceRetry),
-                parse: (raw: unknown) => {
-                    const core = currentCore() ?? {
-                        value: readContentExplanation(input.generation, raw),
-                        metadata: readAgentProviderExecutionMetadata(raw),
-                    }
-                    retained = core
-                    return {
-                        ...core.value,
-                        advice: readContentAdvice(input.generation, advicePayload(raw)),
-                    }
+            const tracked = await withAgentBusyRetry(
+                {
+                    signal: input.signal,
+                    stage: 'review',
+                    taskId: input.taskId,
+                    onWaiting: input.onAgentRetryWaiting,
+                    log: input.log,
                 },
-                shouldRetry: (error) =>
-                    attempt < MAX_REVIEW_ATTEMPTS &&
-                    error instanceof AgentProviderError &&
-                    error.retryable,
-            })
+                (canRetryBusy) =>
+                    input.agent.usage.execute({
+                        userId: input.userId,
+                        association: { kind: 'task', id: input.taskId },
+                        requestId: input.requestId,
+                        stage: 'generate_result',
+                        provider: input.agent.descriptor,
+                        promptVersion: checkupVersions.explanation,
+                        attemptNumber: ++usageAttempt,
+                        media: { imageInputCount: 0, videoFrameInputCount: 0 },
+                        invoke: () => invoke(input, adviceRetry),
+                        parse: (raw: unknown) => {
+                            const core = currentCore() ?? {
+                                value: readContentExplanation(input.generation, raw),
+                                metadata: readAgentProviderExecutionMetadata(raw),
+                            }
+                            retained = core
+                            return {
+                                ...core.value,
+                                advice: readContentAdvice(input.generation, advicePayload(raw)),
+                            }
+                        },
+                        shouldRetry: (error) =>
+                            error instanceof AgentProviderError &&
+                            error.retryable &&
+                            (isAgentBusy(error) ? canRetryBusy : attempt < MAX_REVIEW_ATTEMPTS),
+                    }),
+            )
             return finish(
                 input,
                 { ...tracked, metadata: currentCore()!.metadata },

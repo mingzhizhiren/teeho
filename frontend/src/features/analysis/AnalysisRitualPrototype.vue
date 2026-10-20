@@ -13,6 +13,7 @@ const props = withDefaults(
         variant: AnalysisRitualVariant
         startedAt?: string | null
         retrying?: boolean
+        agentRetryWaiting?: boolean
         preview?: boolean
         abandonable?: boolean
         busy?: boolean
@@ -34,6 +35,7 @@ const elapsedText = computed(() => {
 })
 const statusMeta = computed(() => {
     if (props.preview) return t('workspace.ritual.preview')
+    if (props.agentRetryWaiting) return t('workspace.statusDescriptions.agent_busy_waiting')
     if (props.retrying) return t('workspace.ritual.retrying')
     if (props.phase === 'ignition') return t('workspace.ritual.queuePosition')
     if (props.phase === 'reveal') return t('workspace.ritual.ready')

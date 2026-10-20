@@ -1002,6 +1002,7 @@ onBeforeUnmount(() => {
                                     :variant="ritualVariant"
                                     :started-at="task.startedAt"
                                     :retrying="task.status === 'retrying'"
+                                    :agent-retry-waiting="task.agentRetryWaiting"
                                     :abandonable="isActiveAnalysisTaskStatus(task.status)"
                                     :busy="lifecycleBusy"
                                     @abandon="requestAbandon"

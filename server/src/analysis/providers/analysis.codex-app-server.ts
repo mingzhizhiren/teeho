@@ -153,6 +153,13 @@ function createTokenBudgetExceededError(
 /** 把远程 App Server 错误归类为稳定的 Provider 错误 */
 function classifyRemoteFailure(message: string, code?: number) {
     const normalized = message.toLocaleLowerCase()
+    if (/\b(?:model is at capacity|model is currently at capacity)\b/u.test(normalized)) {
+        return new AgentProviderError('temporary_unavailable', {
+            message: '题火Agent正在忙碌',
+            retryable: true,
+            ruleId: 'agent.busy',
+        })
+    }
     if (
         /reasoning(?:\.effort|_effort)|reasoningeffortparam/u.test(normalized) &&
         /invalid_enum_value|invalid value/u.test(normalized)

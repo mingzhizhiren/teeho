@@ -366,6 +366,7 @@ export const analysisFailureSchema = z
             'radar_unavailable',
             'no_reference_notes',
             'agent_failure',
+            'agent_busy',
             'image_expired',
             'video_evidence_expired',
             'insufficient_points',

@@ -68,6 +68,11 @@ import { insertAnalysisResult } from './analysis.result.repository'
 import { saveAnalysisResultWithAccess } from '../report-access/analysis.report-access.service'
 import { startAnalysisTaskLeaseMonitor } from './analysis.task-lease-monitor'
 
+import {
+    AgentBusyExhaustedError,
+    AGENT_BUSY_FAILURE_MESSAGE,
+} from '../providers/analysis.agent-busy'
+import { setAnalysisAgentRetryWaiting } from './analysis.agent-retry.repository'
 /** 单次分析尝试的执行模块；调度生命周期由 Worker 模块负责。 */
 const publicFailureMessage = '服务器功能异常'
 
@@ -98,6 +103,7 @@ export interface AnalysisTaskExecutor {
 
 /** 单次分析尝试所需的持久化与跨 Feature 事务能力。 */
 export interface AnalysisTaskExecutionPersistence {
+    setAgentRetryWaiting: typeof setAnalysisAgentRetryWaiting
     withTransaction: typeof withTransaction
     findImagesForTask: typeof loadAgentImagesForTask
     findVideoEvidenceForTask: typeof loadAgentVideoEvidenceForTask
@@ -137,6 +143,7 @@ type AnalysisExecutionLogger = Pick<typeof logger, 'debug' | 'error' | 'info' | 
 
 /** PostgreSQL 生产持久化适配器。 */
 export const postgresAnalysisTaskExecutionPersistence: AnalysisTaskExecutionPersistence = {
+    setAgentRetryWaiting: setAnalysisAgentRetryWaiting,
     withTransaction,
     findImagesForTask: loadAgentImagesForTask,
     findVideoEvidenceForTask: loadAgentVideoEvidenceForTask,
@@ -246,6 +253,8 @@ export function createAnalysisTaskExecutor(
 
 /** 把未知异常转换为稳定的分析失败结果 */
 function toAnalysisFailure(error: unknown): AnalysisFailure {
+    if (error instanceof AgentBusyExhaustedError)
+        return { code: 'agent_busy', message: AGENT_BUSY_FAILURE_MESSAGE }
     if (error instanceof ModelServiceUnavailableError || isAgentServiceUnavailable(error))
         return { code: MODEL_SERVICE_UNAVAILABLE, message: MODEL_SERVICE_MAINTENANCE_MESSAGE }
     if (error instanceof AgentContractError && error.ruleId === 'radar.coverage.required')
@@ -442,6 +451,10 @@ async function generateFirstTaskOutcome(
         asOfDate: task.processingStartedAt.split('T')[0]!,
         asOf: task.processingStartedAt,
         signal: context.signal,
+        onAgentRetryWaiting: (stage, waiting) => {
+            context.signal.throwIfAborted()
+            return context.runtime.persistence.setAgentRetryWaiting(task, stage, waiting)
+        },
         evidenceSource: context.runtime.evidenceSource,
         topicEvidenceSource: context.runtime.topicEvidenceSource,
         evidenceStore: {

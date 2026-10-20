@@ -1,3 +1,4 @@
+import type { AgentRetryObserver } from '../providers/analysis.agent-busy'
 import {
     PERFORMANCE,
     extractMediaStructureFeatures,
@@ -58,6 +59,7 @@ const DATE_WIDTH = 10
 const MILLISECONDS_PER_SECOND = 1000
 
 export interface CheckupEvaluationInput {
+    onAgentRetryWaiting?: AgentRetryObserver
     insightEnabled: boolean
     plugins: PluginRuntime
     materialDescriptions?: import('../materials/analysis.material').UnderstoodMaterials
@@ -347,6 +349,7 @@ export async function evaluateAnalysisCheckup(
         }),
     )
     const tracked = await reviewAnalysisContent({
+        onAgentRetryWaiting: input.onAgentRetryWaiting,
         userId: input.task.userId,
         taskId: input.task.id,
         requestId: input.requestId,

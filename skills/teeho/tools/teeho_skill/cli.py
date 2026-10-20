@@ -278,6 +278,9 @@ class CommandRunner:
         self.anonymous_reminder_shown = True
 
     def _summary(self, event: dict) -> None:
+        if event.get("event") == "agent_retry_waiting":
+            self.output(create_presentation("task", event))
+            return
         anonymous = bool(self.identity and self.identity.get("user", {}).get("isAnonymous"))
         self.output(
             create_presentation(

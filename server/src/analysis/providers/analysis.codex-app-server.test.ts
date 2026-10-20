@@ -200,6 +200,19 @@ function createRequest(signal = new AbortController().signal) {
     }
 }
 
+it('容量不足的 failed turn 映射为可重试的 Agent 繁忙', async () => {
+    const socket = new FakeAppServerSocket('agentMessage', true, null, null, null, 'failed', {
+        message: 'Selected model is at capacity. Please try a different model.',
+    })
+    await expect(
+        runCodexAppServer(createRequest(), () => socket as unknown as WebSocket),
+    ).rejects.toMatchObject({
+        category: 'temporary_unavailable',
+        retryable: true,
+        ruleId: 'agent.busy',
+    })
+})
+
 describe('Codex App Server transport', () => {
     it('联网资料请求只额外允许 webSearch 并启用 live 搜索配置', async () => {
         const socket = new FakeAppServerSocket(

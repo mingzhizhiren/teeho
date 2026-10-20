@@ -213,12 +213,18 @@ class DiagnosisTools:
         """有界轮询，超时后交还 Agent，后续继续查询。"""
         scope, deadline = self._scope(), self.now() + MEDIA_WAIT_SECONDS
         last_status = None
+        was_agent_waiting = False
         while True:
             result = self._query_task(task_id, scope)
             status = result["task"].get("status")
             if status != last_status:
                 self.log("task_status_changed", {"taskId": task_id, "state": status})
             last_status = status
+            is_agent_waiting = (result["task"].get("agentRetryWaiting") is True
+                                and status in {"processing", "retrying"})
+            if is_agent_waiting and not was_agent_waiting:
+                self.emit({"event": "agent_retry_waiting", "task": result["task"]})
+            was_agent_waiting = is_agent_waiting
             if status in FINISHED_STATUSES:
                 return result
             if self.now() >= deadline:

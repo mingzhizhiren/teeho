@@ -61,6 +61,8 @@ bun run package:skill
 
 宿主对同一任务接续同一个 `wait` 执行会话，直到进程退出，再处理最终状态与报告。执行会话 ID 与题火任务 ID 分开使用；五分钟窗口从 `wait` 开始计时，只有原等待进程明确返回 `processing` 和 `wait_for_user` 时才交付稍后查询提示。
 
+服务端 `agentRetryWaiting=true` 时，任务/等待输出 Agent 繁忙提示；`wait` 在首次进入每段等待时交付进度并继续原查询。最终 `agent_busy` 显示稍候重新提交、未扣费的提示，固定中文译文见 `SKILL.md`。等待本身不宣称积分已经释放，也不自动发起新诊断。
+
 ## 配置与数据
 
 下载服务生成 `endpoint.json`，工具相对安装位置读取；开发可用 `TEEHO_API_URL` 覆盖。服务仅允许 HTTPS 或本机回环 HTTP。`TEEHO_HOME` 可替代默认数据根 `~/.teeho`。

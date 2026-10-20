@@ -35,6 +35,7 @@ export interface AnalysisTaskRecord {
     structureConfigVersion: string
     standardTask: StandardAnalysisTask
     preparationStatus?: 'waiting' | 'ready'
+    agentRetryWaiting?: boolean
     result: AgentAnalysisResult | null
     resultVersion: number | null
     failure: AnalysisFailure | null
@@ -60,6 +61,7 @@ interface AnalysisTaskDatabaseRow extends Record<string, unknown> {
     structureConfigVersion: string
     standardTask: unknown
     pointCost: number | string
+    agentRetryWaiting?: boolean
     failureCode: string | null
     failureMessage: string | null
     cancellationReason: 'maintenance' | 'refund' | null
@@ -161,6 +163,7 @@ function mapAnalysisTask(row: AnalysisTaskDatabaseRow): AnalysisTaskRecord | nul
         result,
         resultVersion: row.resultVersion === null ? null : Number(row.resultVersion),
         failure,
+        agentRetryWaiting: row.agentRetryWaiting === true,
         pointCost: Number(row.pointCost),
         chargedPoints: row.pointReservationStatus === 'settled' ? Number(row.pointCost) : null,
         attemptCount: Number(row.attemptCount),
@@ -367,6 +370,8 @@ function analysisTaskSelect(
             task.standard_task_snapshot AS "standardTask",
             ${getTaskPolicy().taskReadProjection()},
             task.failure_code AS "failureCode",
+            (task.status IN ('processing', 'retrying') AND task.lease_expires_at > now()
+                AND cardinality(task.agent_retry_waits) > 0) AS "agentRetryWaiting",
             task.failure_message AS "failureMessage",
             task.cancellation_reason AS "cancellationReason",
             task.attempt_count AS "attemptCount",

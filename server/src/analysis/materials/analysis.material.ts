@@ -1,3 +1,4 @@
+import { isAgentBusy, withAgentBusyRetry } from '../providers/analysis.agent-busy'
 import { z } from 'zod'
 import type { CheckupEvaluationInput } from '../checkup/analysis.checkup.evaluation'
 import { resolveAnalysisCover } from '../media/analysis.cover'
@@ -29,7 +30,6 @@ export {
 } from './analysis.material.contract'
 const MAX_DESCRIPTION = MATERIAL_LIMITS.description
 const MAX_TRACK = MATERIAL_LIMITS.maximumTrack
-const RETRY_ATTEMPT = 2
 
 /** 独立素材理解仅产生描述；分类步骤不拥有正式评分。 */
 export interface MaterialUnderstandingInput extends AgentResultGenerationInput {
@@ -132,7 +132,9 @@ async function callMaterial(
             })
         return parsed.data
     }
-    const run = async (retry: boolean): Promise<unknown> => {
+    let callAttempt = 0
+    const run = async (retry: boolean, canRetryBusy: boolean): Promise<unknown> => {
+        const attemptNumber = ++callAttempt
         input.signal.throwIfAborted()
         const startedAt = performance.now()
         try {
@@ -143,7 +145,7 @@ async function callMaterial(
                 stage: 'generate_result',
                 provider: input.agent.descriptor,
                 promptVersion: materialPromptVersions[request.kind],
-                attemptNumber: retry ? RETRY_ATTEMPT : 1,
+                attemptNumber,
                 media: {
                     imageInputCount:
                         request.images.length - (request.videoEvidence?.frames.length ?? 0),
@@ -152,7 +154,9 @@ async function callMaterial(
                 invoke: () => invoke.call(input.agent.provider, materialRequest),
                 parse,
                 shouldRetry: (error) =>
-                    !retry && error instanceof AgentProviderError && error.retryable,
+                    error instanceof AgentProviderError &&
+                    error.retryable &&
+                    (isAgentBusy(error) ? canRetryBusy : !retry),
             })
             return output.value
         } catch (error) {
@@ -183,12 +187,14 @@ async function callMaterial(
                         promptVersion: materialPromptVersions[request.kind],
                         provider: input.agent.descriptor.provider,
                         model: input.agent.descriptor.model,
-                        attemptNumber: retry ? RETRY_ATTEMPT : 1,
+                        attemptNumber,
                         durationMs: Math.round(performance.now() - startedAt),
                         executionId: readAgentProviderExecutionMetadata(error)?.executionId ?? null,
                         validationIssues: validation,
                         retryDecision:
-                            !retry && error instanceof AgentProviderError && error.retryable
+                            error instanceof AgentProviderError &&
+                            error.retryable &&
+                            (isAgentBusy(error) ? canRetryBusy : !retry)
                                 ? 'retry'
                                 : 'fail',
                     },
@@ -198,13 +204,32 @@ async function callMaterial(
             throw error
         }
     }
-    try {
-        return await run(false)
-    } catch (error) {
-        if (input.signal.aborted || !(error instanceof AgentProviderError) || !error.retryable)
-            throw error
-        return run(true)
-    }
+    let hasRetriedOtherError = false
+    return withAgentBusyRetry(
+        {
+            signal: input.signal,
+            stage: request.kind,
+            taskId: input.task.id,
+            onWaiting: input.onAgentRetryWaiting,
+            log: input.log,
+        },
+        async (canRetryBusy) => {
+            try {
+                return await run(hasRetriedOtherError, canRetryBusy)
+            } catch (error) {
+                if (
+                    input.signal.aborted ||
+                    hasRetriedOtherError ||
+                    isAgentBusy(error) ||
+                    !(error instanceof AgentProviderError) ||
+                    !error.retryable
+                )
+                    throw error
+                hasRetriedOtherError = true
+                return run(true, canRetryBusy)
+            }
+        },
+    )
 }
 
 /** 封面与正文并行理解，分类等待两者；失败仅重试对应素材步骤。 */
