@@ -10,6 +10,7 @@ export type PublicDocumentSlug =
     | 'privacy'
     | 'refund-policy'
     | 'insight-engine'
+    | 'overview'
     | 'xiaohongshu-topic-evaluation'
 
 /** 允许由公开文档 frontmatter 提供的展示元数据。 */

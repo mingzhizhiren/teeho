@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test'
 import type { PGlite } from '@electric-sql/pglite'
 import { createCommunityDatabase } from './community-database'
-import { noteCoefficientReport } from './note-scoring-coefficient.fixture'
+import {
+    noteCoefficientReport,
+    fiveStarCoefficientReport,
+} from './note-scoring-coefficient.fixture'
 
 let database: PGlite
 beforeAll(async () => {
@@ -18,6 +21,70 @@ async function valid(report: unknown, score: number): Promise<boolean> {
     )
     return result.rows[0]!.valid
 }
+
+test('v2 支持结构下界 0.5 与五星奖励，并拒绝伪造奖励、未知策略和越界', async () => {
+    for (const [stars, score] of [
+        [0, 0],
+        [1, 2.49],
+        [2, 4.98],
+        [3, 8.3],
+        [4, 8.3],
+        [5, 8.72],
+    ]) {
+        expect(await valid(fiveStarCoefficientReport(stars), score!)).toBe(true)
+    }
+    expect(await valid(fiveStarCoefficientReport(4, true), 4.15)).toBe(true)
+    expect(await valid(fiveStarCoefficientReport(5, true), 4.57)).toBe(true)
+    const base = fiveStarCoefficientReport(4)
+    for (const invalid of [
+        { ...base, noteScoringCoefficient: 1.05 },
+        { ...base, noteScoringCoefficient: 0.49 },
+        { ...base, noteScoringCoefficient: 1.06 },
+        {
+            ...base,
+            noteScoringAudit: { ...base.noteScoringAudit, policy: 'structure-coefficient.v3' },
+        },
+    ])
+        expect(await valid(invalid, 8.3)).toBe(false)
+})
+
+test('v2 缺项及无有效项仍按真实五星奖励，fallback 不奖励', async () => {
+    for (const stars of [4, 5]) {
+        const base = fiveStarCoefficientReport(stars)
+        const empty = {
+            ...base,
+            structureReferences: Object.fromEntries(
+                Object.keys(base.structureMetrics).map((metric) => [metric, null]),
+            ),
+            noteScoringAudit: {
+                ...base.noteScoringAudit,
+                evaluated: [],
+                unavailable: base.noteScoringAudit.evaluated.map((entry) => entry.metric),
+            },
+        }
+        expect(await valid(empty, stars === 5 ? 8.72 : 8.3)).toBe(true)
+        const partial = {
+            ...base,
+            structureReferences: { ...base.structureReferences, imageCount: null },
+            noteScoringAudit: {
+                ...base.noteScoringAudit,
+                evaluated: base.noteScoringAudit.evaluated
+                    .filter((entry) => entry.metric !== 'imageCount')
+                    .map((entry) => ({ ...entry, contribution: 0.5 / 8 })),
+                unavailable: ['imageCount'],
+            },
+        }
+        expect(await valid(partial, stars === 5 ? 8.72 : 8.3)).toBe(true)
+    }
+    const base = fiveStarCoefficientReport(3)
+    const fallback = {
+        ...base,
+        contentAnalysis: { ...base.contentAnalysis, status: 'fallback' },
+        noteScoringAudit: { ...base.noteScoringAudit, reviewCompleted: false },
+    }
+    expect(await valid(fallback, 8.3)).toBe(true)
+    expect(await valid({ ...fallback, noteScoringCoefficient: 1.05 }, 8.3)).toBe(false)
+})
 
 test('压平后的完整社区迁移允许十篇对照并拒绝十一篇', async () => {
     for (const count of [4, 8, 10, 11]) {

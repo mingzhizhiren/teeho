@@ -409,6 +409,7 @@ export async function evaluateAnalysisCheckup(
         structureMetrics,
         structureReferences,
         tracked.value.status === 'completed',
+        tracked.value.consistency.stars,
     )
     const scorePolicy = 'consistency-weighted.v2' as const
     const mainScore = forceZero

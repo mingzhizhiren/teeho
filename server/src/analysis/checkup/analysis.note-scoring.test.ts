@@ -33,7 +33,7 @@ function savedReport(stars: number, originalScore: number, finalScore: number) {
         referenceRequirement: 'optional',
         structureMetrics: metrics,
         structureReferences: references,
-        ...calculateNoteScoring('image', metrics, references, true),
+        ...calculateNoteScoring('image', metrics, references, true, stars),
         contentAnalysis: {
             status: 'completed',
             scorePolicy: 'consistency-weighted.v2',
@@ -67,12 +67,56 @@ function savedReport(stars: number, originalScore: number, finalScore: number) {
 }
 
 describe('笔记结构系数', () => {
+    it.each([0, 1, 2, 3, 4, 5])('只有 %s 星中的五星增加 0.05，奖励也适用于未达标指标', (stars) => {
+        const currentReferences = Object.fromEntries(
+            Object.entries(references).map(([metric, reference]) => [
+                metric,
+                reference ? { ...reference, severity: 'moderate' as const } : null,
+            ]),
+        ) as typeof references
+        const result = calculateNoteScoring('image', metrics, currentReferences, true, stars)
+        expect(result.noteScoringCoefficient).toBeCloseTo(stars === 5 ? 0.8 : 0.75, 10)
+        expect(result.noteScoringAudit.policy).toBe('structure-coefficient.v2')
+    })
+
+    it('缺项和无有效结构指标仍独立判断五星奖励，降级不奖励', () => {
+        const missing = { ...references, imageCount: null }
+        const empty = Object.fromEntries(
+            MEDIA_STRUCTURE_KEYS.map((key) => [key, null]),
+        ) as typeof references
+        for (const current of [missing, empty]) {
+            expect(
+                calculateNoteScoring('image', metrics, current, true, 5).noteScoringCoefficient,
+            ).toBe(1.05)
+            expect(
+                calculateNoteScoring('image', metrics, current, true, 4).noteScoringCoefficient,
+            ).toBe(1)
+            expect(
+                calculateNoteScoring('image', metrics, current, false, 5).noteScoringCoefficient,
+            ).toBe(1)
+        }
+    })
+
+    it('旧 v1 四星报告保留 1.05，不能作为新 v2 四星奖励读取', () => {
+        const current = savedReport(4, 8.3, 8.72)
+        const legacy = {
+            ...current,
+            noteScoringCoefficient: 1.05,
+            noteScoringAudit: { ...current.noteScoringAudit, policy: 'structure-coefficient.v1' },
+        }
+        expect(checkupReportSchema.parse(legacy).primaryScore?.value).toBe(8.72)
+        expect(
+            checkupReportSchema.safeParse({ ...legacy, noteScoringAudit: current.noteScoringAudit })
+                .success,
+        ).toBe(false)
+    })
+
     it.each([
-        [10, 'aligned', 1.05],
-        [9, 'minor', 0.925],
-        [8, 'moderate', 0.8],
-        [6, 'major', 0.675],
-        [0, 'critical', 0.55],
+        [10, 'aligned', 1],
+        [9, 'minor', 0.875],
+        [8, 'moderate', 0.75],
+        [6, 'major', 0.625],
+        [0, 'critical', 0.5],
     ] as const)(
         '实测值 %s 的 %s 档使用已保存颜色档位，系数为 %s',
         (value, severity, coefficient) => {
@@ -85,7 +129,7 @@ describe('笔记结构系数', () => {
                 ),
             }
             const currentReferences = compareStructureMetrics(current, peers)
-            const result = calculateNoteScoring('image', current, currentReferences, true)
+            const result = calculateNoteScoring('image', current, currentReferences, true, 4)
             expect(result.noteScoringCoefficient).toBeCloseTo(coefficient, 10)
             expect(result.noteScoringAudit.evaluated).toHaveLength(9)
             expect(
@@ -101,8 +145,8 @@ describe('笔记结构系数', () => {
             current,
             Array.from({ length: 3 }, () => current),
         )
-        const result = calculateNoteScoring('video', current, currentReferences, true)
-        expect(result.noteScoringCoefficient).toBe(1.05)
+        const result = calculateNoteScoring('video', current, currentReferences, true, 4)
+        expect(result.noteScoringCoefficient).toBe(1)
         expect(result.noteScoringAudit.notApplicable).toEqual(['imageCount'])
         expect(
             result.noteScoringAudit.evaluated.find((item) => item.metric === 'videoDurationSeconds')
@@ -116,8 +160,9 @@ describe('笔记结构系数', () => {
             { ...metrics, bodyLength: null },
             { ...references, imageCount: null },
             true,
+            4,
         )
-        expect(partial.noteScoringCoefficient).toBe(1)
+        expect(partial.noteScoringCoefficient).toBeCloseTo(1, 10)
         expect(partial.noteScoringAudit.unavailable).toEqual(['bodyLength', 'imageCount'])
         expect(partial.noteScoringAudit.evaluated).toHaveLength(7)
         const empty = calculateNoteScoring(
@@ -125,6 +170,7 @@ describe('笔记结构系数', () => {
             metrics,
             Object.fromEntries(MEDIA_STRUCTURE_KEYS.map((key) => [key, null])) as typeof references,
             true,
+            4,
         )
         expect(empty.noteScoringCoefficient).toBe(1)
         expect(empty.noteScoringAudit.evaluated).toEqual([])
@@ -137,13 +183,14 @@ describe('笔记结构系数', () => {
             current,
             compareStructureMetrics(current, peers),
             true,
+            4,
         )
         expect(
             result.noteScoringAudit.evaluated.find((item) => item.metric === 'bodyLength'),
         ).toMatchObject({ severity: 'critical', contribution: 0 })
         expect(result.noteScoringAudit.unavailable).toEqual([])
         expect(
-            calculateNoteScoring('image', metrics, references, false).noteScoringCoefficient,
+            calculateNoteScoring('image', metrics, references, false, 5).noteScoringCoefficient,
         ).toBe(1)
     })
 
@@ -172,10 +219,10 @@ describe('笔记结构系数', () => {
 
     it.each([
         [0, 0],
-        [1, 2.61],
-        [2, 5.23],
-        [3, 8.72],
-        [4, 8.72],
+        [1, 2.49],
+        [2, 4.98],
+        [3, 8.3],
+        [4, 8.3],
         [5, 8.72],
     ])('保留 %s 星独立倍率，最终为 %s', (stars, expected) => {
         expect(
@@ -184,10 +231,10 @@ describe('笔记结构系数', () => {
     })
 
     it('所有倍率乘完后仅舍入一次，并封顶 10', () => {
-        expect(checkupReportSchema.parse(savedReport(1, 8.3049, 2.62)).primaryScore?.value).toBe(
-            2.62,
+        expect(checkupReportSchema.parse(savedReport(1, 8.316, 2.49)).primaryScore?.value).toBe(
+            2.49,
         )
-        expect(checkupReportSchema.safeParse(savedReport(1, 8.3049, 2.61)).success).toBe(false)
+        expect(checkupReportSchema.safeParse(savedReport(1, 8.316, 2.5)).success).toBe(false)
         expect(checkupReportSchema.parse(savedReport(5, 9.99, 10)).primaryScore?.value).toBe(10)
     })
 

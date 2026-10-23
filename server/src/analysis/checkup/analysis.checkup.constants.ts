@@ -2,7 +2,7 @@
 export const checkupVersions = {
     algorithm: 'radar-rules.v120.2',
     selection: 'checkup-selection.v9',
-    score: 'insight-structure-consistency-score.v3',
+    score: 'insight-structure-consistency-score.v4',
     explanation: 'content-analysis.v6',
 } as const
 

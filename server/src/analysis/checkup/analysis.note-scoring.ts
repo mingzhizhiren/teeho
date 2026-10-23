@@ -3,12 +3,15 @@ import { MEDIA_STRUCTURE_KEYS } from '@teeho/content-metrics'
 import type { StructureReferences } from './analysis.structure-metrics'
 
 /** 结构系数独立于内容星级倍率；旧报告缺少此策略时不补算。 */
-export const NOTE_SCORING_POLICY = 'structure-coefficient.v1'
+export const NOTE_SCORING_POLICY = 'structure-coefficient.v2'
 export const NOTE_SCORING_LIMITS = {
-    base: 0.55,
+    base: 0.5,
+    legacyBase: 0.55,
     allowance: 0.5,
     neutral: 1,
     maximum: 1.05,
+    fiveStarBonus: 0.05,
+    maximumStars: 5,
     tolerance: 1e-10,
 } as const
 const SEVERITY_CONTRIBUTIONS = {
@@ -22,7 +25,7 @@ const metricSchema = z.enum(MEDIA_STRUCTURE_KEYS)
 const severitySchema = z.enum(['aligned', 'minor', 'moderate', 'major', 'critical'])
 const auditShape = z
     .object({
-        policy: z.literal(NOTE_SCORING_POLICY),
+        policy: z.enum(['structure-coefficient.v1', NOTE_SCORING_POLICY]),
         contentKind: z.enum(['image', 'video']),
         reviewCompleted: z.boolean(),
         evaluated: z
@@ -45,17 +48,24 @@ type StructureMetric = (typeof MEDIA_STRUCTURE_KEYS)[number]
 type StructureValues = Readonly<Partial<Record<StructureMetric, number | null>>>
 
 /** 从已冻结的逐指标贡献读取系数，不重新计算历史参考范围。 */
-export function coefficientFromAudit(audit: NoteScoringAuditShape): number {
+export function coefficientFromAudit(audit: NoteScoringAuditShape, stars: number): number {
+    const contribution = audit.evaluated.reduce((sum, item) => sum + item.contribution, 0)
+    if (audit.policy === NOTE_SCORING_POLICY) {
+        const structure = audit.evaluated.length
+            ? Math.min(NOTE_SCORING_LIMITS.neutral, NOTE_SCORING_LIMITS.base + contribution)
+            : NOTE_SCORING_LIMITS.neutral
+        const bonus =
+            audit.reviewCompleted && stars === NOTE_SCORING_LIMITS.maximumStars
+                ? NOTE_SCORING_LIMITS.fiveStarBonus
+                : 0
+        return structure + bonus
+    }
     if (!audit.evaluated.length) return NOTE_SCORING_LIMITS.neutral
     const maximum =
         audit.unavailable.length || !audit.reviewCompleted
             ? NOTE_SCORING_LIMITS.neutral
             : NOTE_SCORING_LIMITS.maximum
-    return Math.min(
-        maximum,
-        NOTE_SCORING_LIMITS.base +
-            audit.evaluated.reduce((sum, item) => sum + item.contribution, 0),
-    )
+    return Math.min(maximum, NOTE_SCORING_LIMITS.legacyBase + contribution)
 }
 
 /** 校验保存的适用性和贡献明细，避免主分与解释使用不同口径。 */
@@ -86,12 +96,13 @@ export const noteScoringCoefficientSchema = z
     .min(NOTE_SCORING_LIMITS.base)
     .max(NOTE_SCORING_LIMITS.maximum)
 
-/** 分摊有效指标的额度；不适用项不扣分，缺项或未完成评审不能获得奖励。 */
+/** 分摊有效指标额度；仅已完成的五星内容评审额外增加系数。 */
 export function calculateNoteScoring(
     contentKind: 'image' | 'video',
     metrics: StructureValues,
     references: StructureReferences,
     reviewCompleted: boolean,
+    stars: number,
 ): { noteScoringCoefficient: number; noteScoringAudit: NoteScoringAudit } {
     const excluded = contentKind === 'image' ? 'videoDurationSeconds' : 'imageCount'
     const applicable = MEDIA_STRUCTURE_KEYS.filter((metric) => metric !== excluded)
@@ -111,7 +122,10 @@ export function calculateNoteScoring(
         unavailable: applicable.filter((metric) => !available.includes(metric)),
         notApplicable: [excluded],
     })
-    return { noteScoringCoefficient: coefficientFromAudit(noteScoringAudit), noteScoringAudit }
+    return {
+        noteScoringCoefficient: coefficientFromAudit(noteScoringAudit, stars),
+        noteScoringAudit,
+    }
 }
 
 /** 新报告必须同时保留系数、审计和内容评审；缺省字段仅表示旧报告。 */
@@ -120,6 +134,7 @@ export function validSavedNoteScoring(report: {
     noteScoringAudit?: NoteScoringAudit
     contentAnalysis?: {
         status: 'completed' | 'fallback'
+        consistency: { stars: number }
         scorePolicy?: 'consistency-weighted.v1' | 'consistency-weighted.v2'
     }
     structureMetrics: StructureValues
@@ -136,8 +151,10 @@ export function validSavedNoteScoring(report: {
         return false
     return (
         audit.reviewCompleted === (report.contentAnalysis.status === 'completed') &&
-        Math.abs(report.noteScoringCoefficient - coefficientFromAudit(audit)) <=
-            NOTE_SCORING_LIMITS.tolerance &&
+        Math.abs(
+            report.noteScoringCoefficient -
+                coefficientFromAudit(audit, report.contentAnalysis.consistency.stars),
+        ) <= NOTE_SCORING_LIMITS.tolerance &&
         audit.evaluated.every(
             (item) =>
                 report.structureMetrics[item.metric] != null &&

@@ -73,3 +73,42 @@ export function noteCoefficientReport(stars = 5, original = 8.3, score = 8.72) {
         },
     }
 }
+
+/** v2 合成报告：结构区间改为 0.5～1，五星独立奖励 0.05。 */
+export function fiveStarCoefficientReport(
+    stars = 4,
+    critical = false,
+): ReturnType<typeof noteCoefficientReport> {
+    const coefficient = (critical ? 0.5 : 1) + (stars === 5 ? 0.05 : 0)
+    const multiplier = [0, 0.3, 0.6, 1, 1, 1][stars]!
+    const score = Math.round(Number((8.3 * coefficient * multiplier).toFixed(12)) * 100) / 100
+    const base = noteCoefficientReport(stars, 8.3, score)
+    const severity = critical ? 'critical' : 'aligned'
+    return {
+        ...base,
+        noteScoringCoefficient: coefficient,
+        structureReferences: {
+            ...Object.fromEntries(
+                metricNames.map((metric) => [
+                    metric,
+                    {
+                        low: critical ? 100 : 10,
+                        high: critical ? 100 : 10,
+                        severity,
+                        sampleCount: 20,
+                    },
+                ]),
+            ),
+            videoDurationSeconds: null,
+        },
+        noteScoringAudit: {
+            ...base.noteScoringAudit,
+            policy: 'structure-coefficient.v2',
+            evaluated: metricNames.map((metric) => ({
+                metric,
+                severity,
+                contribution: critical ? 0 : 0.5 / 9,
+            })),
+        },
+    }
+}

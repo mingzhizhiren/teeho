@@ -215,7 +215,7 @@ function fixture(): CheckupReport {
             topics: [{ index: 0, text: '最长话题' }],
             paragraphs: [{ index: 0, number: 1, text: '最长段落' }],
         },
-        ...calculateNoteScoring('image', structureMetrics, structureReferences, true),
+        ...calculateNoteScoring('image', structureMetrics, structureReferences, true, 5),
     })
 }
 
