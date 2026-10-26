@@ -1,6 +1,12 @@
 import type { Agent } from '@mastra/core/agent'
 import type { StandardSchemaWithJSON } from '@mastra/core/schema'
 import { z } from 'zod'
+import {
+    INSPIRATION_SYSTEM_PROMPT,
+    createInspirationPrompt,
+    inspirationAgentOutputSchema,
+    type InspirationAgentInput,
+} from '../../inspiration/inspiration.agent'
 import { comparisonExplanationSchema } from '../checkup/analysis.comparison-explanation'
 import {
     materialDescriptionSchema,
@@ -386,6 +392,7 @@ function classifyMastraError(
  * 两种模型和 Codex CLI、Mock 均只实现相同的两个业务方法。
  */
 export class MastraModelAgentProvider implements AgentProvider {
+    private readonly inspirationRunner: MastraGenerationRunner
     private readonly runner: MastraGenerationRunner
     private readonly provider: MastraModelProviderOptions['provider']
 
@@ -396,6 +403,11 @@ export class MastraModelAgentProvider implements AgentProvider {
      */
     constructor(options: MastraModelProviderOptions, runner?: MastraGenerationRunner) {
         this.provider = options.provider
+        this.inspirationRunner =
+            runner ??
+            createAgentRunner(
+                createContentDecisionAgent({ ...options, instructions: INSPIRATION_SYSTEM_PROMPT }),
+            )
         this.runner =
             runner ??
             createAgentRunner(
@@ -418,6 +430,20 @@ export class MastraModelAgentProvider implements AgentProvider {
             signal: input.signal,
             requestId: input.correlation.requestId,
         })
+    }
+
+    /** 索引采用独立提示和两层输出契约，复用统一传输。 */
+    generateInspiration(input: InspirationAgentInput): Promise<unknown> {
+        return this.generate(
+            {
+                prompt: createInspirationPrompt(input),
+                images: [],
+                schema: inspirationAgentOutputSchema,
+                signal: input.signal,
+                requestId: input.correlation.requestId,
+            },
+            this.inspirationRunner,
+        )
     }
 
     generateResult(input: AgentResultGenerationInput): Promise<unknown> {
@@ -453,10 +479,13 @@ export class MastraModelAgentProvider implements AgentProvider {
         })
     }
 
-    private async generate(input: MastraGenerationInput) {
+    private async generate(
+        input: MastraGenerationInput,
+        runner: MastraGenerationRunner = this.runner,
+    ) {
         validateAgentImagesForProvider(input.images, this.provider)
         try {
-            const output = await this.runner(input)
+            const output = await runner(input)
             if (output.toolCalls.length > 0) {
                 throw new AgentContractError('Mastra Agent 不得调用工具', {
                     validationFieldPaths: ['toolCalls'],

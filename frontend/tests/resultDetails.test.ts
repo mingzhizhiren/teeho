@@ -34,7 +34,7 @@ const labels: ResultCopyLabels = {
             paragraphLocation: (number) => `Body paragraph ${number}`,
             topicLocation: (number) => `Topic ${number}`,
         },
-        fallback: 'Default 3 stars; analysis incomplete',
+        fallback: 'The Agent analysis indicates that this note’s title and content are reasonably aligned.',
         scoreBlocked: 'Final score set to 0',
         references: 'References:',
         stars: (count) => `${count} / 5 stars`,
@@ -242,7 +242,8 @@ describe('复制已完成的笔记体检报告', () => {
             },
             labels,
         )
-        expect(copied).toContain('Default 3 stars; analysis incomplete')
+        expect(copied.split(labels.contentAnalysis.fallback)).toHaveLength(2)
+        expect(copied).not.toContain(fallbackContentAnalysisFixture.consistency.summary)
         expect(copied).toContain('最佳')
         expect(copied.indexOf('Wording risks')).toBeLessThan(copied.lastIndexOf('Comparable note'))
         expect(copied).not.toContain('No supported shortcomings')
@@ -258,7 +259,8 @@ describe('复制已完成的笔记体检报告', () => {
             },
             labels,
         )
-        expect(copied).toContain('Default 3 stars; analysis incomplete')
+        expect(copied.split(labels.contentAnalysis.fallback)).toHaveLength(2)
+        expect(copied).not.toContain(fallbackContentAnalysisFixture.consistency.summary)
         expect(copied).not.toContain('Issues and optimization advice')
         expect(copied).not.toContain('No obvious shortcomings')
         expect(copied).toContain('7.00 / 10')

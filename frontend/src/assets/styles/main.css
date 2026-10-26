@@ -23,6 +23,16 @@
     unicode-range: U+2E80-9FFF, U+F900-FAFF, U+FF00-FFEF;
 }
 
+/* 增量补齐灵感索引所需字形，不改变已发布的基础子集。 */
+@font-face {
+    font-family: 'Teeho Sans';
+    src: url('/fonts/teeho-sans-cjk-supplement.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+4EAE, U+53C9, U+6458, U+65CF, U+7075;
+}
+
 :root {
     --font-ui:
         'Teeho Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei',

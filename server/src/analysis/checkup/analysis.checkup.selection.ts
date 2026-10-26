@@ -90,9 +90,7 @@ function selectCandidate(
     const observed = Date.parse(latest.observedAt)
     if (
         published > observed ||
-        published > asOf ||
-        asOf - published > checkupSampling.observationMaxAgeDays * checkupSampling.dayMs ||
-        asOf - observed > checkupSampling.observationMaxAgeDays * checkupSampling.dayMs
+        published > asOf
     )
         return []
     const similarity = checkupSimilarity(
@@ -166,7 +164,8 @@ export function selectCheckupNotes(
         const selected = candidates.filter(
             (sample) => Date.parse(sample.latest.observedAt) >= start,
         )
-        if (selected.length >= PERFORMANCE.minimumSamples || days === PERFORMANCE.maximumDays)
+        if (days === PERFORMANCE.maximumDays) return sample(candidates)
+        if (selected.length >= PERFORMANCE.minimumSamples)
             return sample(selected)
     }
     return []

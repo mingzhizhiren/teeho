@@ -1,16 +1,9 @@
 /** 算法及评分口径的单一版本来源。 */
 export const checkupVersions = {
     algorithm: 'radar-rules.v120.2',
-    selection: 'checkup-selection.v9',
+    selection: 'checkup-selection.v10',
     score: 'insight-structure-consistency-score.v4',
     explanation: 'content-analysis.v6',
-} as const
-
-/** 候选数据按发布时间逐段扩展的窗口。 */
-const CHECKUP_WINDOW_DAYS = {
-    initial: 1,
-    expanded: 7,
-    maximum: 30,
 } as const
 
 /** 体检输入、报告与评分的版本化常量。 */
@@ -38,15 +31,9 @@ export const checkupOutputConstraints = {
 export const checkupSampling = {
     // 未启用模型优秀集合的旧路径仍展示四篇，不因报告容量扩大而改变选样。
     legacyReferenceLimit: 4,
-    windowsDays: [
-        CHECKUP_WINDOW_DAYS.initial,
-        CHECKUP_WINDOW_DAYS.expanded,
-        CHECKUP_WINDOW_DAYS.maximum,
-    ],
     candidateLimit: 50,
     // 仅标记词面主题匹配供审计；参考资格不再由该阈值决定。
     minimumSimilarity: 0.1,
-    observationMaxAgeDays: 30,
     dayMs: 86_400_000,
     tokenLimit: 512,
     evidenceBodyMaxLength: 10_000,

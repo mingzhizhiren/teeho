@@ -80,7 +80,7 @@ class PresentationTests(unittest.TestCase):
 
     def test_installation_metadata_survives_render_in_another_process_store(self) -> None:
         cases = (
-            ("help", {}, {"topics": ["account", "diagnose", "task", "status", "history", "help"]}),
+            ("help", {}, {"topics": ["account", "diagnose", "task", "status", "history", "help", "inspiration"]}),
             ("installation", {"configured": True, "apiUrl": "https://teeho.chat/api"},
              {"configured": True, "apiUrl": "https://teeho.chat/api"}),
         )
@@ -521,6 +521,14 @@ class PresentationTests(unittest.TestCase):
                 self.assertIn("\n\n• ", text)
                 self.assertNotIn("**", text)
                 self.assertIn("#topic1 #topic2 #topic3", text)
+                self.assertIn(ENGLISH["usageInspirationRequest"], text)
+                self.assertIn(ENGLISH["exampleInspirationTopic"], text)
+                inspiration_usage = text.split(ENGLISH["usageInspirationRequest"], 1)[1]
+                self.assertEqual(sum(line.startswith("• ") for line in inspiration_usage.splitlines()), 1)
+                self.assertIn(ENGLISH["usageInspirationHelp"], text)
+                self.assertEqual(text.splitlines().count("═══════════════════════"), 2)
+                self.assertEqual(text.count("📝"), 2)
+                self.assertLess(text.index(ENGLISH["usageRequest"]), text.index(ENGLISH["usageInspirationRequest"]))
 
     def test_every_presentation_uses_plain_text_chrome(self) -> None:
         for case in FIXTURES:
@@ -647,7 +655,7 @@ class PresentationTests(unittest.TestCase):
                 published["presentationId"], {"helpFeatures": "题火所有功能"}
             )
             self.assertEqual(
-                localized["translationStats"], {"translated": 1, "fallback": 8}
+                localized["translationStats"], {"translated": 1, "fallback": 9}
             )
             with self.assertRaises(FileNotFoundError):
                 second.render(published["presentationId"], {})

@@ -139,3 +139,10 @@ IMAGE_TYPES = {
 VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime"}
 API_RELEASE_NOTES = "/release-notes/en"
 RELEASE_NOTES_TIMEOUT_SECONDS = 3
+
+# 灵感索引：复用 Skill Bearer；领取下载只读取，receipt 在本机保存后确认。
+API_INSPIRATION_CAPABILITIES = "/inspiration/capabilities"
+API_INSPIRATION_TASKS = "/inspiration/tasks"
+API_INSPIRATION_TASK = "/inspiration/tasks/{task_id}"
+API_INSPIRATION_RESULT = "/inspiration/tasks/{task_id}/result"
+API_INSPIRATION_RECEIPT = "/inspiration/tasks/{task_id}/receipt"

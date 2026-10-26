@@ -593,6 +593,9 @@ export interface AgentOutputRepairInput {
 
 /** 内容决策 Agent 的供应商无关接口 */
 export interface AgentProvider {
+    generateInspiration?(
+        input: import('../../inspiration/inspiration.agent').InspirationAgentInput,
+    ): Promise<unknown>
     understandMaterial?(
         input: import('../materials/analysis.material').MaterialUnderstandingInput,
     ): Promise<unknown>

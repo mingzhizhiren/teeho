@@ -310,9 +310,9 @@ export function createOnboardingCoordinator(
     }
 
     return {
-        tryAcquireIdleBlocker(kind) {
+        tryAcquireIdleBlocker(kind, options) {
             synchronizeAccount()
-            if (isDestroyed || !currentAccountId || activeRun || queue.length || blockerIds.size || !pageCanRun()) return null
+            if (isDestroyed || (!currentAccountId && !options?.allowAnonymous) || activeRun || queue.length || blockerIds.size || !pageCanRun()) return null
             return acquireBlocker(kind)
         },
         subscribeAvailability(listener) {

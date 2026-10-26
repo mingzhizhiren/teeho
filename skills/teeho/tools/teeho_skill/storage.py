@@ -17,6 +17,19 @@ WINDOWS_REPLACE_DELAY_SECONDS = 0.05
 WINDOWS_REPLACE_CONFLICTS = frozenset({5, 32})
 
 
+def native_path(path: Path) -> Path:
+    """只在文件 I/O 边界扩展 Windows 路径；不解析链接或移动原数据。"""
+    path = Path(path)
+    if os.name != "nt":
+        return path
+    absolute = os.path.abspath(path)
+    if absolute.startswith("\\\\?\\"):
+        return Path(absolute)
+    if absolute.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + absolute[2:])
+    return Path("\\\\?\\" + absolute)
+
+
 @lru_cache(maxsize=1)
 def _windows_user_sid() -> str:
     """读取当前进程用户 SID，避免将 Administrators 所有者误当用户。"""
@@ -90,7 +103,7 @@ def _windows_dacl(path: Path, dacl: str) -> None:
     if not convert(dacl, 1, ctypes.byref(descriptor), None):
         raise ctypes.WinError(ctypes.get_last_error())
     try:
-        if not apply(str(path), 0x80000004, descriptor):
+        if not apply(str(native_path(path)), 0x80000004, descriptor):
             raise ctypes.WinError(ctypes.get_last_error())
     finally:
         kernel.LocalFree(descriptor)
@@ -108,7 +121,7 @@ def private_permissions(path: Path, is_directory: bool = False) -> None:
 def is_link(path: Path) -> bool:
     """识别符号链接和 Windows 目录联接，兼容没有 Path.is_junction 的版本。"""
     try:
-        info = Path(path).lstat()
+        info = native_path(path).lstat()
     except FileNotFoundError:
         return False
     if stat.S_ISLNK(info.st_mode):
@@ -118,7 +131,7 @@ def is_link(path: Path) -> bool:
 
 def ensure_private_directory(path: Path) -> None:
     """创建目录链，新目录均仅属于当前用户。"""
-    path = Path(path)
+    path = native_path(path)
     if is_link(path):
         raise TeehoError("invalid_local_data")
     if not path.exists():
@@ -144,7 +157,7 @@ def _finite_float(value: str) -> float:
 def read_json(path: Path, default: object = None) -> object:
     """缺文件返回默认值；畸形、超限或标量 JSON 明确失败。"""
     try:
-        with Path(path).open("rb") as stream:
+        with native_path(path).open("rb") as stream:
             content = stream.read(MAX_JSON_BYTES + 1)
     except FileNotFoundError:
         return default
@@ -181,7 +194,7 @@ def _replace_json(source: Path, target: Path) -> None:
 
 def write_json(path: Path, value: object) -> None:
     """临时文件同步落盘后原子替换，失败保留旧文件。"""
-    path = Path(path)
+    path = native_path(path)
     data = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
         "utf-8"
     )

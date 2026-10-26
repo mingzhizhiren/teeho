@@ -22,6 +22,7 @@ CHINESE_OVERVIEW = {
     "help_status_title": "账号信息与积分",
     "help_history_title": "分析结果历史",
     "help_help_title": "题火帮助信息",
+    "help_inspiration_title": "灵感索引",
 }
 EXPECTED_OVERVIEW = "\n".join(
     (
@@ -33,12 +34,13 @@ EXPECTED_OVERVIEW = "\n".join(
         "4️⃣ 查看 - 账号信息与积分",
         "5️⃣ 查看 - 分析结果历史",
         "6️⃣ 查看 - 题火帮助信息",
+        "7️⃣ 执行 - 灵感索引",
     )
 )
 
 
 class HelpTests(unittest.TestCase):
-    def test_overview_renders_exact_six_features_after_snapshot_translation(
+    def test_overview_renders_exact_seven_features_after_snapshot_translation(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -52,7 +54,7 @@ class HelpTests(unittest.TestCase):
             self.assertEqual(
                 set(original["translation"]["fields"]), set(CHINESE_OVERVIEW)
             )
-            self.assertNotRegex(str(original["translation"]["fields"]), "[1-6]️⃣|🔥")
+            self.assertNotRegex(str(original["translation"]["fields"]), "[1-7]️⃣|🔥")
 
     def test_each_topic_has_its_own_usage_and_request_examples(self) -> None:
         examples = {
@@ -62,6 +64,7 @@ class HelpTests(unittest.TestCase):
             "status": "How many credits do I have left?",
             "history": "Open this saved report.",
             "help": "How do I sign in or out?",
+            "inspiration": "Show my saved inspiration results.",
         }
         for topic, example in examples.items():
             with self.subTest(topic=topic):
@@ -102,19 +105,19 @@ class HelpTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             store = PresentationStore(directory, "public")
             original = store.publish(create_presentation("help", {}))
-            for invalid in ("Login\n7️⃣ Install", "7️⃣ Login", "Login 🔥"):
+            for invalid in ("Login\n8️⃣ Install", "8️⃣ Login", "Login 🔥"):
                 with self.subTest(invalid=invalid):
                     output = store.render(
                         original["presentationId"],
                         {
                             **CHINESE_OVERVIEW,
                             "help_account_title": invalid,
-                            "featureList": "7️⃣ Install",
+                            "featureList": "8️⃣ Install",
                         },
                     )
                     self.assertEqual(output["translationStats"]["fallback"], 1)
-                    self.assertEqual(len(output["displayText"].splitlines()), 8)
-                    self.assertNotIn("7️⃣", output["displayText"])
+                    self.assertEqual(len(output["displayText"].splitlines()), 9)
+                    self.assertNotIn("8️⃣", output["displayText"])
 
     def test_help_input_accepts_only_known_topics(self) -> None:
         for value in (

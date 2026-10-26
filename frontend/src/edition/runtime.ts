@@ -37,6 +37,7 @@ export interface ResultExtension {
     readonly component: Component | null
     readonly bindings: ComputedRef<Record<string, unknown>>
     onCopied(target: ResultCopyTarget): Promise<void>
+    onComparisonsExpanded?(): void
 }
 
 /** 运行时组合入口；共享模块不依赖部署扩展。 */

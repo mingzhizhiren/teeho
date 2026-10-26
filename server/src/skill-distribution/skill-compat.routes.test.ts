@@ -41,7 +41,7 @@ describe('released Skill API compatibility', () => {
             new Request('http://localhost/api/points/summary', {
                 headers: {
                     authorization: 'Bearer teeho_skill_test',
-                    'x-teeho-skill-version': '2.6.1',
+                    'x-teeho-skill-version': '2.7.0',
                 },
             }),
         )
@@ -69,6 +69,9 @@ describe('released Skill API compatibility', () => {
         '2.4.2',
         '2.5.3',
         '2.6.0',
+        '2.6.1',
+        '2.6.2',
+        '2.6.999',
         'not-a-version',
         '2.1.0-preview',
     ])('blocks obsolete or invalid Skill version %s before creating a task', async (version) => {
@@ -95,8 +98,8 @@ describe('released Skill API compatibility', () => {
             message: expect.stringContaining('升级'),
             data: {
                 reason: 'skill_upgrade_required',
-                minimumVersion: '2.6.1',
-                latestVersion: '2.6.1',
+                minimumVersion: '2.7.0',
+                latestVersion: '2.7.0',
                 downloadPath: '/skill/download',
                 officialInstallUrl: 'https://teeho.chat/skill-install.md',
                 githubInstallUrl:
@@ -106,7 +109,7 @@ describe('released Skill API compatibility', () => {
         expect(createTask).not.toHaveBeenCalled()
     })
 
-    it.each(['2.6.1', '2.6.2', '2.10.0', '3.0.0'])(
+    it.each(['2.7.0', '2.7.1', '2.10.0', '3.0.0'])(
         'allows compatible numeric version %s',
         async (version) => {
             vi.mocked(authenticateSkillToken).mockResolvedValue({

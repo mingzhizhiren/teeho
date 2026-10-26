@@ -22,10 +22,13 @@ from .risk_matches import risk_match_lines
 from .structure_metrics import project_structure_metrics, structure_metric_lines
 from .report_access import CONTENT_INDICATORS, allows
 from .version import installation_urls
+from .inspiration_presentation import inspiration_lines
+from .score_range import score_range_lines
 
 PANEL_WIDTH = 40
 COMPARISON_EXCERPT_LENGTH = 20
 DIVIDER = "═" * PANEL_WIDTH
+INSTALLATION_DIVIDER = "═══════════════════════"
 MAX_RECORDS = 64
 MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
 MAX_TRANSLATION_BYTES = 512 * 1024
@@ -240,6 +243,7 @@ def _insight_lines(data: View, translate: Translate) -> list[str]:
                 )
             ]
         )
+        rows.extend(score_range_lines(data.get("score"), reference, translate))
     return rows
 
 
@@ -422,6 +426,8 @@ def _notice_lines(view: View, translate: Translate) -> list[str]:
 
 def _render_lines(view: View, translate: Translate) -> list[str]:
     data, kind = view["data"], view["kind"]
+    if kind == "inspiration":
+        return inspiration_lines(view, translate, _comparison_lines)
     if kind == "help":
         return help_lines(data.get("topic"), translate)
     if kind == "upgrade":
@@ -443,13 +449,15 @@ def _render_lines(view: View, translate: Translate) -> list[str]:
         return _identity_lines(view, translate)
     if kind == "summary":
         return _summary_lines(data, translate)
+    if kind == "inspiration_input_feedback":
+        return [translate(key) for key in data["lines"]]
     if kind == "installation":
         return [
             *_banner("🔥 " + translate("usage")),
             "",
-            DIVIDER,
+            INSTALLATION_DIVIDER,
             "",
-            translate("usageRequest"),
+            "📝" + translate("usageRequest"),
             "",
             *[
                 _field(translate(key), translate("example" + key.title()))
@@ -458,6 +466,14 @@ def _render_lines(view: View, translate: Translate) -> list[str]:
             "",
             translate("usageMedia"),
             translate("usageIdentity"),
+            "",
+            INSTALLATION_DIVIDER,
+            "",
+            "📝" + translate("usageInspirationRequest"),
+            "",
+            _field(translate("usageInspirationTopic"), translate("exampleInspirationTopic")),
+            "",
+            translate("usageInspirationHelp"),
         ]
     if kind == "history":
         rows = [
@@ -560,6 +576,8 @@ def _validate_view(value: object) -> View:
     ):
         raise TeehoError("invalid_input")
     if value.get("kind") not in (
+        "inspiration_input_feedback",
+        "inspiration",
         "report",
         "authorization",
         "onboarding",
@@ -654,6 +672,9 @@ class PresentationStore:
                 tools_data = {"topics": [topic.id for topic in HELP_TOPICS]}
             elif view["kind"] == "installation":
                 tools_data = {"configured": True, "apiUrl": data["url"]}
+        requires_render = translations is None
+        if view["kind"] == "inspiration_input_feedback":
+            tools_data = data["feedback"]
         return {
             **(
                 {
@@ -668,8 +689,8 @@ class PresentationStore:
             "state": view["state"],
             "displayText": display_text,
             "delivery": {
-                "mode": "render_required" if translations is None else "verbatim",
-                **({"command": "render"} if translations is None else {}),
+                "mode": "render_required" if requires_render else "verbatim",
+                **({"command": "render"} if requires_render else {}),
                 "field": "displayText",
                 "format": "text_code_block",
                 "language": "text",

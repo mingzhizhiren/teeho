@@ -13,6 +13,7 @@ const props = withDefaults(
             | 'video'
             | 'operator'
             | 'error'
+            | 'inspiration'
         motion?: 'lively' | 'calm'
         eager?: boolean
         interactiveReport?: boolean
@@ -117,7 +118,12 @@ const characterSource = computed(
                 </div>
             </template>
             <div
-                v-if="variant === 'studio' || variant === 'report' || variant === 'error'"
+                v-if="
+                    variant === 'studio' ||
+                        variant === 'report' ||
+                        variant === 'error' ||
+                        variant === 'inspiration'
+                "
                 class="art-layer art-layer--mascot art-enter"
                 data-entry-x="45"
                 data-entry-y="35"
@@ -130,7 +136,9 @@ const characterSource = computed(
                     :src="
                         variant === 'error'
                             ? '/images/art/mascot-shrug.webp'
-                            : '/images/art/mascot-report.webp'
+                            : variant === 'inspiration'
+                                ? '/images/art/mascot-inspiration.webp'
+                                : '/images/art/mascot-report.webp'
                     "
                     alt=""
                     width="480"

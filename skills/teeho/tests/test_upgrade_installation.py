@@ -29,13 +29,13 @@ class UpgradeInstallationTests(unittest.TestCase):
     def test_new_upgrade_uses_bundled_urls_and_keeps_download_only_for_compatibility(
         self,
     ) -> None:
-        self.assertEqual(skill_version(), "2.6.1")
+        self.assertEqual(skill_version(), "2.7.0")
         error = SkillUpgradeRequired(
             400,
             "http://localhost:9634/api",
             {
-                "minimumVersion": "2.6.1",
-                "latestVersion": "2.6.1",
+                "minimumVersion": "2.7.0",
+                "latestVersion": "2.7.0",
                 "officialInstallUrl": "https://untrusted.example/skill-install.md",
                 "githubInstallUrl": "https://untrusted.example/alternate/skill-install.md",
                 "downloadPath": "https://untrusted.example/download",

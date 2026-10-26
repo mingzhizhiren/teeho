@@ -84,6 +84,7 @@ export default {
             perspective: 'See your post from a new perspective.',
             nextPost: 'Insights for your next post.',
             workspace: 'Post ready? Let’s take a closer look.',
+            inspiration: 'Good notes, fresh ideas.',
             report: 'See the details. Find what to improve.',
             skill: 'Install the teeho skill in one step.',
             signature: 'teeho',

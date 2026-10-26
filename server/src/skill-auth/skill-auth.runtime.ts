@@ -121,6 +121,8 @@ const dependencies = {
     createAnonymous,
 }
 export const skillAuthController = createSkillAuthController(dependencies)
+/** 其他受控入口可复用匿名账号身份能力，不复用 Skill 客户端凭据。 */
+export { findUser as findAnonymousIdentity, createAnonymous as ensureAnonymousIdentity }
 const service = createSkillAuthService(dependencies)
 /** 验证设备访问凭据，并实时检查账号和撤销状态。 */
 export async function authenticateSkillToken(token: string) {

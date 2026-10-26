@@ -131,6 +131,10 @@ export function createProductGuideModule(
         const isCurrentRun = () =>
             generation === lifecycleGeneration && dependencies.getAccountId() === accountId
         let progress = await readProgress(dependencies.storage, accountId, guideId)
+        if (!isCurrentRun()) {
+            isRunning = false
+            return { status: 'skipped' }
+        }
         if (
             !isManualReplay &&
             (progress?.status === 'completed' || progress?.status === 'skipped')

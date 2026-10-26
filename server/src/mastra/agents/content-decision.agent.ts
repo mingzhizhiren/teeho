@@ -4,6 +4,7 @@ import type { OpenAICompatibleConfig } from '@mastra/core/llm'
 import { agentPromptCatalog } from '../../analysis/providers/analysis.prompt.constants'
 
 export interface ContentDecisionAgentConfig {
+    instructions?: string
     provider: 'openai' | 'gemini'
     model: string
     apiKey: string
@@ -20,7 +21,7 @@ export function createContentDecisionAgent(config: ContentDecisionAgentConfig) {
     return new Agent({
         id: 'teeho-content-decision',
         name: '题火内容决策',
-        instructions: agentPromptCatalog.generateResult.systemPrompt,
+        instructions: config.instructions ?? agentPromptCatalog.generateResult.systemPrompt,
         model,
         tools: {},
         defaultOptions: {

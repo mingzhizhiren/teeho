@@ -14,6 +14,8 @@ from .config import read_installation
 from .constants import MAX_INPUT_BYTES
 from .debug import DebugLogger, command_log_level
 from .diagnosis import DiagnosisTools
+from .inspiration import InspirationTools
+from .inspiration_feedback import submission_fields as inspiration_input_fields
 from .errors import TeehoError
 from .version import SkillUpgradeRequired
 from .help_content import HELP_TOPICS, help_result
@@ -28,6 +30,7 @@ from .rendering import PUBLIC_PRESENTATION_OWNER, PresentationStore, render_pres
 from .release_notes import attach_release, has_seen, latest_release, mark_seen
 
 FEATURES = (
+    "inspire", "inspire-resume", "inspire-task", "inspire-wait", "inspire-config",
     "login",
     "anonymous",
     "login-status",
@@ -48,6 +51,7 @@ FEATURES = (
 )
 INPUT_COMMANDS = frozenset(
     {
+        "inspire", "inspire-task", "inspire-wait",
         "inspect",
         "diagnose",
         "task",
@@ -262,7 +266,7 @@ class CommandRunner:
             },
         )
         self.store = PresentationStore(self.auth.root, owner=_owner(self.identity))
-        if command != "diagnose" or _owner(self.identity):
+        if command not in ("diagnose", "inspire", "inspire-config") or _owner(self.identity):
             return
         if (
             self.identity
@@ -292,6 +296,9 @@ class CommandRunner:
 
     def _history(self, command: str, value: dict) -> dict:
         owner = _owner(self.identity)
+        if value.get("kind") == "inspiration":
+            tools = InspirationTools(self.api, self.auth, owner)
+            return tools.clear(value.get("confirmed"), value.get("taskId")) if command == "clear-history" else tools.history(value.get("taskId"))
         publish_anonymous_history(self.auth.root, self.identity)
         if command == "clear-history":
             history = HistoryTools(self.auth.root, require_id(owner, "login_required"))
@@ -337,6 +344,16 @@ class CommandRunner:
         return {**view, "data": {**view["data"], "remainingPoints": points}}
 
     def _dispatch(self, command: str, value: dict) -> tuple[dict, Optional[dict]]:
+        if command.startswith("inspire"):
+            tools = InspirationTools(self.api, self.auth, _owner(self.identity))
+            if command == "inspire-config":
+                data = self.api.inspiration_capabilities(expected_user_id=tools.owner)
+                return data, data
+            if command == "inspire":
+                return tools.submit(value), None
+            if command == "inspire-resume":
+                return tools.resume(), None
+            return tools.task(value.get("taskId"), wait=command == "inspire-wait"), None
         diagnosis = DiagnosisTools(
             self.api,
             self.auth,
@@ -409,6 +426,8 @@ class CommandRunner:
             if command == "diagnose":
                 normalize_note(value)
                 self._log_input(value)
+            if command == "inspire":
+                inspiration_input_fields(value)
             self._initialize_identity(command, value)
             if command == "render":
                 self._render(value)
@@ -430,7 +449,7 @@ class CommandRunner:
                 if command in RELEASE_NOTE_COMMANDS:
                     view = self._with_release_notes(view)
                 self.output(view, None if view["state"] == "invalid_response" else data)
-                exit_code = int(view["state"] in ("invalid_response", "failed"))
+                exit_code = int(view["state"] in ("invalid_response", "failed") or (view["kind"] == "inspiration_input_feedback" and view["state"] == "invalid_input"))
         except BrokenPipeError:
             exit_code = 1
         except (Exception, KeyboardInterrupt) as error:

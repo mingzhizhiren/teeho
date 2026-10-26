@@ -73,8 +73,8 @@ describe('Skill upgrade protocol before authorization', () => {
             code: 0,
             message: 'ok',
             data: {
-                minimumVersion: '2.6.1',
-                latestVersion: '2.6.1',
+                minimumVersion: '2.7.0',
+                latestVersion: '2.7.0',
                 downloadPath: '/skill/download',
                 officialInstallUrl: 'https://teeho.chat/skill-install.md',
                 githubInstallUrl:

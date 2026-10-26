@@ -40,6 +40,7 @@ export async function collectSkillEntries(source = 'github'): Promise<SkillEntry
         'LICENSE.md',
         'endpoint.json',
         'release.json',
+        'references/inspiration.md',
         'references/uninstall.md',
         ...toolFiles,
     ]

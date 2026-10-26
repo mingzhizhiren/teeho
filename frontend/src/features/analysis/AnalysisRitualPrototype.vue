@@ -17,8 +17,14 @@ const props = withDefaults(
         preview?: boolean
         abandonable?: boolean
         busy?: boolean
+        eyebrow?: string
+        statusTitle?: string
+        statusDescription?: string
     }>(),
-    { startedAt: null, retrying: false, preview: false, abandonable: false, busy: false },
+    {
+        startedAt: null, retrying: false, preview: false, abandonable: false, busy: false,
+        eyebrow: undefined, statusTitle: undefined, statusDescription: undefined,
+    },
 )
 const emit = defineEmits<{ revealed: []; abandon: [] }>()
 const { t } = useI18n()
@@ -83,12 +89,12 @@ onBeforeUnmount(() => {
         <header class="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 sm:px-7 sm:pt-7">
             <div role="status" aria-live="polite">
                 <p class="text-xs font-semibold tracking-widest text-brand">
-                    {{ t('workspace.ritual.eyebrow') }}
+                    {{ eyebrow ?? t('workspace.ritual.eyebrow') }}
                 </p>
                 <h2 class="mt-2 text-sm font-semibold sm:text-base">
-                    {{ t(`workspace.ritual.phases.${phase}.title`) }}
+                    {{ statusTitle ?? t(`workspace.ritual.phases.${phase}.title`) }}
                 </h2>
-                <p class="mt-2 text-xs text-muted">{{ statusMeta }}</p>
+                <p class="mt-2 text-xs text-muted">{{ statusDescription ?? statusMeta }}</p>
             </div>
             <AppButton
                 v-if="abandonable && !preview"

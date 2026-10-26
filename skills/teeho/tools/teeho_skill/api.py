@@ -13,6 +13,7 @@ from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 from . import constants
 from .config import normalize_api_url
 from .errors import TeehoError
+from .inspiration_feedback import InspirationInputFeedback, FEEDBACK_KIND
 from .version import UPGRADE_REQUIRED_CODE, SkillUpgradeRequired, skill_version
 from .http_transport import HttpResponse, HttpTransport, validate_http_url
 
@@ -90,6 +91,15 @@ def _media_record(record: dict) -> None:
 
 
 def _rejection(path: str, status: int, envelope: dict) -> str:
+    if path.startswith("/inspiration/"):
+        if status == 410:
+            return "inspiration_expired"
+        if status == 404:
+            return "inspiration_unavailable" if path == constants.API_INSPIRATION_CAPABILITIES else "not_found"
+        if status == 503:
+            return "inspiration_unavailable"
+        if status in (400, 403, 409):
+            return "inspiration_rejected"
     data = envelope.get("data")
     if status == 503 and isinstance(data, dict) and data.get("reason") == "model_service_unavailable":
         return "model_service_unavailable"
@@ -182,6 +192,8 @@ class TeehoApi:
             self._parsed(response, "rejected")
             if envelope["code"] == UPGRADE_REQUIRED_CODE:
                 raise SkillUpgradeRequired(response.status, self.base_url, envelope.get("data"))
+            if path == constants.API_INSPIRATION_TASKS and response.status == 400 and isinstance(envelope.get("data"), dict) and envelope["data"].get("kind") == FEEDBACK_KIND:
+                raise InspirationInputFeedback(envelope["data"])
             reason = _rejection(path, response.status, envelope)
             state = (
                 reason
@@ -256,6 +268,29 @@ class TeehoApi:
         if "balances" in summary and summary.get("enabled") is not False:
             _object(summary, "balances")
         return data
+
+    def inspiration_capabilities(self, *, expected_user_id: str) -> dict:
+        """服务端提供索引权限、价格与赛道目录。"""
+        data = self._authorized(constants.API_INSPIRATION_CAPABILITIES, expected_user_id=expected_user_id)
+        if data.get("userId") != expected_user_id or data.get("enabled") is not True:
+            raise TeehoError("inspiration_unavailable")
+        return data
+
+    def submit_inspiration(self, value: dict, *, expected_user_id: str) -> dict:
+        """以持久化的原提交身份受理或查回索引。"""
+        return self._authorized(constants.API_INSPIRATION_TASKS, value, expected_user_id)
+
+    def inspiration_task(self, task_id: str, *, expected_user_id: str) -> dict:
+        """任务状态查询不收费。"""
+        return self._authorized(constants.API_INSPIRATION_TASK.format(task_id=_identifier(task_id)), expected_user_id=expected_user_id)
+
+    def inspiration_result(self, task_id: str, *, expected_user_id: str) -> dict:
+        """下载结果后仍需本机保存成功，再调用领取确认。"""
+        return self._authorized(constants.API_INSPIRATION_RESULT.format(task_id=_identifier(task_id)), expected_user_id=expected_user_id)
+
+    def inspiration_receipt(self, task: dict, *, expected_user_id: str) -> dict:
+        """重复确认同一版本只结算一次。"""
+        return self._authorized(constants.API_INSPIRATION_RECEIPT.format(task_id=_identifier(task["id"])), {"resultVersion": task["resultVersion"], "resultHash": task["resultHash"]}, expected_user_id)
 
     def get_task_config(self, *, expected_user_id: Optional[str] = None) -> dict:
         data = self._authorized(constants.API_TASK_CONFIG, expected_user_id=expected_user_id)

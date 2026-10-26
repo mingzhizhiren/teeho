@@ -58,6 +58,11 @@ import {
 } from './useAnalysisSubmissionIntents'
 import { useWorkspaceEventsStore } from '@/stores/workspaceEvents'
 
+const props = withDefaults(defineProps<{ isActive?: boolean; managedLoading?: boolean }>(), {
+    isActive: true,
+    managedLoading: false,
+})
+const emit = defineEmits<{ 'initializing-change': [isInitializing: boolean] }>()
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
@@ -159,6 +164,7 @@ const showWorkspaceLoading = computed(
         loadingLatest.value ||
         (!workspaceInitializationFailed.value && !composerInitializationSettled.value),
 )
+watch(showWorkspaceLoading, (value) => emit('initializing-change', value), { immediate: true })
 const businessDialogOpen = computed(
     () => abandonConfirmOpen.value || historyDeleteConfirmOpen.value,
 )
@@ -177,6 +183,7 @@ let reportedWorkspaceReadyAccountId: string | null = null
 async function reportWorkspaceReady(): Promise<void> {
     const accountId = auth.user?.id ?? null
     if (
+        !props.isActive ||
         !accountId ||
         accountId === reportedWorkspaceReadyAccountId ||
         showWorkspaceLoading.value ||
@@ -315,6 +322,7 @@ const ritualPhase = computed<AnalysisRitualPhase>(() => {
 })
 /** 收尾完成后显示任务的真实分析结果。 */
 async function revealRitualResult() {
+    if (!props.isActive) return
     const revealedTask = task.value
     if (revealedTask?.id === ritualTaskId.value && revealedTask.status === 'succeeded') {
         ritualTaskId.value = null
@@ -329,12 +337,22 @@ async function revealRitualResult() {
             resultVersion: revealedTask.resultVersion,
             origin: 'new',
             targetsReady:
+                props.isActive &&
                 task.value?.id === revealedTask.id &&
                 resultViewContext.value === 'current' &&
                 isOnboardingChapterTargetAvailable(document, 'analysis_result'),
         })
     }
 }
+
+// 后台完成只更新业务状态；重新显示时再交付结果及首次阅读引导。
+watch(
+    () => props.isActive,
+    (isActive) => {
+        if (isActive && ritualPhase.value === 'reveal') void revealRitualResult()
+    },
+    { flush: 'post' },
+)
 
 /** 打开移动端任务编辑区域 */
 async function openComposer() {
@@ -766,6 +784,7 @@ watch(
         businessDialogOpen,
         historyOpen,
         activeView,
+        () => props.isActive,
     ],
     () => void reportWorkspaceReady(),
     { immediate: true, flush: 'post' },
@@ -816,10 +835,8 @@ onBeforeUnmount(() => {
     <section
         class="ui-workspace-layout analysis-workspace-shell mx-auto grid w-full max-w-screen-2xl gap-4 px-5 py-4 sm:p-6 lg:min-h-[calc(100dvh-4rem)] lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-5"
     >
-        <AnalysisWorkspaceLoading v-if="showWorkspaceLoading" />
-
         <AnalysisWorkspaceSidebar
-            v-else
+            v-if="!showWorkspaceLoading"
             :tasks="filteredTasks"
             :display-names="localHistoryNames"
             :selected-task-id="activeView === 'result' ? (task?.id ?? null) : null"
@@ -829,7 +846,13 @@ onBeforeUnmount(() => {
             @compose="openComposer"
             @select="selectTask"
             @update:query="historyQuery = $event"
-        />
+        >
+            <template v-if="$slots.navigation" #navigation>
+                <slot name="navigation" :compose="openComposer" :is-composing="activeView === 'custom'" />
+            </template>
+        </AnalysisWorkspaceSidebar>
+
+        <AnalysisWorkspaceLoading v-if="showWorkspaceLoading && !managedLoading" />
 
         <AnalysisTaskComposer
             v-if="!loadingLatest"

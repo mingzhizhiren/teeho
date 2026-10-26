@@ -77,6 +77,7 @@ export default {
             perspective: '换个角度，读懂你的笔记',
             nextPost: '下一篇，带着洞察出发。',
             workspace: '笔记写好了？一起看看',
+            inspiration: '翻翻好笔记，找找新灵感',
             report: '看清细节，找到改进方向',
             skill: '一句话安装题火Skill',
             signature: '题火',

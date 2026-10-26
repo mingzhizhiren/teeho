@@ -47,7 +47,7 @@ export type OnboardingReplayResult =
 /** 业务 feature 只依赖真实事件、blocker lease 与受控重播三类接口。 */
 export interface OnboardingCoordinator {
     subscribeAvailability(listener: (available: boolean) => void): () => void
-    tryAcquireIdleBlocker(kind: OnboardingBlockerKind): OnboardingBlockerLease | null
+    tryAcquireIdleBlocker(kind: OnboardingBlockerKind, options?: { allowAnonymous?: boolean }): OnboardingBlockerLease | null
     notify(event: OnboardingEvent): OnboardingNotificationResult
     acquireBlocker(kind: OnboardingBlockerKind): OnboardingBlockerLease
     replay(chapterId: OnboardingChapterId): Promise<OnboardingReplayResult>

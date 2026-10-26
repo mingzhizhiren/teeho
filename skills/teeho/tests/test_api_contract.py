@@ -331,6 +331,15 @@ class ApiContractTests(unittest.TestCase):
             "API_RELEASE_NOTES", self.api.get_release_notes, "/release-notes/en",
             "GET", None, {"releases": []},
         ))
+        inspiration = {"submissionId": UID, "topic": "Synthetic idea", "mainTrack": 1, "noteType": "normal"}
+        receipt = {"id": UID, "resultVersion": 1, "resultHash": "a" * 64}
+        cases.extend([
+            ("API_INSPIRATION_CAPABILITIES", lambda: self.api.inspiration_capabilities(expected_user_id=UID), "/inspiration/capabilities", "GET", None, {"userId": UID, "enabled": True}),
+            ("API_INSPIRATION_TASKS", lambda: self.api.submit_inspiration(inspiration, expected_user_id=UID), "/inspiration/tasks", "POST", inspiration, task),
+            ("API_INSPIRATION_TASK", lambda: self.api.inspiration_task(UID, expected_user_id=UID), f"/inspiration/tasks/{UID}", "GET", None, task),
+            ("API_INSPIRATION_RESULT", lambda: self.api.inspiration_result(UID, expected_user_id=UID), f"/inspiration/tasks/{UID}/result", "GET", None, task),
+            ("API_INSPIRATION_RECEIPT", lambda: self.api.inspiration_receipt(receipt, expected_user_id=UID), f"/inspiration/tasks/{UID}/receipt", "POST", {"resultVersion": 1, "resultHash": "a" * 64}, task),
+        ])
         covered = set()
         for name, call, path, method, expected_body, data in cases:
             with self.subTest(name=name):
@@ -338,7 +347,7 @@ class ApiContractTests(unittest.TestCase):
                 self.assertEqual(call(), data)
                 actual, route, headers, body = Handler.requests[-1]
                 self.assertEqual((actual, route), (method, "/api" + path))
-                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.6.1")
+                self.assertEqual(headers.get("X-Teeho-Skill-Version"), "2.7.0")
                 (
                     self.assertEqual(json.loads(body), expected_body)
                     if expected_body is not None
@@ -358,7 +367,7 @@ class ApiContractTests(unittest.TestCase):
                 covered.add(name)
         self.assertEqual(covered, {n for n in vars(constants) if n.startswith("API_")})
         self.assertIn("STORAGE_SIGNED_UPLOAD_TEMPLATE", vars(constants))
-        self.assertEqual(self.auth_calls, [UID] * 12)
+        self.assertEqual(self.auth_calls, [UID] * 17)
         for request in Handler.requests[:3]:
             self.assertNotIn("Authorization", request[2])
 
@@ -379,6 +388,11 @@ class ApiContractTests(unittest.TestCase):
             ("/analysis/tasks", lambda: self.api.submit_task(SUBMISSION)),
             (f"/analysis/tasks/admissions/{UID}", lambda: self.api.get_admission(UID)),
             (f"/analysis/tasks/{UID}", lambda: self.api.get_task(UID)),
+            ("/inspiration/capabilities", lambda: self.api.inspiration_capabilities(expected_user_id=UID)),
+            ("/inspiration/tasks", lambda: self.api.submit_inspiration({}, expected_user_id=UID)),
+            (f"/inspiration/tasks/{UID}", lambda: self.api.inspiration_task(UID, expected_user_id=UID)),
+            (f"/inspiration/tasks/{UID}/result", lambda: self.api.inspiration_result(UID, expected_user_id=UID)),
+            (f"/inspiration/tasks/{UID}/receipt", lambda: self.api.inspiration_receipt({"id": UID, "resultVersion": 1, "resultHash": "a" * 64}, expected_user_id=UID)),
         ]
         for path, call in calls:
             with self.subTest(path=path):

@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import type { AnalysisResult } from './analysis.contract'
 import { computed } from 'vue'
 import { readPrimaryScore } from './analysis.primary-score'
+import AnalysisScoreRange from './AnalysisScoreRange.vue'
 const props = defineProps<{ result: AnalysisResult }>()
 const primaryScore = computed(() => readPrimaryScore(props.result))
 const MINIMUM_REFERENCE_SAMPLES = 20
@@ -99,5 +100,10 @@ function referenceLabel(name: 'Median' | 'Range' | 'Max' | 'Min'): string {
                 </div>
             </dl>
         </details>
+        <AnalysisScoreRange
+            v-if="primaryScore.source === 'insight'"
+            :score="primaryScore.value"
+            :reference="reference"
+        />
     </section>
 </template>

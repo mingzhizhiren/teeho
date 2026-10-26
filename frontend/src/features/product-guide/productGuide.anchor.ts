@@ -21,9 +21,13 @@ function syncAnchor(element: HTMLElement, anchorId: GuideAnchorValue): void {
 
 /** 只按固定属性和值查找语义锚点，不接受调用方 CSS 选择器。 */
 export function findGuideAnchor(root: ParentNode, anchorId: string): Element | null {
-    return [...root.querySelectorAll(`[${anchorAttribute}]`)].find(
-        (element) => element.getAttribute(anchorAttribute) === anchorId,
-    ) ?? null
+    return (
+        [...root.querySelectorAll(`[${anchorAttribute}]`)].find(
+            (element) =>
+                element.getAttribute(anchorAttribute) === anchorId &&
+                !element.closest('[inert], [hidden]'),
+        ) ?? null
+    )
 }
 
 /** 页面声明稳定语义锚点的唯一 Vue 指令。 */

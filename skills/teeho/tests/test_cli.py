@@ -460,7 +460,7 @@ class CliTests(unittest.TestCase):
         code, lines, logs = self.run_cli("help")
         self.assertEqual(code, 0)
         self.assertIn("All Teeho features", lines[0]["displayText"])
-        self.assertEqual(lines[0]["toolsData"]["topics"], ["account", "diagnose", "task", "status", "history", "help"])
+        self.assertEqual(lines[0]["toolsData"]["topics"], ["account", "diagnose", "task", "status", "history", "help", "inspiration"])
         self.assertFalse(any(log["event"] in ("identity_checked", "input_read") for log in logs))
         code, lines, _ = self.run_cli("installation")
         self.assertEqual(code, 0)
@@ -537,7 +537,7 @@ class CliTests(unittest.TestCase):
         identity = self.data_root / "identity.json"
         identity.write_text("broken identity", encoding="utf-8")
         input_file = self.home / "help-input.json"
-        for topic in ("account", "diagnose", "task", "status", "history", "help"):
+        for topic in ("account", "diagnose", "task", "status", "history", "help", "inspiration"):
             with self.subTest(topic=topic):
                 input_file.write_text(json.dumps({"topic": topic}), encoding="utf-8")
                 code, lines, logs = self.run_cli("help", input_file=input_file)

@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n'
 
 defineProps<{
-    message: 'perspective' | 'nextPost' | 'workspace' | 'report' | 'skill'
+    message: 'perspective' | 'nextPost' | 'workspace' | 'report' | 'skill' | 'inspiration'
     signature?: boolean
 }>()
 const { t, locale } = useI18n()
@@ -10,7 +10,7 @@ const { t, locale } = useI18n()
 
 <template>
     <p class="art-note-copy" :lang="locale" data-testid="art-note">
-        <span>{{ t(`common.art.${message}`) }}</span>
+        <span><slot>{{ t(`common.art.${message}`) }}</slot></span>
         <span v-if="signature" class="art-signature">— {{ t('common.art.signature') }}</span>
     </p>
 </template>

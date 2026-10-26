@@ -389,7 +389,7 @@ function dismissResultActionFeedback() {
                 />
             </template>
         </AnalysisContentAnalysis>
-        <AnalysisComparisonReport :result="result" />
+        <AnalysisComparisonReport :key="`${task.id}:${task.resultVersion}`" :result="result" @references-expanded="resultExtension.onComparisonsExpanded?.()" />
         <p
             v-if="result.reportAccess?.footer"
             class="text-sm text-muted"

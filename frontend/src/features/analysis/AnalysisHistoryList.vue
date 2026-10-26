@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 
 import InlineFeedback from '@/components/feedback/InlineFeedback.vue'
+import WorkspaceHistoryCard from '@/components/WorkspaceHistoryCard.vue'
 import { formatDateTime } from '@/utils/format'
 import type { AnalysisTask } from './analysis.contract'
 import { analysisTaskStatusTranslationKey } from './analysis.task-presentation'
@@ -91,33 +92,17 @@ function formatDate(value: string) {
             <p v-if="loading" class="px-2 py-6 text-xs leading-5 text-muted">
                 {{ t('workspace.loadingLatest') }}
             </p>
-            <button
+            <WorkspaceHistoryCard
                 v-for="historyTask in tasks"
                 v-else
                 :key="historyTask.id"
-                class="mb-2 w-full rounded-2xl border p-3 text-left transition"
-                :class="
-                    selectedTaskId === historyTask.id
-                        ? 'border-accent/30 bg-accent/10'
-                        : 'border-line bg-surface-muted hover:border-brand/30'
-                "
-                type="button"
-                @click="emit('select', historyTask)"
-            >
-                <span class="flex items-start justify-between gap-2">
-                    <span class="line-clamp-2 text-sm font-semibold leading-5 text-ink">
-                        {{ taskTitle(historyTask) }}
-                    </span>
-                    <span
-                        class="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-                        :class="statusDotClass(historyTask.status)"
-                    ></span>
-                </span>
-                <span class="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted">
-                    <span>{{ formatDate(historyTask.createdAt) }}</span>
-                    <span>{{ taskStatusLabel(historyTask) }}</span>
-                </span>
-            </button>
+                :selected="selectedTaskId === historyTask.id"
+                :title="taskTitle(historyTask)"
+                :date="formatDate(historyTask.createdAt)"
+                :status="taskStatusLabel(historyTask)"
+                :dot-class="statusDotClass(historyTask.status)"
+                @select="emit('select', historyTask)"
+            />
             <div
                 v-if="!loading && tasks.length === 0"
                 class="rounded-2xl border border-dashed border-line px-3 py-8 text-center text-xs leading-5 text-muted"

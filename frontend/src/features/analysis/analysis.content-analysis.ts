@@ -218,8 +218,7 @@ export function contentAnalysisCopyLines(
         ? [
               `${labels.title} · ${labels.consistency}: ${labels.stars(savedConsistency.stars)}`,
               labels.consistency,
-              ...(analysis.status === 'fallback' ? [labels.fallback] : []),
-              savedConsistency.summary,
+              analysis.status === 'fallback' ? labels.fallback : savedConsistency.summary,
               ...savedConsistency.issues.map((item) => formatContentFinding(item, labels)),
           ]
         : [labels.title]

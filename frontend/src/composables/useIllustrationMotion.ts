@@ -30,6 +30,7 @@ interface IllustrationMotion {
 export function useIllustrationMotion(
     element: Ref<HTMLElement | null>,
     isLively: () => boolean,
+    options: { animateOnTouch?: boolean } = {},
 ): IllustrationMotion {
     const phase = ref<IllustrationPhase>('waiting')
     const isReady = ref(false)
@@ -44,7 +45,7 @@ export function useIllustrationMotion(
             canPlay.value &&
             phase.value === 'idle' &&
             isLively() &&
-            hasFinePointer.value &&
+            (hasFinePointer.value || options.animateOnTouch === true) &&
             !isReduced.value,
     )
     let entrance: Timeline | undefined
@@ -76,7 +77,7 @@ export function useIllustrationMotion(
     }
 
     function onPointerMove(event: PointerEvent): void {
-        if (!isMoving.value || event.pointerType === 'touch') return
+        if (!isMoving.value || !hasFinePointer.value || event.pointerType === 'touch') return
         if (frame !== undefined) cancelAnimationFrame(frame)
         frame = requestAnimationFrame(() => {
             frame = undefined

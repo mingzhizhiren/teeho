@@ -65,15 +65,12 @@ const starPositions = Array.from({ length: MAXIMUM_STARS }, (_, index) => index 
                 <h3 class="text-sm font-semibold text-ink">
                     {{ t('workspace.checkup.contentAnalysis.consistency') }}
                 </h3>
-                <p
-                    v-if="analysis.status === 'fallback'"
-                    class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100"
-                    data-testid="analysis-content-fallback"
-                >
-                    {{ t('workspace.checkup.contentAnalysis.fallback') }}
-                </p>
                 <p class="mt-3 whitespace-pre-line break-words text-sm leading-6 text-ink">
-                    {{ consistency.summary }}
+                    {{
+                        analysis.status === 'fallback'
+                            ? t('workspace.checkup.contentAnalysis.fallback')
+                            : consistency.summary
+                    }}
                 </p>
                 <ul v-if="consistency.issues.length" class="mt-4 space-y-3">
                     <li

@@ -7,6 +7,8 @@ from collections.abc import Callable
 from typing import Any, Optional, Union
 
 from .help_content import resolve_help_topic
+from .inspiration_presentation import inspiration_view, TEXTS as INSPIRATION_TEXTS
+from .inspiration_feedback import read_input_feedback
 from .history import local_media
 from .structure_metrics import project_structure_metrics
 from .errors import TeehoError
@@ -455,6 +457,23 @@ def create_presentation(
     try:
         if not isinstance(result, dict):
             return _invalid()
+        if "inspirationInputFeedback" in result:
+            feedback = read_input_feedback(result["inspirationInputFeedback"])
+            texts = {
+                f"inspirationFeedbackLine{index}": line
+                for index, line in enumerate(feedback["displayText"].splitlines())
+            }
+            return {
+                **_base(feedback["state"], "inspiration_input_feedback", "wait_for_user" if feedback["state"] == "input_required" else "correct_input"),
+                "texts": texts,
+                "data": {"feedback": feedback, "lines": list(texts)},
+            }
+        if result.get("inspirationUnknown") is True:
+            return {**_notice("unknown_result", "inspirationUnknown", "inspire-resume"), "data": {"message": "inspirationUnknown", "taskId": _identifier(result.get("taskId"))}}
+        if result.get("inspiration") is True:
+            return inspiration_view(result)
+        if command == "inspire-config":
+            return {**_notice("ready", "inspirationConfig"), "texts": dict(INSPIRATION_TEXTS)}
         if result.get("unsubmittedStage") == "failed":
             code = result.get("mediaFailureCode")
             message = ERRORS.get(code, (None, "videoProcessingUnknown", None))[1] if isinstance(code, str) else "videoProcessingUnknown"
@@ -513,6 +532,12 @@ def create_presentation(
 
 
 ERRORS = {
+    "inspiration_input_unsupported": ("unavailable", "inspirationInputUnsupported", "wait_for_user"),
+    "inspiration_no_pending": ("empty", "inspirationNoPending", None),
+    "inspiration_local_error": ("local_error", "inspirationLocalError", "inspire-resume"),
+    "inspiration_expired": ("expired", "inspirationExpired", "wait_for_user"),
+    "inspiration_unavailable": ("failed", "inspirationUnavailable", "wait_for_user"),
+    "inspiration_rejected": ("invalid_input", "inspirationRejected", "correct_input"),
     "storage_upload_too_large": ("invalid_input", "storageUploadTooLarge", "wait_for_user"),
     "storage_upload_failed": ("failed", "storageUploadFailed", "retry"),
     "video_upload_failed": ("failed", "videoUploadFailed", "retry"),

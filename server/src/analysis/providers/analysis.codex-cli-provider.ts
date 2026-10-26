@@ -1,4 +1,10 @@
 import { existsSync } from 'node:fs'
+import {
+    INSPIRATION_AGENT,
+    createInspirationPrompt,
+    inspirationAgentJsonSchema,
+    type InspirationAgentInput,
+} from '../../inspiration/inspiration.agent'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -569,6 +575,23 @@ export class CodexCliAgentProvider implements AgentProvider, WebResearchProvider
                     : {}),
             },
             input.videoEvidence,
+        )
+    }
+
+    /** 主题索引使用相同无工具结构化传输，不构造虚假的诊断任务。 */
+    generateInspiration(input: InspirationAgentInput): Promise<unknown> {
+        return this.execute(
+            createInspirationPrompt(input),
+            inspirationAgentJsonSchema,
+            [],
+            input.signal,
+            this.analysisExecution('standard'),
+            {
+                stage: 'generate_result',
+                ...codexPromptCacheContracts.generate_result,
+                promptVersion: INSPIRATION_AGENT.version,
+                schemaVersion: 'inspiration-output.schema.v1',
+            },
         )
     }
 

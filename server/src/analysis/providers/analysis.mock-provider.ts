@@ -1,4 +1,5 @@
 import { inferNoteIntent } from '../tracks/analysis.intent'
+import type { InspirationAgentInput } from '../../inspiration/inspiration.agent'
 import { createAgentOutputRepairPatch } from './analysis.agent-output-repair'
 import { agentPromptCatalog } from './analysis.prompt.constants'
 import {
@@ -45,6 +46,21 @@ function extractNoteFields(text: string): {
 
 /** 确定性 Mock Provider；不调用外部模型或自主工具 */
 export class MockAgentProvider implements AgentProvider {
+    /** 仅供合成开发使用，Mock 不声明真实检索质量。 */
+    async generateInspiration(input: InspirationAgentInput): Promise<unknown> {
+        input.signal.throwIfAborted()
+        const note = input.notes[0]
+        if (!note) throw new Error('reference_required')
+        return {
+            themes: [{ text: `参考笔记围绕「${note.title}」展开。`, references: [note.noteId] }],
+            angles: [
+                {
+                    text: `围绕「${input.topic}」考虑参考笔记中的具体使用场景。`,
+                    references: [note.noteId],
+                },
+            ],
+        }
+    }
     async understandMaterial(
         input: import('../materials/analysis.material').MaterialUnderstandingInput,
     ): Promise<unknown> {

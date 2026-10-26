@@ -14,6 +14,7 @@ from .errors import TeehoError
 from .storage import (
     ensure_private_directory,
     is_link,
+    native_path,
     private_permissions,
     read_json,
     write_json,
@@ -41,6 +42,12 @@ def log_lock_event(log: Optional[Callable], event: str, fields: dict) -> None:
 
 def lock_debug_fields(path: Path) -> dict:
     """仅用于观测，读取失败不改变锁判定；不输出账号路径和 owner token。"""
+    logical_path = str(path.absolute())
+    if os.name == "nt":
+        if logical_path.startswith("\\\\?\\UNC\\"):
+            logical_path = "\\\\" + logical_path[8:]
+        elif logical_path.startswith("\\\\?\\"):
+            logical_path = logical_path[4:]
     fields = {
         "lockKind": {
             "identity.lock": "identity",
@@ -48,7 +55,7 @@ def lock_debug_fields(path: Path) -> dict:
             "observations.lock": "observations",
         }.get(path.name, "other"),
         "lockKeyHash": hashlib.sha256(
-            os.path.normcase(str(path.absolute())).encode()
+            os.path.normcase(logical_path).encode()
         ).hexdigest(),
     }
     try:
@@ -80,7 +87,7 @@ def _lock_guard(acquire: Callable[[], None], wait: bool) -> None:
 @contextmanager
 def _acquisition_guard(path: Path, wait: bool = False) -> Iterator[None]:
     """操作系统锁序列化本版回收过程，进程退出自动释放。"""
-    guard = path.with_name("." + path.name + ".guard")
+    guard = native_path(path).with_name("." + path.name + ".guard")
     with guard.open("a+b") as stream:
         private_permissions(guard)
         if os.name == "nt":
@@ -168,7 +175,7 @@ def _acquire(path: Path) -> None:
 @contextmanager
 def lock_directory(path: Path, *, log: Optional[Callable] = None) -> Iterator[None]:
     """持锁执行；只释放本次令牌所属的目录。"""
-    path = Path(path)
+    path = native_path(path)
     started = time.monotonic()
     ensure_private_directory(path.parent)
     owner = {"pid": os.getpid(), "token": str(uuid.uuid4())}

@@ -1,13 +1,12 @@
 import { z } from 'zod'
 import { ModelServiceUnavailableError } from '../../utils/model-service-error'
-import type { InsightPredictor } from '../../runtime/insight'
+import { formatInsightPublicationDate, type InsightPredictor } from '../../runtime/insight'
 import type { AnalysisEvidenceSet } from '../evidence/analysis.evidence'
 import { checkupOutputConstraints } from './analysis.checkup.constants'
 import { roundCheckupScore, type CheckupReference } from './analysis.checkup.contract'
 import { MODEL_COHORT_LIMITS } from './analysis.model-cohort'
 
 const REFERENCE_SCORE_TIMEOUT_MS = 3_000
-const REFERENCE_MODEL_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' })
 const predictionSchema = z
     .object({
         status: z.literal('available'),
@@ -45,7 +44,7 @@ function predictReference(
             imageCount: note.noteType === 'normal' ? (note.imageCount ?? null) : null,
             videoDurationSeconds:
                 note.noteType === 'video' ? (note.videoDurationSeconds ?? null) : null,
-            publishedAt: REFERENCE_MODEL_DATE.format(new Date(note.publishedAt)),
+            publishedAt: formatInsightPublicationDate(note.publishedAt),
         },
         input.evidence.selectedAt,
         trackCode,

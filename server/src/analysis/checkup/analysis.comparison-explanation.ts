@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { contentAnalysisMessages } from '../../locales/content-analysis'
 import type { AgentResultGenerationInput } from '../providers/analysis.provider'
 import { AgentContractError } from '../providers/analysis.provider'
 import { outputLanguageForTask } from '../providers/analysis.provider-dto'
@@ -131,10 +132,7 @@ export function fallbackContentExplanation(input: AgentResultGenerationInput): O
         status: 'fallback',
         consistency: {
             stars: LIMITS.fallbackStars,
-            summary:
-                outputLanguageForTask(input.task) === 'zh-CN'
-                    ? '本次内容分析未完成，默认显示 3 星；风险与不足尚未核验。'
-                    : 'Content analysis could not be completed. The default is 3 stars; risks and weaknesses have not been verified.',
+            summary: contentAnalysisMessages[outputLanguageForTask(input.task)].fallbackSummary,
             issues: [],
         },
         termRisks: [],

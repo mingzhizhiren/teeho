@@ -1,4 +1,4 @@
-"""面向用户的六项功能与用法；编号和结构由程序生成。"""
+"""面向用户的功能与用法；编号和结构由程序生成。"""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -90,6 +90,19 @@ HELP_TOPICS = (
             "Asking how to use a feature only shows help. Ask to perform the action when you are ready.",
         ),
         ("What can Teeho do?", "How do I sign in or out?", "How do I diagnose a note?"),
+    ),
+    HelpTopic(
+        "inspiration",
+        "7️⃣",
+        "helpExecute",
+        "Find inspiration for a creative idea",
+        (
+            "Provide a creative topic. Your Agent maps the primary and optional secondary categories to integer IDs from the service catalog. User-specified categories take priority. An unspecified content type is left out for the service to request confirmation; no media upload is required.",
+            "The service checks missing or invalid fields and returns fixed messages. Missing input returns confirmation details and suggested values without creating a task or reserving points. After your confirmation, the Agent submits the complete input. Complete valid input starts directly; the service checks access and credits before accepting it.",
+            "Complete results are saved on this machine before receipt is confirmed and credits are charged. Incomplete or unreceived expired results are not charged. Resume the original request within two hours after it is ready.",
+            "Read or delete inspiration history locally. It is separate from diagnosis history and is not synchronized with the website.",
+        ),
+        ("Find inspiration for weekday lunch boxes.", "Show my saved inspiration results."),
     ),
 )
 TOPICS_BY_ID = MappingProxyType({topic.id: topic for topic in HELP_TOPICS})

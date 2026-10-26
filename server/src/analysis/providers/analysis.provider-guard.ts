@@ -1,4 +1,5 @@
 import { TIME_MS } from '../../config/constants'
+import type { InspirationAgentInput } from '../../inspiration/inspiration.agent'
 import { analysisConversationConstraints } from '../analysis.constants'
 import type { MaterialUnderstandingInput } from '../materials/analysis.material'
 import type {
@@ -97,6 +98,7 @@ function toProviderError(error: unknown) {
 }
 
 type GuardedProviderInput =
+    | InspirationAgentInput
     | AgentConversationTurnInput
     | WebResearchCollectionInput
     | AgentResultGenerationInput
@@ -187,6 +189,12 @@ class ProviderCallGuard {
  * 适配器本身只负责传输，不得拥有额外的运行时特权。
  */
 export class GuardedAgentProvider implements AgentProvider {
+    /** 索引输出共用并发、超时和取消保护。 */
+    generateInspiration(input: InspirationAgentInput): Promise<unknown> {
+        if (!this.provider.generateInspiration)
+            return Promise.reject(new AgentProviderError('capability', { retryable: false }))
+        return this.guard.run(input, (guarded) => this.provider.generateInspiration!(guarded))
+    }
     private readonly guard: ProviderCallGuard
 
     constructor(provider: AgentProvider, callTimeoutMs: number, maxConcurrency: number)

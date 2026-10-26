@@ -99,7 +99,7 @@ export default {
         },
         checkup: {
             contentAnalysis: {
-                title: 'Content analysis',
+                title: 'AI analysis',
                 consistency: 'Content consistency',
                 stars: '{count} / 5 stars',
                 consistencyRating: 'Content consistency: {count} / 5 stars',
@@ -128,7 +128,7 @@ export default {
                     contentLocation: 'Existing image / video materials',
                 },
                 fallback:
-                    'Content analysis did not complete. The default is 3 stars; consistency has not been assessed.',
+                    'The Agent analysis indicates that this note’s title and content are reasonably aligned.',
                 scoreBlocked: 'Content consistency is 0 stars. The final score has been set to 0.',
                 references: 'Reference notes:',
                 locations: {
@@ -265,21 +265,33 @@ export default {
                 critical: 'Very poor',
             },
             referenceMean: 'Mean score of comparable notes',
-            referenceMedian: 'Insight model median score for comparable notes',
+            referenceMedian: 'Median reference',
+            scoreRange: {
+                title: 'Position in the comparable score range',
+                current: 'Your score',
+                median: 'Median',
+                minimum: 'Minimum',
+                maximum: 'Maximum',
+                caption: 'Comparable minimum = 0%, maximum = 100%. This is not a percentile rank.',
+                below: 'Your score is below the comparable minimum. The pointer stays at 0%.',
+                above: 'Your score is above the comparable maximum. The pointer stays at 100%.',
+                accessible:
+                    'Your score {score}, range position {percent}%; minimum {min}, median {median}, maximum {max}.',
+            },
             selectionReasonLabel: 'Selection reason',
             selectionReasons: {
                 high_exposure: 'High exposure',
                 rapid_growth: 'Rapid growth',
             },
-            referenceMax: 'Insight model highest score for comparable notes',
-            referenceMin: 'Insight model lowest score for comparable notes',
+            referenceMax: 'Maximum reference',
+            referenceMin: 'Minimum reference',
             referenceUnavailable: 'Unavailable',
             referenceExtremes: 'View score extremes',
             referenceWeightedRange: 'Reference range',
             referenceWeightedMedian: 'Median reference',
             referenceWeightedMax: 'Maximum reference',
             referenceWeightedMin: 'Minimum reference',
-            referenceRange: 'Score range of the middle 80% of comparable notes',
+            referenceRange: 'Reference range',
             referenceComparison: {
                 above: 'Above the comparable median',
                 near: 'Near the comparable median',
@@ -386,7 +398,7 @@ export default {
                 },
             },
         },
-        analysisEngineName: 'Teeho Insight Engine · V2.5.2',
+        analysisEngineName: 'Teeho Insight Engine · V2.5.3',
         loadingPage: {
             title: 'Igniting the Teeho Insight Engine',
             description: 'Restoring your workspace, local history, and task status. Please wait.',
@@ -414,7 +426,7 @@ export default {
         },
         navigationTitle: 'Tools',
         featureNavigationLabel: 'Workspace tools',
-        analysisFeature: 'Xiaohongshu content analysis',
+        analysisFeature: 'Content analysis',
         historyTitle: 'History',
         history: {
             button: 'Tasks & history',

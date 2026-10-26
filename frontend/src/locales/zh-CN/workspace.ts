@@ -85,7 +85,7 @@ export default {
         },
         checkup: {
             contentAnalysis: {
-                title: '内容分析',
+                title: 'AI分析',
                 consistency: '内容一致性',
                 stars: '{count} / 5 星',
                 consistencyRating: '内容一致性：{count} / 5 星',
@@ -108,7 +108,7 @@ export default {
                     topicLocation: '第 {number} 个话题',
                     contentLocation: '已有图片／视频素材',
                 },
-                fallback: '本次内容分析未完成，暂用 3 星；不代表已通过一致性检查。',
+                fallback: '经Agent分析，当前笔记内容标题和内容比较匹配',
                 scoreBlocked: '内容一致性为 0 星，本次最终评分已设为 0 分。',
                 references: '对照笔记：',
                 locations: {
@@ -235,9 +235,21 @@ export default {
                 critical: '很差',
             },
             referenceMean: '同类笔记平均评分',
-            referenceMedian: '洞察模型同类笔记中位数评分',
-            referenceMax: '洞察模型同类笔记最高评分',
-            referenceMin: '洞察模型同类笔记最低评分',
+            referenceMedian: '中位参照',
+            scoreRange: {
+                title: '同类评分区间位置',
+                current: '本次评分',
+                median: '中位分',
+                minimum: '最低分',
+                maximum: '最高分',
+                caption: '以同类最低分为 0%、最高分为 100%，不代表排名。',
+                below: '本次评分低于参考最低分，指针停在 0%。',
+                above: '本次评分高于参考最高分，指针停在 100%。',
+                accessible:
+                    '本次评分 {score}，区间位置 {percent}%；最低分 {min}，中位分 {median}，最高分 {max}。',
+            },
+            referenceMax: '最高分参照',
+            referenceMin: '最低分参照',
             referenceUnavailable: '暂无数据',
             referenceExtremes: '查看评分极值',
             referenceWeightedRange: '参照范围',
@@ -249,7 +261,7 @@ export default {
                 high_exposure: '曝光量大',
                 rapid_growth: '快速增长',
             },
-            referenceRange: '80%同类笔记评分范围',
+            referenceRange: '参照范围',
             referenceComparison: {
                 above: '高于同类中位数',
                 near: '接近同类中位数',
@@ -350,7 +362,7 @@ export default {
                 },
             },
         },
-        analysisEngineName: '题火洞察引擎 · V2.5.2',
+        analysisEngineName: '题火洞察引擎 · V2.5.3',
         loadingPage: {
             title: '正在点燃题火洞察引擎',
             description: '正在恢复你的工作区、历史结果和任务状态，请稍候。',
@@ -373,7 +385,7 @@ export default {
         },
         navigationTitle: '功能',
         featureNavigationLabel: '工作台功能',
-        analysisFeature: '小红书内容分析',
+        analysisFeature: '内容分析',
         historyTitle: '历史结果',
         history: {
             button: '任务与历史',
@@ -660,7 +672,7 @@ export default {
             captions: {
                 A: '把零散的灵感，聚成清晰的线索。',
                 B: '换一个角度，看见笔记里的细节。',
-                C: '每一页认真，都值得被认真看见。',
+                C: '每一页记录，都值得被认真看见。',
             },
             eyebrow: '题火 · 笔记体检中',
             phases: {

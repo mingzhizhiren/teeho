@@ -7,6 +7,7 @@ export interface InsightNote {
     contentType: 'image' | 'video'
     imageCount?: number | null
     videoDurationSeconds?: number | null
+    /** Asia/Shanghai 自然日，格式 YYYY-MM-DD。 */
     publishedAt: string
 }
 
@@ -49,6 +50,12 @@ export type InsightPredictor = (
 ) => Promise<InsightRuntimePrediction>
 
 let predictor: InsightPredictor | undefined
+const publicationDateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' })
+
+/** 参考证据的时间戳统一转换为评分契约要求的自然日。 */
+export function formatInsightPublicationDate(instant: string): string {
+    return publicationDateFormatter.format(new Date(instant))
+}
 
 /** 装配可选的主分实现；默认只使用插件六维平均分。 */
 export function configureInsightPredictor(value: InsightPredictor): void {

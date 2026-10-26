@@ -16,8 +16,21 @@ const props = withDefaults(
         locked: boolean
         disabled?: boolean
         embedded?: boolean
+        label?: string
+        selectLabel?: string
+        required?: boolean
+        invalid?: boolean
+        describedBy?: string
     }>(),
-    { disabled: false, embedded: false },
+    {
+        disabled: false,
+        embedded: false,
+        label: undefined,
+        selectLabel: undefined,
+        required: false,
+        invalid: false,
+        describedBy: undefined,
+    },
 )
 const emit = defineEmits<{
     'update:modelValue': [trackId: string | null]
@@ -44,6 +57,12 @@ const selectedTrack = computed(() => props.tracks.find((track) => track.id === p
 const currentLabel = computed(() =>
     selectedTrack.value ? t(selectedTrack.value.labelKey) : t('workspace.trackSelector.choose'),
 )
+
+/** 校验失败时聚焦选择器，同时保留提交区错误提示的可见位置。 */
+function focus(): void {
+    trigger.value?.focus({ preventScroll: true })
+}
+defineExpose({ focus })
 
 function optionElements(): HTMLButtonElement[] {
     return Array.from(root.value?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])
@@ -223,17 +242,23 @@ onBeforeUnmount(() => {
         data-testid="analysis-track-selector"
     >
         <legend class="text-xs font-semibold text-ink">
-            {{ t('workspace.trackSelector.label') }}
+            {{ label ?? t('workspace.trackSelector.label') }}
+            <span v-if="required" class="ml-1 text-red-600 dark:text-red-300" aria-hidden="true"
+            >*</span
+            >
         </legend>
         <div class="relative mt-2 min-w-0">
             <button
-                id="analysis-track-select"
+                :id="selectLabel ? `${listboxId}-trigger` : 'analysis-track-select'"
                 ref="trigger"
                 class="flex min-h-10 w-full items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-left text-xs font-medium text-ink shadow-sm outline-none transition hover:border-brand/40 hover:bg-surface-muted focus-visible:border-brand focus-visible:ring-4 focus-visible:ring-brand/10 disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 role="combobox"
                 aria-haspopup="listbox"
-                :aria-label="t('workspace.trackSelector.selectLabel')"
+                :aria-label="selectLabel ?? t('workspace.trackSelector.selectLabel')"
+                :aria-required="required || undefined"
+                :aria-invalid="invalid || undefined"
+                :aria-describedby="describedBy"
                 :aria-expanded="isOpen"
                 :aria-controls="listboxId"
                 :data-selected-track-id="modelValue ?? ''"
